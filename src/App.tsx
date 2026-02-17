@@ -66,18 +66,21 @@ interface User {
   [key: string]: any; // อันนี้คือไม้ตาย: บอกว่าจะมีฟิลด์อะไรเพิ่มมาก็ได้ ไม่ว่ากัน
 }
 
-// @ts-ignore
-const getBase64FromUrl = async (url) => {
-  const data = await fetch(url);
-  const blob = await data.blob();
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(blob);
-    reader.onloadend = () => {
-      resolve(reader.result);
-    };
-  });
-};
+// --- ก๊อปไปวางตรงนี้เลยครับ ---
+  const getBase64FromUrl = async (url: any) => {
+    const data = await fetch(url);
+    const blob = await data.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = () => resolve(reader.result);
+    });
+  };
+  // -------------------------
+
+  useEffect(() => {
+    getBase64FromUrl(LOGO_URL).then(setLogoBase64);
+  }, []);
 
 const APPS = {
   HOME: "home",
