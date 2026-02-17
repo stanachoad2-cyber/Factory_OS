@@ -754,7 +754,7 @@ function ManageUsersModal({
             // เอา Bank ไว้บนสุด
             if (a.username === "Bank") return -1;
             if (b.username === "Bank") return 1;
-            return a.username.localeCompare(b.username);
+            return (a.username || "").localeCompare(b.username || "");
           })
       );
     });
