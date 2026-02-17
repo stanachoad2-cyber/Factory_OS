@@ -1608,6 +1608,7 @@ function SettingsSidebar({ activeTab, onTabChange, onBack, currentUser }: any) {
 export default function FactoryOS_SuperApp() {
   const [user, setUser] = useState<any>(null);
   const [currentApp, setCurrentApp] = useState(APPS.HOME);
+  const [logoBase64, setLogoBase64] = useState("");
 
   // Tabs State
   const [maintenanceTab, setMaintenanceTab] = useState(1);
