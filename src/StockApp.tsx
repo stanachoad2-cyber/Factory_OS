@@ -895,7 +895,7 @@ const InventoryView = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col bg-[#0F1115] custom-scrollbar relative z-0">
+    <div className="flex-1 overflow-y-auto flex flex-col bg-[#0F172A] custom-scrollbar relative z-0">
       <div className="p-4 md:p-6 flex flex-col gap-4 md:gap-6 min-h-full">
         <div className="flex-none">
           <div className="inline-flex p-1.5 bg-[#1F1F23] border border-gray-800 rounded-2xl gap-1 shadow-sm">
@@ -4376,7 +4376,7 @@ export function StockAnalyticsSidebar({
         isOpen ? "w-72" : "w-[70px]"
       }`}
     >
-      <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-orange-900/20 to-transparent pointer-events-none"></div>
+      <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-900/20 to-transparent pointer-events-none"></div>
 
       <div
         className={`shrink-0 z-10 relative transition-all ${
@@ -4410,7 +4410,7 @@ export function StockAnalyticsSidebar({
 
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_#f97316]"></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">
                   Analytics
                 </p>
@@ -4418,7 +4418,7 @@ export function StockAnalyticsSidebar({
               <h2 className="text-2xl font-black text-white tracking-tight leading-none">
                 REPORTS
               </h2>
-              <div className="h-1.5 w-16 bg-gradient-to-r from-orange-600 to-slate-600 mt-4 rounded-full"></div>
+              <div className="h-1.5 w-16 bg-gradient-to-r from-slate-600 to-slate-800 mt-4 rounded-full"></div>
             </div>
           </div>
         )}
@@ -5303,7 +5303,7 @@ export function StockModule({
 
   // --- 8. Render Logic: เลือกว่าจะแสดงหน้าไหน ---
   return (
-    <div className="flex flex-col h-full bg-[#0F1115] text-white relative">
+    <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
       <div className="flex-1 overflow-hidden flex flex-col relative">
         {/* หน้า 1: Overview */}
         {currentView === "overview" && <OverviewPage items={items} />}
@@ -5590,7 +5590,7 @@ export default function StockApp({
 
   // --- 4. Render หน้าจอ ---
   return (
-    <div className="flex flex-col h-full bg-[#0F1115] text-white relative">
+    <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
       {/* Mobile Header */}
       <div className="bg-[#1E293B] border-b border-slate-700 px-4 py-3 flex items-center justify-between shrink-0 z-30 shadow-md md:hidden">
         {/* ... Header Content ... */}
@@ -5700,3 +5700,4 @@ export default function StockApp({
     </div>
   );
 }
+
