@@ -5301,6 +5301,42 @@ export function StockModule({
     });
   };
 
+  const handleAddSupplier = async (name: string, isImport: boolean) => {
+    try {
+      await addDoc(collection(db, "suppliers"), { name, isImport });
+      alert("✅ เพิ่ม Supplier เรียบร้อย");
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const handleDeleteSupplier = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "suppliers", id));
+      alert("✅ ลบ Supplier เรียบร้อย");
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const handleAddDepartment = async (name: string) => {
+    try {
+      await addDoc(collection(db, "departments"), { name });
+      alert("✅ เพิ่มแผนกเรียบร้อย");
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "departments", id));
+      alert("✅ ลบแผนกเรียบร้อย");
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
   // --- 8. Render Logic: เลือกว่าจะแสดงหน้าไหน ---
   return (
     <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
@@ -5377,7 +5413,10 @@ export function StockModule({
               suppliers={suppliers}
               departments={departments}
               currentUser={currentUser}
-              // ฟังก์ชันจัดการ Supplier/Dept ใส่เพิ่มตรงนี้ได้
+              onAddSupplier={handleAddSupplier}
+              onDeleteSupplier={handleDeleteSupplier}
+              onAddDepartment={handleAddDepartment}
+              onDeleteDepartment={handleDeleteDepartment}
             />
           ) : (
             <AccessDeniedMessage message="ไม่มีสิทธิ์เข้าถึงการตั้งค่า" />
@@ -5438,23 +5477,6 @@ export function StockModule({
           onClose={() => setConfirmState(null)}
         />
       )}
-    </div>
-  );
-}
-
-// 🟢 เพิ่มตัวนี้ไว้ล่างสุดของไฟล์ด้วยครับ เพื่อใช้แสดงหน้า Error สวยๆ
-function AccessDeniedMessage({ message }: { message: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-slate-400 animate-in fade-in duration-500">
-      <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mb-4 border border-slate-700">
-        <Lock size={40} className="opacity-20 text-red-500" />
-      </div>
-      <h2 className="text-xl font-bold tracking-widest text-slate-200">
-        ACCESS DENIED
-      </h2>
-      <p className="text-xs text-slate-500 mt-2 uppercase tracking-tighter">
-        {message}
-      </p>
     </div>
   );
 }
@@ -5700,4 +5722,5 @@ export default function StockApp({
     </div>
   );
 }
+
 
