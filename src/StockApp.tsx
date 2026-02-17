@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
 import imageCompression from "browser-image-compression";
 import * as XLSX from "xlsx-js-style";
+import { ArrowLeft } from "lucide-react"; // ✅ 1. เพิ่ม import
 import {
   collection,
   doc,
@@ -5340,6 +5341,14 @@ export function StockModule({
   return (
     <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
       <div className="flex-1 overflow-hidden flex flex-col relative">
+        {onExit && (
+          <button 
+            onClick={onExit}
+            className="p-3 bg-[#1F1F23] rounded-xl text-white hover:bg-gray-700 active:scale-95 transition-all border border-gray-800 shadow-sm"
+          >
+            <ArrowLeft size={20} />
+          </button>
+        )}
         {/* หน้า 1: Overview */}
         {currentView === "overview" && <OverviewPage items={items} />}
 
@@ -5701,6 +5710,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
