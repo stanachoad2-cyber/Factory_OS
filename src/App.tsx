@@ -723,7 +723,7 @@ function ManageUsersModal({
   onClose: () => void;
   userPass: string;
 }) {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   // Input สำหรับเพิ่ม User ใหม่
   const [u, setU] = useState("");
   const [p, setP] = useState("");
