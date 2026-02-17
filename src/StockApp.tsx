@@ -5590,26 +5590,6 @@ export default function StockApp({
     });
   };
 
-  // ฟังก์ชันอื่นๆ (Placeholder)
-  const handleAddSupplier = (name: string, isImport: boolean) => {
-    /* Logic */
-  };
-  const handleDeleteSupplier = (id: string) => {
-    /* Logic */
-  };
-  const handleAddDepartment = (name: string) => {
-    /* Logic */
-  };
-  const handleDeleteDepartment = (id: string) => {
-    /* Logic */
-  };
-  const handleWithdraw = async (cartItems: any[], withdrawData: any) => {
-    /* Logic */
-  };
-  const handleReturnItem = async (log: any, qty: number) => {
-    /* Logic */
-  };
-
   // --- 4. Render หน้าจอ ---
   return (
     <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
@@ -5722,5 +5702,6 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
