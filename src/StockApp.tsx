@@ -733,7 +733,7 @@ const InventoryView = ({
   const [usageReason, setUsageReason] = useState("");
 
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
-  const [displayLimit, setDisplayLimit] = useState(24); // ควบคุมจำนวนการแสดงผล
+  const [displayLimit, setDisplayLimit] = useState(24);
 
   // Return States
   const [myHistory, setMyHistory] = useState<any[]>([]);
@@ -895,7 +895,7 @@ const InventoryView = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col bg-[#0F172A] custom-scrollbar relative z-0">
+    <div className="flex-1 overflow-y-auto flex flex-col bg-[#0F1115] custom-scrollbar relative z-0">
       <div className="p-4 md:p-6 flex flex-col gap-4 md:gap-6 min-h-full">
         <div className="flex-none">
           <div className="inline-flex p-1.5 bg-[#1F1F23] border border-gray-800 rounded-2xl gap-1 shadow-sm">
@@ -1005,7 +1005,7 @@ const InventoryView = ({
               </button>
             </div>
 
-            {/* Product Lists (Desktop) */}
+            {/* Product Lists */}
             <div className="hidden md:grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-6">
               {visibleItems.map((item: any) => (
                 <ProductCardCompact
@@ -1020,9 +1020,7 @@ const InventoryView = ({
                 />
               ))}
             </div>
-
-            {/* Product Lists (Mobile) */}
-            <div className="flex md:hidden flex-col gap-2 pb-4">
+            <div className="flex md:hidden flex-col gap-2 pb-20">
               {visibleItems.map((item: any) => (
                 <ProductCardMobile
                   key={item.id}
@@ -1036,23 +1034,10 @@ const InventoryView = ({
                 />
               ))}
             </div>
-
-            {/* ✅ ปุ่มแสดงเพิ่มเติม สำหรับหน้าเบิกอะไหล่ */}
-            {filteredItems.length > displayLimit && (
-              <div className="flex justify-center mt-4 mb-20 pb-10">
-                <button
-                  onClick={() => setDisplayLimit((prev) => prev + 24)}
-                  className="px-8 py-2.5 bg-slate-800 text-slate-300 rounded-full border border-slate-700 hover:bg-blue-600 hover:border-blue-500 hover:text-white text-xs font-bold transition-all shadow-lg active:scale-95"
-                >
-                  แสดงเพิ่มเติม... ({visibleItems.length} / {filteredItems.length})
-                </button>
-              </div>
-            )}
           </>
         ) : (
           /* --- RETURN MODE --- */
           <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-            {/* ... โค้ดส่วนตารางคืนของเหมือนเดิม ... */}
             <div className="flex items-center gap-2">
               <Calendar size={16} className="text-gray-500" />
               <input
@@ -1132,8 +1117,339 @@ const InventoryView = ({
         )}
       </div>
 
-      {/* ... Modals เหมือนเดิม ... */}
-      {/* ... (QtyModal, CartModal, ReturnModal) ... */}
+      {/* --- Modals --- */}
+      {isQtyModalOpen && mode === "withdraw" && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#18181b] border border-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
+            <h3 className="text-white font-bold text-center mb-1">
+              {(selectedItem as any)?.name}
+            </h3>
+            <p className="text-center text-gray-400 text-xs mb-4">
+              {(selectedItem as any)?.sku}
+            </p>
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <button
+                onClick={() => setQtyInput(Math.max(1, qtyInput - 1))}
+                className="w-10 h-10 bg-gray-700 rounded-lg text-white font-bold text-xl"
+              >
+                -
+              </button>
+              <input
+                type="number"
+                value={qtyInput}
+                onChange={(e) => {
+                  let val = parseInt(e.target.value);
+                  if (val > selectedItem.quantity) val = selectedItem.quantity;
+                  setQtyInput(isNaN(val) ? 0 : val);
+                }}
+                onBlur={() => {
+                  if (qtyInput < 1) setQtyInput(1);
+                }}
+                className="w-20 bg-transparent text-center text-2xl text-white font-bold outline-none"
+              />
+              <button
+                onClick={() =>
+                  setQtyInput(
+                    Math.min((selectedItem as any).quantity, qtyInput + 1)
+                  )
+                }
+                className="w-10 h-10 bg-blue-600 rounded-lg text-white font-bold text-xl"
+              >
+                +
+              </button>
+            </div>
+            <div className="bg-[#0F1115] p-3 rounded-xl border border-gray-800 mb-4">
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => setItemMode("maintenance")}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+                    itemMode === "maintenance"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-800 text-gray-400"
+                  }`}
+                >
+                  🔧 งานซ่อม
+                </button>
+                <button
+                  onClick={() => setItemMode("general")}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+                    itemMode === "general"
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-800 text-gray-400"
+                  }`}
+                >
+                  📝 ทั่วไป
+                </button>
+              </div>
+              {itemMode === "maintenance" ? (
+                <div className="animate-in fade-in zoom-in-95 duration-200">
+                  <label className="text-[10px] text-blue-400 mb-1 block font-bold">
+                    เลือกใบงาน (กำลังซ่อม) *
+                  </label>
+                  <select
+                    className="w-full bg-[#1E293B] border border-slate-600 text-white text-xs rounded-lg p-2 outline-none"
+                    value={selectedTicketId}
+                    onChange={(e) => setSelectedTicketId(e.target.value)}
+                  >
+                    <option value="">-- กรุณาเลือก --</option>
+                    {activeTickets.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.id} : {t.machine} - {t.issue}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="animate-in fade-in zoom-in-95 duration-200">
+                  <label className="text-[10px] text-orange-400 mb-1 block font-bold">
+                    ระบุเหตุผล *
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full bg-[#1E293B] border border-slate-600 text-white text-xs rounded-lg p-2 outline-none"
+                    placeholder="เช่น ใช้ใน Office..."
+                    value={usageReason}
+                    onChange={(e) => setUsageReason(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setIsQtyModalOpen(false)}
+                className="py-2 bg-gray-700 text-white rounded font-bold text-sm"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmAddToCart}
+                className="py-2 bg-blue-600 text-white rounded font-bold text-sm shadow-lg"
+              >
+                ใส่ตะกร้า
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCartModalOpen && mode === "withdraw" && (
+        <div className="fixed inset-0 z-[9999] overflow-y-auto">
+          <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+              onClick={() => setIsCartModalOpen(false)}
+            ></div>
+            <div className="relative transform overflow-hidden rounded-2xl bg-[#1F1F23] text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-gray-800/50">
+              <div className="bg-[#1F1F23] px-6 py-4 border-b border-gray-800 flex items-center justify-between sticky top-0 z-10">
+                <h2 className="text-xl font-semibold text-white flex items-center gap-3">
+                  <div className="p-2 bg-green-500/10 rounded-full">
+                    <ShoppingCart className="w-6 h-6 text-green-500" />
+                  </div>
+                  ยืนยันรายการเบิก
+                </h2>
+                <button
+                  onClick={() => setIsCartModalOpen(false)}
+                  className="text-gray-400 hover:text-white p-2 rounded-full transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="px-6 py-6 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                    <ShoppingCart size={48} className="mb-4 text-gray-600" />
+                    <p className="text-lg">ตะกร้าว่างเปล่า</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {cart.map((item: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-[#27272A]/80 rounded-xl border border-gray-800/50 hover:border-gray-700 transition-all"
+                      >
+                        <div className="flex items-start gap-4 mb-4 sm:mb-0 flex-1">
+                          <div className="min-w-0">
+                            <h4 className="font-medium text-lg text-white truncate">
+                              {item.name}
+                            </h4>
+                            <div className="mt-2 text-xs p-1.5 bg-black/20 rounded border border-gray-700/50 inline-block text-slate-300">
+                              {item.uiLabel}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-5">
+                          <div className="flex items-center bg-[#1F1F23] rounded-lg border border-gray-700">
+                            <button
+                              onClick={() => updateCartQty(idx, -1)}
+                              disabled={item.cartQty <= 1}
+                              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-l-lg disabled:opacity-30"
+                            >
+                              <Minus size={18} />
+                            </button>
+                            <div className="w-12 text-center font-mono text-lg font-medium text-white border-x border-gray-700 py-1">
+                              {item.cartQty}
+                            </div>
+                            <button
+                              onClick={() => updateCartQty(idx, 1)}
+                              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-r-lg"
+                            >
+                              <Plus size={18} />
+                            </button>
+                          </div>
+                          <button
+                            onClick={() =>
+                              setCart(
+                                cart.filter((_: any, i: number) => i !== idx)
+                              )
+                            }
+                            className="p-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="bg-[#1F1F23] px-6 py-4 border-t border-gray-800 sticky bottom-0">
+                <div className="flex justify-between items-center mb-4 bg-[#16181C] p-3 rounded-xl border border-gray-800">
+                  <div className="text-sm text-gray-400">
+                    รวมทั้งหมด{" "}
+                    <span className="text-white font-bold">{totalQty}</span>{" "}
+                    รายการ
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500 mb-0.5">
+                      มูลค่ารวม (Total)
+                    </p>
+                    <p className="text-2xl font-bold text-green-400 leading-none">
+                      ฿{totalCartPrice.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center justify-end gap-3">
+                  <button
+                    onClick={() => setIsCartModalOpen(false)}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-white transition-colors font-medium"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={() => {
+                      onWithdraw(cart);
+                      setIsCartModalOpen(false);
+                    }}
+                    disabled={cart.length === 0}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold shadow-lg disabled:opacity-50"
+                  >
+                    <CheckCircle size={20} /> ยืนยันการเบิก
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {returnModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#18181b] border border-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
+            <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+              <RefreshCw size={20} className="text-orange-500" /> คืนอะไหล่
+            </h3>
+            <div className="bg-[#0F1115] p-3 rounded-xl border border-gray-800 mb-4 space-y-2">
+              <div className="text-white text-sm font-medium">
+                {selectedLogToReturn?.partName}
+              </div>
+              <div className="flex justify-between">
+                <div>
+                  <label className="text-[10px] text-gray-500 uppercase font-bold">
+                    ที่เบิกไป
+                  </label>
+                  <div className="text-orange-400 text-sm font-bold">
+                    {selectedLogToReturn?.netQty}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <label className="text-[10px] text-gray-500 uppercase font-bold">
+                    Ticket ID
+                  </label>
+                  <div className="text-blue-400 text-xs font-mono font-bold">
+                    {selectedLogToReturn?.refTicketId || "-"}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mb-6">
+              <label className="text-[10px] text-blue-400 mb-1 block font-bold">
+                ระบุจำนวนคืน *
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setReturnQty(Math.max(1, returnQty - 1))}
+                  className="w-10 h-10 bg-gray-700 rounded-lg text-white font-bold text-xl"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  className="flex-1 h-10 bg-[#1E293B] border border-slate-600 text-white text-center rounded-lg outline-none font-bold"
+                  value={returnQty}
+                  min="1"
+                  max={Number(selectedLogToReturn?.netQty) || 1}
+                  onChange={(e) => {
+                    const val = Math.floor(Number(e.target.value));
+                    const max = Number(selectedLogToReturn?.netQty) || 0;
+                    if (val > max) {
+                      alert(`⛔️ คืนเกินยอด! คุณเบิกไปแค่ ${max} ชิ้น`);
+                      setReturnQty(max);
+                    } else {
+                      setReturnQty(val);
+                    }
+                  }}
+                />
+                <button
+                  onClick={() =>
+                    setReturnQty(
+                      Math.min(selectedLogToReturn?.netQty || 1, returnQty + 1)
+                    )
+                  }
+                  className="w-10 h-10 bg-blue-600 rounded-lg text-white font-bold text-xl"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setReturnModalOpen(false)}
+                className="py-2.5 bg-gray-700 text-white rounded-xl font-bold text-sm"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => {
+                  onReturnItem(selectedLogToReturn, returnQty);
+                  setReturnModalOpen(false);
+                }}
+                disabled={
+                  returnQty > (selectedLogToReturn?.netQty || 0) ||
+                  returnQty <= 0
+                }
+                className={`py-2.5 rounded-xl font-bold text-sm transition-all ${
+                  returnQty > (selectedLogToReturn?.netQty || 0) ||
+                  returnQty <= 0
+                    ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                    : "bg-orange-600 text-white shadow-lg shadow-orange-900/20"
+                }`}
+              >
+                ยืนยันคืน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -5384,6 +5700,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
