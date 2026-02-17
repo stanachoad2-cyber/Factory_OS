@@ -55,6 +55,16 @@ import {
 } from "./StockApp";
 import SettingsPage from "./SettingsPage";
 
+// เพิ่มก้อนนี้เข้าไปที่ต้นไฟล์ครับ
+interface User {
+  id?: string;
+  username?: string;
+  pass?: string;
+  fullname?: string;
+  role?: string;
+  [key: string]: any; // อันนี้คือไม้ตาย: บอกว่าจะมีฟิลด์อะไรเพิ่มมาก็ได้ ไม่ว่ากัน
+}
+
 const APPS = {
   HOME: "home",
   MAINTENANCE: "maintenance",
