@@ -76,11 +76,6 @@ interface User {
       reader.onloadend = () => resolve(reader.result);
     });
   };
-  // -------------------------
-
-  useEffect(() => {
-    getBase64FromUrl(LOGO_URL).then(setLogoBase64);
-  }, []);
 
 const APPS = {
   HOME: "home",
@@ -1633,6 +1628,14 @@ export default function FactoryOS_SuperApp() {
     verify: 0,
     approve: 0,
   });
+
+  useEffect(() => {
+    // ใส่ @ts-ignore เพื่อกันมันบ่นเรื่อง any
+    // @ts-ignore
+    if (typeof getBase64FromUrl === 'function') {
+      getBase64FromUrl(LOGO_URL).then(setLogoBase64);
+    }
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
