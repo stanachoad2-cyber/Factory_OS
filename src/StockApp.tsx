@@ -1430,8 +1430,9 @@ const InventoryView = ({
               </button>
               <button
                 onClick={() => {
-                  onReturnItem(selectedLogToReturn, returnQty);
-                  setReturnModalOpen(false);
+                  onReturnItem(selectedLogToReturn, returnQty, () => {
+                    setReturnModalOpen(false);
+                  });
                 }}
                 disabled={
                   returnQty > (selectedLogToReturn?.netQty || 0) ||
@@ -5700,6 +5701,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
