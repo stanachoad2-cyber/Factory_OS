@@ -1633,7 +1633,7 @@ export default function FactoryOS_SuperApp() {
     // ใส่ @ts-ignore เพื่อกันมันบ่นเรื่อง any
     // @ts-ignore
     if (typeof getBase64FromUrl === 'function') {
-      getBase64FromUrl(LOGO_URL).then(setLogoBase64);
+      getBase64FromUrl("/logo.png").then(setLogoBase64);
     }
   }, []);
 
