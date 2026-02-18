@@ -66,6 +66,9 @@ import {
   Camera,
   Key,
   FileText,
+  ZoomOut,
+  ZoomIn,
+  item,
 } from "lucide-react";
 
 const CLOUDINARY_CLOUD_NAME = "dmqcyeu9a";
@@ -5734,6 +5737,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
