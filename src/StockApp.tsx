@@ -4596,26 +4596,44 @@ export function CreateStockModal({
     return basicValid;
   }, [formData, mode]);
 
-  // Upload Logic
   const handleUpload = async (file: File) => {
-    const cloudName = "dmqcyeu9a";
-    const uploadPreset = "Stock_preset";
+  const cloudName = "dmqcyeu9a";
+  const uploadPreset = "Stock_preset";
+
+  // 1. เช็คขนาดก่อนย่อ (หน่วยเป็น MB)
+  console.log('Original size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+
+  const options = {
+    maxSizeMB: 0.2,           
+    maxWidthOrHeight: 1024,  
+    useWebWorker: true,
+  };
+
+  try {
+    const compressedFile = await imageCompression(file, options);
+
+    // 2. เช็คขนาดหลังย่อ
+    console.log('Compressed size:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
+    
+    // คำนวณส่วนต่างเป็น %
+    const savings = ((file.size - compressedFile.size) / file.size * 100).toFixed(0);
+    console.log(`✅ ประหยัดพื้นที่ไปได้: ${savings}%`);
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", compressedFile); 
     formData.append("upload_preset", uploadPreset);
 
-    try {
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-        { method: "POST", body: formData }
-      );
-      const data = await res.json();
-      return data.secure_url;
-    } catch (error) {
-      console.error("Upload error:", error);
-      return null;
-    }
-  };
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      { method: "POST", body: formData }
+    );
+    const data = await res.json();
+    return data.secure_url;
+  } catch (error) {
+    console.error("Compression error:", error);
+    return null;
+  }
+};
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     // ห้ามแก้รูปในโหมด Add Stock
@@ -5710,6 +5728,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
