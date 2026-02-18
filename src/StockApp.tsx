@@ -269,8 +269,9 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
     currentUser?.allowedActions?.includes("stock_operate");
 
   return (
-    <div className="bg-[#1F1F23] border border-gray-800 rounded-lg overflow-hidden hover:border-blue-500 transition-all group relative flex flex-col shadow-sm hover:shadow-md">
-      <div className="h-40 bg-gray-800 relative overflow-hidden">
+    <div className="bg-[#1F1F23] border border-gray-800 rounded-lg overflow-hidden hover:border-blue-500 transition-all group relative flex flex-col shadow-sm hover:shadow-md h-full">
+      {/* ✅ แก้ไขจุดนี้: เปลี่ยน h-40 เป็น aspect-square และจัดตำแหน่งรูป */}
+      <div className="aspect-square w-full bg-gray-800 relative overflow-hidden flex items-center justify-center">
         <img
           src={
             getOptimizedUrl(item.image) ||
@@ -278,7 +279,16 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
           }
           alt={item.name}
           loading="lazy"
-          className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
+          className="pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity duration-300"
+          style={{
+            // ✅ ดึงพิกัด X, Y และค่าซูมที่พี่ลากไว้มาแสดงผล
+            objectFit: "cover",
+            objectPosition: `${item.imagePositionX || 50}% ${
+              item.imagePositionY || 50
+            }%`,
+            width: `${(item.imageScale || 1) * 100}%`,
+            height: `${(item.imageScale || 1) * 100}%`,
+          }}
         />
         <div className="absolute top-1 left-1">
           <span
@@ -288,7 +298,8 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
           </span>
         </div>
       </div>
-      <div className="p-3 flex flex-col gap-2 bg-[#16181C]">
+
+      <div className="p-3 flex flex-col gap-2 bg-[#16181C] flex-1">
         <div className="flex justify-between items-start gap-2">
           <div className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 w-full">
             <h3
@@ -343,7 +354,7 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
             onAddToCart(item);
           }}
           disabled={item.quantity <= 0 || !canOperate}
-          className={`w-full py-1.5 rounded flex items-center justify-center gap-2 transition-colors text-[10px] font-bold overflow-hidden ${
+          className={`w-full py-1.5 rounded flex items-center justify-center gap-2 transition-colors text-[10px] font-bold overflow-hidden mt-auto ${
             item.quantity > 0 && canOperate
               ? "bg-green-600 hover:bg-green-500 text-white"
               : "bg-gray-800 text-gray-600 cursor-not-allowed"
@@ -360,9 +371,6 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
   );
 };
 
-// ==========================================
-// ProductCardAdminCompact (Updated)
-// ==========================================
 const ProductCardAdminCompact = ({
   item,
   onAddStock,
@@ -382,7 +390,6 @@ const ProductCardAdminCompact = ({
     statusText = "Low stock";
   }
 
-  // เช็คสิทธิ์ (Admin, Super Admin, หรือมีสิทธิ์ stock_manage)
   const canManage =
     currentUser?.username === "Bank" ||
     currentUser?.role === "super_admin" ||
@@ -397,15 +404,24 @@ const ProductCardAdminCompact = ({
           );
         onEdit(item);
       }}
-      className="bg-[#1F1F23] border border-gray-800 rounded-lg overflow-hidden hover:border-blue-500 transition-all group relative flex flex-col shadow-sm hover:shadow-md cursor-pointer"
+      className="bg-[#1F1F23] border border-gray-800 rounded-lg overflow-hidden hover:border-blue-500 transition-all group relative flex flex-col shadow-sm hover:shadow-md cursor-pointer h-full"
     >
-      {/* Image Section */}
-      <div className="h-40 bg-gray-800 relative overflow-hidden">
+      {/* Image Section - ✅ แก้ไขจุดนี้: เปลี่ยน h-40 เป็น aspect-square และจัดตำแหน่งรูป */}
+      <div className="aspect-square w-full bg-gray-800 relative overflow-hidden flex items-center justify-center">
         <img
           src={item.image || "https://via.placeholder.com/300x400?text=Part"}
           alt={item.name}
           loading="lazy"
-          className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
+          className="pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity duration-300"
+          style={{
+            // ✅ ดึงพิกัด X, Y และค่าซูมมาใช้เพื่อให้ตรงกับหน้า Edit
+            objectFit: "cover",
+            objectPosition: `${item.imagePositionX || 50}% ${
+              item.imagePositionY || 50
+            }%`,
+            width: `${(item.imageScale || 1) * 100}%`,
+            height: `${(item.imageScale || 1) * 100}%`,
+          }}
         />
         {/* Status Badge */}
         <div className="absolute top-1 left-1">
@@ -424,7 +440,7 @@ const ProductCardAdminCompact = ({
       </div>
 
       {/* Info Section */}
-      <div className="p-3 flex flex-col gap-2 bg-[#16181C]">
+      <div className="p-3 flex flex-col gap-2 bg-[#16181C] flex-1">
         <div className="flex justify-between items-center gap-2">
           <div className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 w-full">
             <h3
@@ -464,17 +480,14 @@ const ProductCardAdminCompact = ({
         </div>
 
         {/* Actions Row */}
-        <div className="flex gap-2">
-          {/* ✅✅✅ ปุ่มนี้ครับ คือจุดเติมสต็อก ✅✅✅ */}
+        <div className="flex gap-2 mt-auto">
           <button
             onClick={(e) => {
-              e.stopPropagation(); // ไม่ให้คลิกแล้วเด้งไปหน้า Edit
+              e.stopPropagation();
               if (!canManage)
                 return alert(
                   "⛔️ คุณไม่มีสิทธิ์เติมสต็อก (Need 'stock_manage')"
                 );
-
-              // 👇 เรียกฟังก์ชันนี้ เพื่อเปิด Modal เติมของ
               onAddStock(item);
             }}
             disabled={!canManage}
@@ -4497,7 +4510,8 @@ export function CreateStockModal({
   suppliers,
   departments,
   currentUser,
-}: CreateStockModalProps) {
+}: any) {
+  // --- 1. State ข้อมูลหลัก (เพิ่ม X, Y และ Scale) ---
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
@@ -4507,17 +4521,34 @@ export function CreateStockModal({
     departmentId: "",
     isImport: false,
     imageUrl: null as string | null,
-    initialQty: "" as any, // จำนวนที่จะเพิ่ม / แรกเข้า
-    quantity: 0, // จำนวนคงเหลือ (สำหรับ Edit / Add Stock Display)
+    imagePositionX: 50, // ✅ พิกัดซ้าย-ขวา
+    imagePositionY: 50, // ✅ พิกัดบน-ล่าง
+    imageScale: 1, // ✅ ระดับการซูม (เริ่มที่ 1 เพื่อไม่ให้เห็นขอบดำ)
+    initialQty: "" as any,
+    quantity: 0,
     remarks: "",
   });
+
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- 2. State สำหรับระบบ Drag ---
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
+
+  // สไตล์ CSS เดิมของพี่
+  const labelStyle =
+    "block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5";
+  const inputStyle =
+    "w-full bg-[#0F172A] border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all placeholder:text-slate-600";
+  const selectStyle =
+    "w-full bg-[#0F172A] border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 appearance-none cursor-pointer";
+
   useEffect(() => {
     if (isOpen) {
-      if (mode === "edit" && partData) {
+      if ((mode === "edit" || mode === "add_stock") && partData) {
         setFormData({
           name: partData.name || "",
           sku: partData.sku || "",
@@ -4527,27 +4558,14 @@ export function CreateStockModal({
           departmentId: partData.department || "",
           isImport: partData.isImport || false,
           imageUrl: partData.image || null,
-          initialQty: 0,
+          imagePositionX: partData.imagePositionX || 50,
+          imagePositionY: partData.imagePositionY || 50,
+          imageScale: partData.imageScale || 1,
+          initialQty: mode === "add_stock" ? "" : 0,
           quantity: partData.quantity || 0,
           remarks: "",
         });
-      } else if (mode === "add_stock" && partData) {
-        // Mode Add Stock: ดึงข้อมูลเดิมมาโชว์ให้หมด
-        setFormData({
-          name: partData.name,
-          sku: partData.sku,
-          minStock: partData.minStock, // เก็บไว้แต่ไม่โชว์
-          price: partData.price,
-          supplierId: partData.supplier || "",
-          departmentId: partData.department || "",
-          isImport: partData.isImport,
-          imageUrl: partData.image,
-          initialQty: "", // รอรับค่าเพิ่ม
-          quantity: partData.quantity, // คงเหลือปัจจุบัน
-          remarks: "",
-        });
       } else {
-        // Mode New
         setFormData({
           name: "",
           sku: "",
@@ -4557,6 +4575,9 @@ export function CreateStockModal({
           departmentId: "",
           isImport: false,
           imageUrl: null,
+          imagePositionX: 50,
+          imagePositionY: 50,
+          imageScale: 1,
           initialQty: "",
           quantity: 0,
           remarks: "",
@@ -4566,79 +4587,88 @@ export function CreateStockModal({
     }
   }, [isOpen, mode, partData]);
 
-  // Filter Suppliers
-  const filteredSuppliers = useMemo(() => {
-    // ถ้า Add Stock ให้โชว์ทั้งหมด (เพราะแก้ไม่ได้อยู่แล้ว) ถ้า New/Edit ค่อยกรอง
-    if (mode === "add_stock") return suppliers;
-    return suppliers.filter((s) => !!s.isImport === formData.isImport);
-  }, [suppliers, formData.isImport, mode]);
-
-  // Validation
-  const isFormValid = useMemo(() => {
-    if (mode === "add_stock") {
-      return formData.initialQty !== "" && Number(formData.initialQty) > 0;
-    }
-    const basicValid =
-      formData.name.trim() !== "" &&
-      formData.sku.trim() !== "" &&
-      formData.departmentId !== "" &&
-      formData.supplierId !== "" &&
-      formData.price !== "" &&
-      Number(formData.price) >= 0;
-
-    if (mode === "new") {
-      return (
-        basicValid &&
-        formData.initialQty !== "" &&
-        Number(formData.initialQty) >= 0
-      );
-    }
-    return basicValid;
-  }, [formData, mode]);
-
-  const handleUpload = async (file: File) => {
-  const cloudName = "dmqcyeu9a";
-  const uploadPreset = "Stock_preset";
-
-  // 1. เช็คขนาดก่อนย่อ (หน่วยเป็น MB)
-  console.log('Original size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
-
-  const options = {
-    maxSizeMB: 0.2,           
-    maxWidthOrHeight: 1024,  
-    useWebWorker: true,
+  // --- 3. Logic การลากรูป 4 ทิศทาง ---
+  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+    if (mode === "add_stock" || !formData.imageUrl) return;
+    setIsDragging(true);
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    setStartX(clientX);
+    setStartY(clientY);
   };
 
-  try {
-    const compressedFile = await imageCompression(file, options);
+  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDragging || mode === "add_stock") return;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const deltaX = clientX - startX;
+    const deltaY = clientY - startY;
 
-    // 2. เช็คขนาดหลังย่อ
-    console.log('Compressed size:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
-    
-    // คำนวณส่วนต่างเป็น %
-    const savings = ((file.size - compressedFile.size) / file.size * 100).toFixed(0);
-    console.log(`✅ ประหยัดพื้นที่ไปได้: ${savings}%`);
+    setFormData((prev) => {
+      // หารด้วยค่าซูมเพื่อให้ความเร็วในการลากคงที่
+      const moveSpeed = 2 * prev.imageScale;
+      return {
+        ...prev,
+        imagePositionX: Math.max(
+          0,
+          Math.min(100, prev.imagePositionX - deltaX / moveSpeed)
+        ),
+        imagePositionY: Math.max(
+          0,
+          Math.min(100, prev.imagePositionY - deltaY / moveSpeed)
+        ),
+      };
+    });
+    setStartX(clientX);
+    setStartY(clientY);
+  };
 
-    const formData = new FormData();
-    formData.append("file", compressedFile); 
-    formData.append("upload_preset", uploadPreset);
+  const handleMouseUp = () => setIsDragging(false);
 
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-      { method: "POST", body: formData }
-    );
-    const data = await res.json();
-    return data.secure_url;
-  } catch (error) {
-    console.error("Compression error:", error);
-    return null;
-  }
-};
+  // ฟังก์ชันลบรูป
+  const handleRemoveImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("ต้องการลบรูปภาพนี้ใช่หรือไม่?")) {
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: null,
+        imagePositionX: 50,
+        imagePositionY: 50,
+        imageScale: 1,
+      }));
+      setImageFile(null);
+    }
+  };
+
+  const handleUpload = async (file: File) => {
+    const cloudName = "dmqcyeu9a";
+    const uploadPreset = "Stock_preset";
+    const options = {
+      maxSizeMB: 0.2,
+      maxWidthOrHeight: 1024,
+      useWebWorker: true,
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+      const fd = new FormData();
+      fd.append("file", compressedFile);
+      fd.append("upload_preset", uploadPreset);
+
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        { method: "POST", body: fd }
+      );
+      const data = await res.json();
+      return data.secure_url;
+    } catch (error) {
+      console.error("Upload error:", error);
+      return null;
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ห้ามแก้รูปในโหมด Add Stock
     if (mode === "add_stock") return;
-
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setImageFile(file);
@@ -4671,22 +4701,29 @@ export function CreateStockModal({
       const finalPrice = Number(formData.price);
       const finalInitialQty = Number(formData.initialQty);
 
+      // Data Payload ที่จะส่งไป Firebase (รวมค่า X, Y, Scale)
+      const dataPayload = {
+        name: formData.name,
+        sku: formData.sku,
+        unit: "pcs",
+        minStock: finalMinStock,
+        price: finalPrice,
+        supplier: formData.supplierId,
+        department: formData.departmentId,
+        isImport: formData.isImport,
+        image: finalImageUrl,
+        imagePositionX: formData.imagePositionX, // ✅
+        imagePositionY: formData.imagePositionY, // ✅
+        imageScale: formData.imageScale, // ✅
+        updatedAt: timestamp,
+      };
+
       if (mode === "new") {
         const docRef = await addDoc(collection(db, "spare_parts"), {
-          name: formData.name,
-          sku: formData.sku,
-          unit: "pcs",
-          minStock: finalMinStock,
-          price: finalPrice,
-          supplier: formData.supplierId,
-          department: formData.departmentId,
-          isImport: formData.isImport,
-          image: finalImageUrl,
+          ...dataPayload,
           quantity: finalInitialQty,
           createdAt: timestamp,
-          updatedAt: timestamp,
         });
-
         if (finalInitialQty > 0) {
           await addDoc(collection(db, "stock_logs"), {
             type: "IN",
@@ -4699,7 +4736,6 @@ export function CreateStockModal({
             supplier: formData.supplierId,
             jobType: "AddPart",
             reason: formData.remarks || "-",
-            department: "-",
             userId: currentUser?.id || "admin",
             userName: currentUser?.fullname || "Admin",
             timestamp: timestamp,
@@ -4709,102 +4745,113 @@ export function CreateStockModal({
         alert("✅ เพิ่มสินค้าเรียบร้อย");
       } else if (mode === "edit" && partData) {
         await updateDoc(doc(db, "spare_parts", partData.id), {
-          name: formData.name,
-          sku: formData.sku,
-          minStock: finalMinStock,
-          price: finalPrice,
-          supplier: formData.supplierId,
-          department: formData.departmentId,
-          isImport: formData.isImport,
-          image: finalImageUrl,
+          ...dataPayload,
           quantity: Number(formData.quantity),
-          updatedAt: timestamp,
         });
         alert("✅ แก้ไขข้อมูลเรียบร้อย");
       } else if (mode === "add_stock" && partData) {
-        if (finalInitialQty > 0) {
-          await updateDoc(doc(db, "spare_parts", partData.id), {
-            quantity: increment(finalInitialQty),
-            updatedAt: timestamp,
-          });
-          await addDoc(collection(db, "stock_logs"), {
-            type: "IN",
-            partId: partData.id,
-            partName: partData.name,
-            sku: partData.sku,
-            quantity: finalInitialQty,
-            price: Number(partData.price),
-            totalValue: finalInitialQty * Number(partData.price),
-            supplier: formData.supplierId || partData.supplier,
-            reason: formData.remarks || "Add Stock",
-            userId: currentUser?.id || "admin",
-            userName: currentUser?.fullname || "Admin",
-            timestamp: timestamp,
-            isImport: partData.isImport,
-          });
-          alert("✅ เติมสต็อกเรียบร้อย");
-        }
+        await updateDoc(doc(db, "spare_parts", partData.id), {
+          quantity: increment(finalInitialQty),
+          updatedAt: timestamp,
+        });
+        await addDoc(collection(db, "stock_logs"), {
+          type: "IN",
+          partId: partData.id,
+          partName: partData.name,
+          sku: partData.sku,
+          quantity: finalInitialQty,
+          price: Number(partData.price),
+          totalValue: finalInitialQty * Number(partData.price),
+          supplier: formData.supplierId || partData.supplier,
+          reason: formData.remarks || "Add Stock",
+          userId: currentUser?.id || "admin",
+          userName: currentUser?.fullname || "Admin",
+          timestamp: timestamp,
+          isImport: partData.isImport,
+        });
+        alert("✅ เติมสต็อกเรียบร้อย");
       }
       onClose();
     } catch (error: any) {
-      console.error(error);
       alert("Error: " + error.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getModalTitle = () => {
-    if (mode === "new") return "เพิ่มสินค้าใหม่";
-    if (mode === "edit") return "แก้ไขข้อมูลสินค้า";
-    if (mode === "add_stock") return "เติมสต็อกด่วน";
-    return "";
-  };
+  const filteredSuppliers = useMemo(() => {
+    if (mode === "add_stock") return suppliers;
+    return suppliers.filter((s) => !!s.isImport === formData.isImport);
+  }, [suppliers, formData.isImport, mode]);
+
+  const isFormValid = useMemo(() => {
+    if (mode === "add_stock")
+      return formData.initialQty !== "" && Number(formData.initialQty) > 0;
+    const basicValid =
+      formData.name.trim() !== "" &&
+      formData.sku.trim() !== "" &&
+      formData.departmentId !== "" &&
+      formData.supplierId !== "" &&
+      formData.price !== "" &&
+      Number(formData.price) >= 0;
+    if (mode === "new")
+      return (
+        basicValid &&
+        formData.initialQty !== "" &&
+        Number(formData.initialQty) >= 0
+      );
+    return basicValid;
+  }, [formData, mode]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="bg-[#1E293B] rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-700/50 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+        className="bg-[#1E293B] rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-700/50 flex flex-col max-h-[95vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* --- Header --- */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0 bg-[#1E293B] rounded-t-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 bg-[#1E293B] rounded-t-2xl">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <div
-              className={`w-2.5 h-2.5 rounded-full shadow-[0_0_8px] ${
-                mode === "new"
-                  ? "bg-green-500 shadow-green-500"
-                  : mode === "edit"
-                  ? "bg-blue-500 shadow-blue-500"
-                  : "bg-orange-500 shadow-orange-500"
+              className={`w-2.5 h-2.5 rounded-full ${
+                mode === "new" ? "bg-green-500" : "bg-blue-500"
               }`}
             ></div>
-            {getModalTitle()}
+            {mode === "new"
+              ? "เพิ่มสินค้าใหม่"
+              : mode === "edit"
+              ? "แก้ไขข้อมูลสินค้า"
+              : "เติมสต็อกด่วน"}
           </h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700/50 transition-colors"
+            className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700/50"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* --- Body --- */}
+        {/* Body */}
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
           <form id="stockForm" onSubmit={handleSubmit} className="space-y-6">
-            {/* ================= 1. รูปภาพ และ ข้อมูลหลัก ================= */}
-            <div className="flex flex-col sm:flex-row gap-6">
-              {/* Image Upload */}
-              <div className="shrink-0">
-                <span className={labelStyle}>รูปภาพ</span>
+            <div className="flex flex-col sm:flex-row gap-8">
+              {/* Image Editor Section */}
+              <div className="shrink-0 flex flex-col items-center gap-4">
+                <span className={labelStyle}>รูปภาพ (ลากขยับได้)</span>
                 <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`relative w-32 h-32 bg-[#0F172A] border-2 border-dashed rounded-xl flex items-center justify-center overflow-hidden shadow-inner transition-all ${
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onTouchStart={handleMouseDown}
+                  onTouchMove={handleMouseMove}
+                  onTouchEnd={handleMouseUp}
+                  className={`relative w-48 h-48 bg-[#0F172A] border-2 border-dashed rounded-2xl flex items-center justify-center overflow-hidden shadow-inner transition-all ${
                     mode === "add_stock"
-                      ? "border-slate-700 cursor-default opacity-80"
-                      : "border-slate-600 hover:border-blue-500 hover:bg-slate-900 cursor-pointer group"
+                      ? "border-slate-700 cursor-default"
+                      : "border-slate-600 cursor-move group"
                   }`}
                 >
                   {formData.imageUrl ? (
@@ -4812,20 +4859,42 @@ export function CreateStockModal({
                       <img
                         src={formData.imageUrl}
                         alt="Preview"
-                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                        draggable={false}
+                        className="pointer-events-none transition-none"
+                        style={{
+                          // ✅ ใช้ width/height แทน Scale เพื่อให้ลากได้จริง
+                          width: `${formData.imageScale * 100}%`,
+                          height: `${formData.imageScale * 100}%`,
+                          objectFit: "cover",
+                          objectPosition: `${formData.imagePositionX}% ${formData.imagePositionY}%`,
+                        }}
                       />
                       {mode !== "add_stock" && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Camera size={24} className="text-blue-400" />
+                        <div className="absolute top-2 right-2 flex gap-1 pointer-events-auto">
+                          <button
+                            type="button"
+                            onClick={handleRemoveImage}
+                            className="p-1.5 bg-red-500/90 text-white rounded-lg hover:bg-red-600 shadow-lg"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-1.5 bg-blue-500/90 text-white rounded-lg hover:bg-blue-600 shadow-lg"
+                          >
+                            <Camera size={14} />
+                          </button>
                         </div>
                       )}
                     </>
                   ) : (
-                    <div className="flex flex-col items-center justify-center text-slate-500 group-hover:text-blue-400 transition-colors">
-                      <UploadCloud size={28} className="mb-1" />
-                      <span className="text-[10px] uppercase font-bold tracking-wider">
-                        Upload
-                      </span>
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex flex-col items-center justify-center text-slate-500 hover:text-blue-400 cursor-pointer w-full h-full"
+                    >
+                      <UploadCloud size={32} className="mb-2" />
+                      <span className="text-[10px] font-bold">ADD PHOTO</span>
                     </div>
                   )}
                   <input
@@ -4834,16 +4903,41 @@ export function CreateStockModal({
                     onChange={handleFileSelect}
                     accept="image/*"
                     className="hidden"
-                    disabled={mode === "add_stock"} // ห้ามแก้รูปตอน Add Stock
                   />
                 </div>
+
+                {/* Zoom Controller (ล็อคขั้นต่ำที่ 1) */}
+                {formData.imageUrl && mode !== "add_stock" && (
+                  <div className="w-full bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <ZoomOut size={12} className="text-slate-500" />
+                      <span className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">
+                        Zoom: {(formData.imageScale * 100).toFixed(0)}%
+                      </span>
+                      <ZoomIn size={12} className="text-slate-500" />
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="3"
+                      step="0.01"
+                      value={formData.imageScale}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          imageScale: parseFloat(e.target.value),
+                        })
+                      }
+                      className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* General Info (Right) */}
               <div className="flex-1 flex flex-col gap-4">
-                {/* Row 1: Name & SKU (50/50) */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-1">
+                  <div>
                     <label className={labelStyle}>
                       ชื่อสินค้า <span className="text-red-400">*</span>
                     </label>
@@ -4854,11 +4948,10 @@ export function CreateStockModal({
                         setFormData({ ...formData, name: e.target.value })
                       }
                       className={inputStyle}
-                      placeholder="ระบุชื่อสินค้า..."
-                      disabled={mode === "add_stock"} // Disabled in Add Stock
+                      disabled={mode === "add_stock"}
                     />
                   </div>
-                  <div className="col-span-1">
+                  <div>
                     <label className={labelStyle}>
                       รหัส (SKU) <span className="text-red-400">*</span>
                     </label>
@@ -4869,15 +4962,13 @@ export function CreateStockModal({
                         setFormData({ ...formData, sku: e.target.value })
                       }
                       className={inputStyle}
-                      placeholder="เช่น A-001..."
-                      disabled={mode === "add_stock"} // Disabled in Add Stock
+                      disabled={mode === "add_stock"}
                     />
                   </div>
                 </div>
 
-                {/* Row 2: Dept & Supplier (50/50) */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="relative col-span-1">
+                  <div className="relative">
                     <label className={labelStyle}>
                       หมวดหมู่ <span className="text-red-400">*</span>
                     </label>
@@ -4890,7 +4981,7 @@ export function CreateStockModal({
                         })
                       }
                       className={selectStyle}
-                      disabled={mode === "add_stock"} // Disabled in Add Stock
+                      disabled={mode === "add_stock"}
                     >
                       <option value="">-- ระบุ --</option>
                       {departments.map((dept: any) => (
@@ -4901,11 +4992,10 @@ export function CreateStockModal({
                     </select>
                     <ChevronDown
                       size={16}
-                      className="absolute right-3 top-[32px] text-slate-500 pointer-events-none z-20"
+                      className="absolute right-3 top-[32px] text-slate-500 pointer-events-none"
                     />
                   </div>
-
-                  <div className="relative col-span-1">
+                  <div className="relative">
                     <label className={labelStyle}>
                       Supplier <span className="text-red-400">*</span>
                     </label>
@@ -4915,7 +5005,7 @@ export function CreateStockModal({
                         setFormData({ ...formData, supplierId: e.target.value })
                       }
                       className={selectStyle}
-                      disabled={mode === "add_stock"} // Disabled in Add Stock
+                      disabled={mode === "add_stock"}
                     >
                       <option value="">-- ระบุ --</option>
                       {filteredSuppliers.map((sup: any) => (
@@ -4926,11 +5016,9 @@ export function CreateStockModal({
                     </select>
                     <ChevronDown
                       size={16}
-                      className="absolute right-3 top-[32px] text-slate-500 pointer-events-none z-20"
+                      className="absolute right-3 top-[32px] text-slate-500 pointer-events-none"
                     />
-
-                    {/* Import Checkbox Under Supplier */}
-                    <div className="flex items-center mt-2 pl-1">
+                    <div className="mt-2 pl-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -4941,30 +5029,19 @@ export function CreateStockModal({
                             supplierId: "",
                           });
                         }}
-                        className={`flex items-center gap-2 group cursor-pointer ${
-                          mode === "add_stock"
-                            ? "cursor-not-allowed opacity-70"
-                            : ""
-                        }`}
-                        disabled={mode === "add_stock"}
+                        className="flex items-center gap-2 group"
                       >
                         {formData.isImport ? (
-                          <CheckSquare
-                            size={16}
-                            className="text-blue-500 fill-blue-500/20"
-                          />
+                          <CheckSquare size={16} className="text-blue-500" />
                         ) : (
-                          <Square
-                            size={16}
-                            className="text-slate-600 group-hover:text-slate-400 transition-colors"
-                          />
+                          <Square size={16} className="text-slate-600" />
                         )}
                         <span
                           className={`text-xs ${
                             formData.isImport
                               ? "text-blue-400 font-bold"
-                              : "text-slate-400 group-hover:text-slate-300"
-                          } transition-colors`}
+                              : "text-slate-400"
+                          }`}
                         >
                           สินค้านำเข้า (Import)
                         </span>
@@ -4977,128 +5054,66 @@ export function CreateStockModal({
 
             <div className="border-t border-slate-700/50"></div>
 
-            {/* ================= 2. ข้อมูลตัวเลข ================= */}
             <div className="grid grid-cols-3 gap-4">
-              {/* Col 1: Price */}
-              <div className="col-span-1">
+              <div>
+                <label className={labelStyle}>ราคา/หน่วย *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) =>
+                    setFormData({ ...formData, price: e.target.value })
+                  }
+                  className={inputStyle}
+                  disabled={mode === "add_stock"}
+                />
+              </div>
+              <div>
                 <label className={labelStyle}>
-                  ราคา/หน่วย <span className="text-red-400">*</span>
+                  {mode === "add_stock" ? "คงเหลือปัจจุบัน" : "Min. Stock"}
                 </label>
                 <input
                   type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.price === "" ? "" : formData.price}
+                  value={
+                    mode === "add_stock" ? formData.quantity : formData.minStock
+                  }
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      price: parseFloat(e.target.value),
-                    })
+                    setFormData({ ...formData, minStock: e.target.value })
                   }
                   className={inputStyle}
-                  placeholder="0.00"
-                  disabled={mode === "add_stock"} // Disabled in Add Stock
+                  disabled={mode === "add_stock"}
                 />
               </div>
-
-              {/* Col 2: Min Stock (New/Edit) OR Current Qty (Add Stock) */}
-              <div className="col-span-1">
-                {mode === "add_stock" ? (
-                  // Add Stock Mode: แสดง "จำนวนคงเหลือ" แทน MinStock
-                  <>
-                    <label className={labelStyle}>
-                      จำนวนคงเหลือ (ปัจจุบัน)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.quantity}
-                      disabled
-                      className={`${inputStyle} text-slate-300 font-mono`}
-                    />
-                  </>
-                ) : (
-                  // New/Edit Mode: แสดง Min Stock ปกติ
-                  <>
-                    <label className={labelStyle}>Min. Stock</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.minStock === 0 ? "" : formData.minStock}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          minStock: parseInt(e.target.value),
-                        })
-                      }
-                      className={inputStyle}
-                      placeholder="0"
-                    />
-                  </>
-                )}
-              </div>
-
-              {/* Col 3: Quantity Field (Dynamic) */}
-              <div className="col-span-1">
-                <label
-                  className={`${labelStyle} ${
-                    mode === "add_stock" ? "text-green-400" : ""
-                  }`}
-                >
+              <div>
+                <label className={labelStyle}>
                   {mode === "new"
                     ? "จำนวนแรกเข้า"
                     : mode === "add_stock"
                     ? "จำนวนที่เพิ่ม"
                     : "จำนวนคงเหลือ"}
-                  {(mode === "new" || mode === "add_stock") && (
-                    <span className="text-red-400">*</span>
-                  )}
                 </label>
-
-                {mode === "edit" ? (
-                  // Mode Edit: แก้ไขจำนวนคงเหลือได้
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.quantity}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        quantity: parseInt(e.target.value),
-                      })
-                    }
-                    className={inputStyle}
-                    placeholder="0"
-                  />
-                ) : (
-                  // Mode New / Add Stock: กรอกจำนวนที่จะเพิ่ม
-                  <input
-                    type="number"
-                    min="0"
-                    value={
-                      formData.initialQty === "" ? "" : formData.initialQty
-                    }
-                    onChange={(e) =>
-                      setFormData({ ...formData, initialQty: e.target.value })
-                    }
-                    className={`${inputStyle} ${
-                      mode === "add_stock"
-                        ? "border-green-500/50 text-green-400 font-bold focus:border-green-500 focus:ring-green-500/20"
-                        : ""
-                    }`}
-                    placeholder="0"
-                    autoFocus={mode === "add_stock"} // Focus ช่องนี้เลยตอนกดเติมสต็อก
-                  />
-                )}
+                <input
+                  type="number"
+                  value={
+                    mode === "edit" ? formData.quantity : formData.initialQty
+                  }
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      [mode === "edit" ? "quantity" : "initialQty"]:
+                        e.target.value,
+                    })
+                  }
+                  className={inputStyle}
+                />
               </div>
             </div>
 
-            {/* Remarks (Only Add Stock) - Full Width below grid */}
             {mode === "add_stock" && (
               <div>
-                <label className={labelStyle}>หมายเหตุการเติม</label>
+                <label className={labelStyle}>หมายเหตุ</label>
                 <input
                   className={inputStyle}
-                  placeholder="เช่น สั่งซื้อรอบเดือน, เคลมสินค้า..."
                   value={formData.remarks}
                   onChange={(e) =>
                     setFormData({ ...formData, remarks: e.target.value })
@@ -5109,39 +5124,30 @@ export function CreateStockModal({
           </form>
         </div>
 
-        {/* --- Footer --- */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-700 shrink-0 bg-[#1E293B] rounded-b-2xl">
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-700 bg-[#1E293B] rounded-b-2xl">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors text-sm font-bold"
+            className="px-5 py-2.5 rounded-xl border border-slate-600 text-slate-300 font-bold hover:bg-slate-700"
             disabled={isSubmitting}
           >
             ยกเลิก
           </button>
-
           <button
             onClick={handleSubmit}
             disabled={isSubmitting || !isFormValid}
-            className={`px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all text-sm flex items-center gap-2 ${
+            className={`px-10 py-2.5 rounded-xl font-bold text-white flex items-center gap-2 active:scale-95 transition-all ${
               isSubmitting || !isFormValid
-                ? "bg-slate-700 text-slate-500 cursor-not-allowed shadow-none"
-                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white active:scale-95"
+                ? "bg-slate-700"
+                : "bg-blue-600 shadow-lg"
             }`}
           >
             {isSubmitting ? (
               <Loader2 className="animate-spin" size={16} />
-            ) : mode === "add_stock" ? (
-              <Plus size={16} />
             ) : (
               <Save size={16} />
             )}
-            {isSubmitting
-              ? "กำลังบันทึก..."
-              : mode === "new"
-              ? "สร้างสินค้า"
-              : mode === "edit"
-              ? "บันทึกแก้ไข"
-              : "ยืนยันเพิ่มสต็อก"}
+            {isSubmitting ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
           </button>
         </div>
       </div>
@@ -5728,6 +5734,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
