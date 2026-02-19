@@ -1862,9 +1862,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
   );
 }
 
-// ==========================================
-// MaintenanceApp.tsx -> CloseJobModal (FIXED: Lock Auto Parts)
-// ==========================================
 function CloseJobModal({
   ticket,
   user,
@@ -1891,7 +1888,7 @@ function CloseJobModal({
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
-  // ✅ แก้ไข State: รองรับ isLocked
+  // ✅ State สำหรับรายการอะไหล่
   const [parts, setParts] = useState<
     { name: string; qty: number; isLocked?: boolean }[]
   >([]);
@@ -1965,8 +1962,6 @@ function CloseJobModal({
       setCauseNote(cd.cause_note || "");
       setRepairResult(cd.repair_result || "");
       setRepairNote(cd.repair_note || "");
-
-      // ข้อมูลเดิมที่เคยบันทึกไว้ (ถือว่าแก้ไขได้ถ้าเข้ามาแก้)
       setParts(cd.spare_parts || []);
 
       if (cd.start_time) setStartTime(toLocalISOString(cd.start_time.toDate()));
@@ -1985,68 +1980,63 @@ function CloseJobModal({
     }
   }, [ticket]);
 
-  // ==========================================
-  // แก้ไข: คำนวณยอดคงเหลือจริง (Net Qty) โดยนำยอดคืนมาหักออก
-  // ==========================================
+  // ✅✅✅ แก้ไข Logic: คำนวณยอดสุทธิ และ ตรวจสอบเวลาเพื่อไม่ให้ข้อมูลเก่าเกาะมา ✅✅✅
   useEffect(() => {
-    const fetchAutoParts = async () => {
-      // ถ้าเป็นการแก้ไขงานเก่า (ปิดงานไปแล้ว) ไม่ต้องดึงใหม่
-      if (ticket.close_data) return;
+    if (ticket.close_data) return;
 
-      try {
-        // 1. ดึง Log ทั้งหมดที่เกี่ยวข้องกับ Ticket นี้ (ทั้งขาเข้าและขาออก)
-        const q = query(
-          collection(db, "stock_logs"),
-          where("refTicketId", "==", ticket.id)
-          // ❌ ลบเงื่อนไข where("type", "==", "OUT") ออก เพื่อให้เห็นยอดรับคืนด้วย
-        );
+    const possibleIds = [ticket.id, ticket.ticket_id, ticket.ticket_no].filter(
+      Boolean
+    );
+    const q = query(
+      collection(db, "stock_logs"),
+      where("refTicketId", "in", possibleIds)
+    );
 
-        const snap = await getDocs(q);
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const partMap = new Map<string, number>();
 
-        if (!snap.empty) {
-          // 2. คำนวณยอดรวม (Group by Part Name)
-          const partMap = new Map<string, number>();
+      // ✅ 1. ดึงเวลาสร้างของ Ticket ใบปัจจุบัน (ใช้เป็นเกณฑ์ตัดสิน)
+      const ticketCreated = ticket.created_at?.toDate
+        ? ticket.created_at.toDate()
+        : new Date(ticket.created_at);
 
-          snap.docs.forEach((doc) => {
-            const data = doc.data();
-            const name = data.partName;
-            const qty = Number(data.quantity) || 0;
+      snap.docs.forEach((doc) => {
+        const data = doc.data();
 
-            const currentTotal = partMap.get(name) || 0;
+        // ✅ 2. ดึงเวลาของรายการเบิก (Log)
+        const logTime = data.timestamp?.toDate
+          ? data.timestamp.toDate()
+          : new Date(data.timestamp || 0);
 
-            if (data.type === "OUT") {
-              // ถ้าเป็น "เบิก" -> บวกเพิ่ม
-              partMap.set(name, currentTotal + qty);
-            } else if (data.type === "IN" && data.isReturn) {
-              // ถ้าเป็น "รับคืน" -> ลบออก
-              partMap.set(name, currentTotal - qty);
-            }
-          });
+        // ✅ 3. 🚩 ตรวจสอบ: ถ้ารายการเบิกนี้เกิดก่อนเวลาสร้าง Ticket ใบปัจจุบัน ให้ข้ามไปเลย (กันข้อมูลจากใบงานเก่าที่ถูกลบ)
+        if (logTime < ticketCreated) return;
 
-          // 3. แปลงกลับเป็น Array และกรองเฉพาะที่ยอด > 0
-          const finalParts: { name: string; qty: number; isLocked: boolean }[] =
-            [];
+        const name = data.partName;
+        const qty = Number(data.quantity) || 0;
+        const currentTotal = partMap.get(name) || 0;
 
-          partMap.forEach((netQty, name) => {
-            if (netQty > 0) {
-              finalParts.push({
-                name: name,
-                qty: netQty,
-                isLocked: true, // ล็อคไว้เหมือนเดิม
-              });
-            }
-          });
-
-          setParts(finalParts);
-          console.log("Net Parts Calculated:", finalParts);
+        if (data.type === "OUT") {
+          partMap.set(name, currentTotal + qty);
+        } else if (
+          data.type === "IN" &&
+          (data.isReturn === true || data.isReturn === "true")
+        ) {
+          partMap.set(name, currentTotal - qty);
         }
-      } catch (err) {
-        console.error("Error fetching used parts:", err);
-      }
-    };
+      });
 
-    fetchAutoParts();
-  }, [ticket.id]);
+      const finalParts: any[] = [];
+      partMap.forEach((netQty, name) => {
+        if (netQty > 0) {
+          finalParts.push({ name, qty: netQty, isLocked: true });
+        }
+      });
+      setParts(finalParts);
+    });
+
+    return () => unsubscribe();
+  }, [ticket.id, ticket.created_at, ticket.close_data]);
+
   useEffect(() => {
     const found = stockList.find((s) => s.name === tempPartName);
     setSelectedStockItem(found || null);
@@ -2066,7 +2056,6 @@ function CloseJobModal({
 
   const handleAddPart = () => {
     if (!tempPartName) return;
-    // รายการที่เพิ่มเอง ไม่ต้องล็อค (isLocked: undefined/false)
     setParts([...parts, { name: tempPartName, qty: tempPartQty }]);
     setTempPartName("");
     setTempPartQty(1);
@@ -2113,8 +2102,6 @@ function CloseJobModal({
         const durationMin = Math.round(
           (end.getTime() - start.getTime()) / 60000
         );
-
-        // ตอนบันทึก ลบ field isLocked ทิ้งไปก่อนลง DB (จะได้สะอาด)
         const cleanParts = parts.map(({ isLocked, ...rest }) => rest);
 
         const closeData = {
@@ -2125,7 +2112,7 @@ function CloseJobModal({
           cause_note: causeNote,
           repair_result: repairResult,
           repair_note: repairNote,
-          spare_parts: cleanParts, // ใช้ตัว clean
+          spare_parts: cleanParts,
           start_time: start,
           end_time: end,
           duration_minutes: durationMin,
@@ -2271,7 +2258,6 @@ function CloseJobModal({
 
           <div>
             <label className={labelClass}>5. อะไหล่ (เบิกจาก Stock)</label>
-
             <div className="flex w-full h-[38px] bg-[#0F172A] border border-slate-700 rounded-lg relative z-20 items-center">
               <div className="flex-1 h-full min-w-0">
                 <SearchableSelect
@@ -2282,9 +2268,7 @@ function CloseJobModal({
                   className="w-full h-full bg-transparent border-none text-white text-xs px-3 outline-none focus:ring-0 placeholder-slate-600 rounded-l-lg"
                 />
               </div>
-
               <div className="w-[1px] h-[60%] bg-slate-700"></div>
-
               <input
                 type="number"
                 className="w-14 h-full bg-transparent text-center text-xs text-white outline-none focus:bg-slate-800/50 transition-colors"
@@ -2293,7 +2277,6 @@ function CloseJobModal({
                 value={tempPartQty}
                 onChange={(e) => setTempPartQty(parseInt(e.target.value))}
               />
-
               <button
                 onClick={handleAddPart}
                 className="h-full px-3 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-r-lg transition-colors border-l border-blue-500"
@@ -2327,8 +2310,8 @@ function CloseJobModal({
                     key={i}
                     className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[10px] border ${
                       p.isLocked
-                        ? "bg-slate-800/50 border-slate-700 text-slate-400" // สไตล์ของที่ล็อค
-                        : "bg-[#1E293B] border-slate-600 text-slate-300" // สไตล์ปกติ
+                        ? "bg-slate-800/50 border-slate-700 text-slate-400"
+                        : "bg-[#1E293B] border-slate-600 text-slate-300"
                     }`}
                   >
                     {p.name}{" "}
@@ -2341,7 +2324,6 @@ function CloseJobModal({
                     >
                       x{p.qty}
                     </span>
-                    {/* ✅✅✅ ซ่อนปุ่มลบ ถ้าถูกล็อค (โชว์กุญแจแทน) ✅✅✅ */}
                     {p.isLocked ? (
                       <div className="p-0.5 px-1">
                         <Lock size={10} className="text-slate-500" />
@@ -4187,3 +4169,4 @@ export function MaintenanceModule({ currentUser, activeTab, onExit }: any) {
     </div>
   );
 }
+
