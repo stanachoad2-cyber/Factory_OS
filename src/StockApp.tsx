@@ -1519,7 +1519,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder }: any) => {
   );
 };
 
-// ✅ UPDATED ANALYTICS VIEW (Equal Column Widths 14.28%)
 const AnalyticsView = ({
   items,
   suppliers,
@@ -1550,6 +1549,16 @@ const AnalyticsView = ({
   const [suppliersList, setSuppliersList] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // ✅ States for Editing Reason
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  // ✅ Access Control: Check Manage Permission
+  const canManage =
+    currentUser?.username === "Bank" ||
+    currentUser?.role === "super_admin" ||
+    currentUser?.allowedActions?.includes("stock_manage");
 
   // --- Sorting ---
   const [sortConfig, setSortConfig] = useState<{
@@ -1583,8 +1592,6 @@ const AnalyticsView = ({
     }
   };
 
-  const getSafeStr = (v: any) => (v ? String(v) : "-");
-
   // --- Load Data ---
   useEffect(() => {
     const unsubUser = db
@@ -1598,7 +1605,6 @@ const AnalyticsView = ({
         setSuppliersList(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
       );
 
-    // Reset
     setHasSearched(false);
     setHistoryLogs([]);
     setDeadStockList([]);
@@ -1607,6 +1613,7 @@ const AnalyticsView = ({
     setSelectedPart("");
     setSelectedSupplier("all");
     setSelectedOrigin("all");
+    setEditingId(null);
 
     return () => {
       unsubUser();
@@ -1618,21 +1625,32 @@ const AnalyticsView = ({
     if (subTab === "supplier") setSelectedSupplier("all");
   }, [selectedOrigin, subTab]);
 
-  // ==========================================
-  // แก้ไข: AnalyticsView -> handleDeleteLog
-  // เปลี่ยนจาก window.confirm เป็น onConfirmPassword
-  // ==========================================
+  // ✅ Update Reason Function
+  const handleUpdateReason = async (logId: string) => {
+    if (!canManage) return alert("⛔️ คุณไม่มีสิทธิ์แก้ไขข้อมูล");
+    try {
+      setIsProcessing(true);
+      await updateDoc(doc(db, "stock_logs", logId), {
+        reason: editValue,
+      });
+      setEditingId(null);
+      await handleSearch();
+    } catch (error: any) {
+      alert("Error: " + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleDeleteLog = (logId: string, partName: string) => {
-    // เรียกใช้ Modal ยืนยันรหัสผ่าน
     onConfirmPassword(
       "ยืนยันการลบประวัติ (Admin)",
       `⚠️ คำเตือน: คุณกำลังจะลบประวัติของ "${partName}"\nการลบนี้จะลบแค่ "Log" เท่านั้น (จำนวนสต็อกจริงจะไม่เปลี่ยน)\n\nยืนยันที่จะลบหรือไม่?`,
       async () => {
         try {
           setIsProcessing(true);
-          await deleteDoc(doc(db, "stock_logs", logId)); // ลบเอกสาร
-
-          await handleSearch(); // โหลดข้อมูลใหม่
+          await deleteDoc(doc(db, "stock_logs", logId));
+          await handleSearch();
           alert("✅ ลบข้อมูลเรียบร้อยแล้ว");
         } catch (error: any) {
           console.error("Delete Error:", error);
@@ -1681,7 +1699,6 @@ const AnalyticsView = ({
     );
   }, [historyLogs, deadStockList, lowStockList, subTab]);
 
-  // --- Sorting Logic ---
   const handleSort = (key: string) => {
     let direction = "ascending";
     if (
@@ -1775,9 +1792,6 @@ const AnalyticsView = ({
         }
       };
 
-      // ---------------------------------------------------------
-      // เตรียมข้อมูล (Data Preparation)
-      // ---------------------------------------------------------
       if (subTab === "deadstock") {
         dataToExport = deadStockList.map((item) => ({
           PartName: item.name,
@@ -1806,18 +1820,14 @@ const AnalyticsView = ({
         fileName = `LowStock_${new Date().toLocaleDateString("en-CA")}`;
       } else if (subTab === "supplier") {
         dataToExport = historyLogs.map((log) => {
-          // ดึงปีและเดือนสำหรับ Tab Supplier ด้วย
           const d = log.timestamp?.toDate
             ? log.timestamp.toDate()
             : new Date(log.timestamp);
-          const logYear = isNaN(d.getTime()) ? "-" : d.getFullYear();
-          const logMonth = isNaN(d.getTime()) ? "-" : d.getMonth() + 1; // 1-12
-
           return {
             Date: safeDateStr(log.timestamp),
             Time: safeTimeStr(log.timestamp),
-            Year: logYear, // ✅ เพิ่มปี
-            Month: logMonth, // ✅ เพิ่มเดือน
+            Year: isNaN(d.getTime()) ? "-" : d.getFullYear(),
+            Month: isNaN(d.getTime()) ? "-" : d.getMonth() + 1,
             Supplier: log.supplier,
             PartName: log.partName,
             SKU: log.sku,
@@ -1826,34 +1836,25 @@ const AnalyticsView = ({
             TotalValue: getSafeNum(log.totalValue),
             ReceivedBy: log.userName,
             Origin: log.isImport ? "Import" : "Local",
-            Remarks: log.reason || "-",
+            Reason: log.reason || "-",
           };
         });
         fileName = `Supplier_Report_${startDate}_${endDate}`;
       } else {
-        // ✅✅✅ ส่วนรายงานหลัก (General / Transaction) ✅✅✅
         dataToExport = historyLogs.map((log) => {
           const masterItem = items.find((i: any) => i.id === log.partId) || {};
           const isEntry =
             String(log.type || "")
               .trim()
               .toUpperCase() === "IN";
-
-          // --- คำนวณวันที่ เดือน ปี ---
           const d = log.timestamp?.toDate
             ? log.timestamp.toDate()
             : new Date(log.timestamp);
-          const logYear = isNaN(d.getTime()) ? "-" : d.getFullYear();
-          const logMonth = isNaN(d.getTime()) ? "-" : d.getMonth() + 1; // 1-12
-
-          // --- Logic แผนก ---
           const finalDept = isEntry
             ? "-"
             : log.ticketDept && log.ticketDept !== "-"
             ? log.ticketDept
             : masterItem.department || "-";
-
-          // --- Logic Reason ---
           let excelReason = log.reason || "-";
           if (log.jobType === "Maintenance") {
             if (excelReason.includes(" : "))
@@ -1868,35 +1869,26 @@ const AnalyticsView = ({
                 excelReason.indexOf(" - ") + 3
               );
           }
-          if (
-            !excelReason ||
-            !excelReason.trim() ||
-            excelReason === "undefined"
-          )
-            excelReason = "-";
-
-          // --- Logic JobType ---
           let finalJobType = log.jobType || "General";
           if (isEntry) {
             const dbJobType = String(log.jobType || "")
               .toLowerCase()
               .replace(/\s/g, "");
-            if (
-              ["addpart", "newpart", "addstock", "newitem", "initial"].includes(
-                dbJobType
-              )
-            ) {
-              finalJobType = "AddPart";
-            } else {
-              finalJobType = "Restock";
-            }
+            finalJobType = [
+              "addpart",
+              "newpart",
+              "addstock",
+              "newitem",
+              "initial",
+            ].includes(dbJobType)
+              ? "AddPart"
+              : "Restock";
           }
-
           return {
             Date: safeDateStr(log.timestamp),
             Time: safeTimeStr(log.timestamp),
-            Year: logYear, // ✅ เพิ่มคอลัมน์ปี
-            Month: logMonth, // ✅ เพิ่มคอลัมน์เดือน (1-12)
+            Year: isNaN(d.getTime()) ? "-" : d.getFullYear(),
+            Month: isNaN(d.getTime()) ? "-" : d.getMonth() + 1,
             Type: log.type,
             PartName: log.partName,
             SKU: log.sku,
@@ -1926,52 +1918,11 @@ const AnalyticsView = ({
         fileName = `${subTab}_${startDate}_${endDate}`;
       }
 
-      // ---------------------------------------------------------
-      // สร้างไฟล์ Excel + จัด Styles
-      // ---------------------------------------------------------
       const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-      // 🔥 1. จัดความกว้างคอลัมน์เท่ากัน (25 หน่วย)
-      const colCount =
-        dataToExport.length > 0 ? Object.keys(dataToExport[0]).length : 0;
-      ws["!cols"] = Array(colCount).fill({ wch: 25 });
-
-      // 🔥 2. เปิด Filter หัวตาราง (AutoFilter)
-      if (ws["!ref"]) {
-        ws["!autofilter"] = { ref: ws["!ref"] };
-      }
-
-      // Style หัวตาราง
-      const headerStyle = {
-        font: { bold: true, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "2563EB" } },
-        alignment: { horizontal: "center", vertical: "center" },
-        border: {
-          top: { style: "thin" },
-          bottom: { style: "thin" },
-          left: { style: "thin" },
-          right: { style: "thin" },
-        },
-      };
-      const dataStyle = {
-        alignment: { horizontal: "center", vertical: "center" },
-        border: {
-          top: { style: "thin", color: { rgb: "E2E8F0" } },
-          bottom: { style: "thin", color: { rgb: "E2E8F0" } },
-          left: { style: "thin", color: { rgb: "E2E8F0" } },
-          right: { style: "thin", color: { rgb: "E2E8F0" } },
-        },
-      };
-
-      const range = XLSX.utils.decode_range(ws["!ref"] as string);
-      for (let R = range.s.r; R <= range.e.r; ++R) {
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-          if (!ws[cellAddress]) continue;
-          ws[cellAddress].s = R === 0 ? headerStyle : dataStyle;
-        }
-      }
-
+      ws["!cols"] = Array(
+        dataToExport.length > 0 ? Object.keys(dataToExport[0]).length : 0
+      ).fill({ wch: 25 });
+      if (ws["!ref"]) ws["!autofilter"] = { ref: ws["!ref"] };
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "StockData");
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "binary" });
@@ -1999,7 +1950,6 @@ const AnalyticsView = ({
     }
   };
 
-  // --- Main Search ---
   const handleSearch = async () => {
     setIsProcessing(true);
     setHasSearched(true);
@@ -2008,7 +1958,6 @@ const AnalyticsView = ({
       start.setHours(0, 0, 0, 0);
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
-
       if (subTab === "lowstock") {
         setLowStockList(
           items.filter(
@@ -2018,7 +1967,6 @@ const AnalyticsView = ({
         setIsProcessing(false);
         return;
       }
-
       const logSnap = await db
         .collection("stock_logs")
         .where("timestamp", ">=", start)
@@ -2029,7 +1977,6 @@ const AnalyticsView = ({
         id: doc.id,
         ...doc.data(),
       }));
-
       if (subTab === "deadstock") {
         const activePartIds = new Set();
         rawLogs.forEach((log: any) => {
@@ -2083,20 +2030,12 @@ const AnalyticsView = ({
           const qty = getSafeNum(log.quantity);
           const val = getSafeNum(log.totalValue);
           if (log.type === "OUT") {
-            outLogsMap[log.id] = {
-              ...log,
-              netQty: qty,
-              netTotalValue: val,
-            };
+            outLogsMap[log.id] = { ...log, netQty: qty, netTotalValue: val };
           } else if (log.type === "IN" && log.isReturn) {
             returnLogs.push({ ...log, quantity: qty });
           } else {
             if (subTab === "database")
-              otherLogs.push({
-                ...log,
-                netQty: qty,
-                netTotalValue: val,
-              });
+              otherLogs.push({ ...log, netQty: qty, netTotalValue: val });
           }
         });
         returnLogs.forEach((retLog: any) => {
@@ -2142,8 +2081,7 @@ const AnalyticsView = ({
         setHistoryLogs(filteredList);
       }
     } catch (e) {
-      console.error(e);
-      alert("เกิดข้อผิดพลาดในการโหลดข้อมูล (อาจเกิดจาก Internet หลุด)");
+      alert("เกิดข้อผิดพลาดในการโหลดข้อมูล");
     }
     setIsProcessing(false);
   };
@@ -2160,44 +2098,92 @@ const AnalyticsView = ({
       <ArrowUpDown size={12} className="text-blue-400" />
     );
   };
+
   const StatsCards = () => (
     <div className="flex items-center gap-2 pl-3 border-l border-slate-700">
-      {" "}
       <div className="flex flex-col justify-center items-center h-[36px] px-3 bg-[#0F1115] border border-gray-700 rounded-lg min-w-[70px]">
-        {" "}
         <span className="text-[9px] text-gray-400 uppercase">
           {subTab === "deadstock" || subTab === "lowstock" ? "Items" : "Trans."}
-        </span>{" "}
+        </span>
         <span className="text-xs font-bold text-white leading-none">
           {historySummary.count.toLocaleString()}
-        </span>{" "}
-      </div>{" "}
+        </span>
+      </div>
       <div className="flex flex-col justify-center items-center h-[36px] px-3 bg-[#0F1115] border border-gray-700 rounded-lg min-w-[70px]">
-        {" "}
-        <span className="text-[9px] text-gray-400 uppercase">Qty</span>{" "}
+        <span className="text-[9px] text-gray-400 uppercase">Qty</span>
         <span className="text-xs font-bold text-orange-400 leading-none">
           {historySummary.qty.toLocaleString()}
-        </span>{" "}
-      </div>{" "}
+        </span>
+      </div>
       <div className="flex flex-col justify-center items-center h-[36px] px-3 bg-[#0F1115] border border-green-500/30 rounded-lg min-w-[90px] relative overflow-hidden">
-        {" "}
-        <div className="absolute inset-0 bg-green-500/10"></div>{" "}
+        <div className="absolute inset-0 bg-green-500/10"></div>
         <span className="text-[9px] text-green-400 uppercase relative z-10">
           Value
-        </span>{" "}
+        </span>
         <span className="text-xs font-bold text-green-400 leading-none relative z-10">
           ฿{historySummary.value.toLocaleString()}
-        </span>{" "}
-      </div>{" "}
+        </span>
+      </div>
     </div>
   );
 
+  // ✅ New Helper Component: Reason Cell with Specific Restriction Logic
+  const ReasonCell = ({ row }: { row: any }) => {
+    const isEditing = editingId === row.id;
+    const displayValue = row.reason || "-";
+
+    // 🚩🚩🚩 เงื่อนไขแก้ไข: ต้องมีสิทธิ์จัดการสินค้า และต้องเป็นรายการขาเข้า (IN) ที่ไม่ใช่การคืนของ 🚩🚩🚩
+    const canEditThisRow = canManage && row.type === "IN" && !row.isReturn;
+
+    if (isEditing) {
+      return (
+        <div className="flex items-center gap-1">
+          <input
+            className="flex-1 bg-[#0F172A] border border-blue-500 rounded px-2 py-1 text-[10px] text-white outline-none"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            autoFocus
+            onKeyDown={(e) => e.key === "Enter" && handleUpdateReason(row.id)}
+          />
+          <button
+            onClick={() => handleUpdateReason(row.id)}
+            className="text-green-500 hover:text-green-400"
+          >
+            <CheckCircle size={14} />
+          </button>
+          <button
+            onClick={() => setEditingId(null)}
+            className="text-red-500 hover:text-red-400"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center justify-between group/reason">
+        <span className="truncate" title={displayValue}>
+          {displayValue}
+        </span>
+        {canEditThisRow && (
+          <button
+            onClick={() => {
+              setEditingId(row.id);
+              setEditValue(row.reason || "");
+            }}
+            className="opacity-0 group-hover/reason:opacity-100 text-blue-400 hover:text-blue-300 p-1 transition-opacity"
+          >
+            <Edit3 size={12} />
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-full bg-[#0F172A] text-white overflow-hidden animate-in fade-in duration-300 flex-col">
-      {/* ✅ HEADER FIX: Justify Between (Controls Left, Stats Right) */}
       {subTab === "database" && (
         <div className="h-16 px-6 border-b border-slate-800 flex items-center justify-between bg-[#0F172A] shrink-0">
-          {/* LEFT: Controls */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-[#1E293B] rounded-lg p-1 border border-slate-700">
               <input
@@ -2234,8 +2220,6 @@ const AnalyticsView = ({
               <FileSpreadsheet size={14} /> Excel
             </button>
           </div>
-
-          {/* RIGHT: Stats Cards */}
           {hasSearched && <StatsCards />}
         </div>
       )}
@@ -2243,9 +2227,7 @@ const AnalyticsView = ({
       <div className="flex-1 p-6 overflow-hidden flex flex-col">
         {subTab !== "database" && (
           <div className="flex flex-col gap-4 h-full">
-            {/* ... Other Tabs Control Bar ... */}
             <div className="bg-[#1E293B] p-3 rounded-xl border border-slate-700 shadow-sm flex flex-wrap items-center gap-3">
-              {/* ... (Existing code for other tabs controls) ... */}
               {subTab === "issued" && (
                 <div className="flex items-center gap-2 bg-[#0F1115] rounded-lg px-3 py-1.5 border border-slate-700">
                   <User size={14} className="text-slate-400 shrink-0" />
@@ -2383,13 +2365,11 @@ const AnalyticsView = ({
               {hasSearched && <StatsCards />}
             </div>
 
-            {/* 2. Table (Other Tabs) */}
             <div className="flex-1 bg-[#1E293B]/50 border border-slate-800 rounded-2xl overflow-hidden flex flex-col shadow-lg mt-4">
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <table className="w-full text-left border-collapse table-fixed">
                   <thead className="bg-[#020617] sticky top-0 z-10 text-[10px] uppercase font-black text-slate-500 tracking-widest">
                     <tr>
-                      {/* ... (Existing headers for other tabs) ... */}
                       {subTab === "supplier" ? (
                         <>
                           <th
@@ -2432,7 +2412,7 @@ const AnalyticsView = ({
                             onClick={() => handleSort("reason")}
                             className="p-3 text-left w-[14.28%] truncate cursor-pointer hover:bg-slate-800"
                           >
-                            Remarks <SortIcon colKey="reason" />
+                            Reason <SortIcon colKey="reason" />
                           </th>
                         </>
                       ) : subTab === "parts" ? (
@@ -2523,7 +2503,6 @@ const AnalyticsView = ({
                           </th>
                         </>
                       ) : (
-                        // Default: Issued
                         <>
                           <th
                             onClick={() => handleSort("userName")}
@@ -2593,7 +2572,6 @@ const AnalyticsView = ({
                           key={row.id || idx}
                           className="hover:bg-slate-800/50 transition-colors"
                         >
-                          {/* ... Cells for other tabs ... */}
                           {subTab === "supplier" ? (
                             <>
                               <td className="p-3 text-left font-bold text-white truncate">
@@ -2618,11 +2596,36 @@ const AnalyticsView = ({
                               <td className="p-3 text-left font-mono text-green-400 font-bold truncate">
                                 ฿{Number(row.totalValue || 0).toLocaleString()}
                               </td>
-                              <td
-                                className="p-3 text-left text-slate-400 truncate"
-                                title={row.reason}
-                              >
-                                {row.reason}
+                              <td className="p-3 text-left text-slate-300 truncate font-medium">
+                                <ReasonCell row={row} />
+                              </td>
+                            </>
+                          ) : subTab === "parts" ? (
+                            <>
+                              <td className="p-3 text-left text-blue-400 truncate">
+                                {row.partName}
+                              </td>
+                              <td className="p-3 text-left font-mono font-bold truncate text-orange-400">
+                                {row.netQty}
+                              </td>
+                              <td className="p-3 text-left text-slate-300 truncate font-medium">
+                                <ReasonCell row={row} />
+                              </td>
+                              <td className="p-3 text-left font-bold text-white truncate">
+                                {row.userName}
+                              </td>
+                              <td className="p-3 text-left text-slate-400 truncate">
+                                {new Date(
+                                  row.timestamp?.toDate
+                                    ? row.timestamp.toDate()
+                                    : row.timestamp
+                                ).toLocaleString("th-TH")}
+                              </td>
+                              <td className="p-3 text-left font-mono text-green-400 font-bold truncate">
+                                ฿
+                                {Number(
+                                  row.netTotalValue || 0
+                                ).toLocaleString()}
                               </td>
                             </>
                           ) : subTab === "deadstock" ? (
@@ -2657,37 +2660,6 @@ const AnalyticsView = ({
                                 </span>
                               </td>
                             </>
-                          ) : subTab === "parts" ? (
-                            <>
-                              <td className="p-3 text-left text-blue-400 truncate">
-                                {row.partName}
-                              </td>
-                              <td className="p-3 text-left font-mono font-bold truncate text-orange-400">
-                                {row.netQty}
-                              </td>
-                              <td
-                                className="p-3 text-left text-slate-300 truncate"
-                                title={row.reason}
-                              >
-                                {row.reason}
-                              </td>
-                              <td className="p-3 text-left font-bold text-white truncate">
-                                {row.userName}
-                              </td>
-                              <td className="p-3 text-left text-slate-400 truncate">
-                                {new Date(
-                                  row.timestamp?.toDate
-                                    ? row.timestamp.toDate()
-                                    : row.timestamp
-                                ).toLocaleString("th-TH")}
-                              </td>
-                              <td className="p-3 text-left font-mono text-green-400 font-bold truncate">
-                                ฿
-                                {Number(
-                                  row.netTotalValue || 0
-                                ).toLocaleString()}
-                              </td>
-                            </>
                           ) : (
                             <>
                               <td className="p-3 text-left font-bold text-white truncate">
@@ -2699,11 +2671,8 @@ const AnalyticsView = ({
                               <td className="p-3 text-left font-mono font-bold truncate text-orange-400">
                                 {row.netQty}
                               </td>
-                              <td
-                                className="p-3 text-left text-slate-300 truncate"
-                                title={row.reason}
-                              >
-                                {row.reason}
+                              <td className="p-3 text-left text-slate-300 truncate font-medium">
+                                <ReasonCell row={row} />
                               </td>
                               <td className="p-3 text-left text-slate-400 truncate">
                                 {new Date(
@@ -2794,7 +2763,6 @@ const AnalyticsView = ({
                         Reason <SortIcon colKey="reason" />
                       </div>
                     </th>
-                    {/* ✅ Action Column Width Set to 14.28% */}
                     <th className="p-3 text-left w-[14.28%] truncate">
                       Action
                     </th>
@@ -2816,7 +2784,6 @@ const AnalyticsView = ({
                         key={row.id || idx}
                         className="hover:bg-slate-800/50 transition-colors"
                       >
-                        {/* ✅ Table Body Cells match Table Header Widths & Text-Left */}
                         <td className="p-3 text-left text-slate-400 truncate">
                           {new Date(
                             row.timestamp?.toDate
@@ -2840,7 +2807,6 @@ const AnalyticsView = ({
                         <td className="p-3 text-left text-white truncate">
                           {row.partName}
                         </td>
-                        {/* ✅ Custom Color Logic: Green for IN, Orange for OUT with +/- */}
                         <td
                           className={`p-3 text-left font-mono font-bold truncate ${
                             row.type === "OUT"
@@ -2856,8 +2822,8 @@ const AnalyticsView = ({
                         <td className="p-3 text-left text-slate-300 truncate">
                           {row.userName}
                         </td>
-                        <td className="p-3 text-left text-slate-400 truncate">
-                          {row.reason}
+                        <td className="p-3 text-left text-slate-300 truncate font-medium">
+                          <ReasonCell row={row} />
                         </td>
                         <td className="p-3 text-left">
                           <button
@@ -5726,6 +5692,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
