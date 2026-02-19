@@ -19,6 +19,7 @@ import {
   Timestamp,
   increment,
   setDoc,
+  arrayUnion,
 } from "firebase/firestore";
 
 import {
@@ -5216,16 +5217,20 @@ export function StockModule({
     });
   };
 
-  // --- 6. Handlers: เบิกอะไหล่ (Withdraw) ---
   const handleWithdraw = async (cartItems: any[]) => {
     try {
       const batch = writeBatch(db);
-      const ts = serverTimestamp();
+      const ts = serverTimestamp(); // ใช้สำหรับ Field ปกติ
+      const now = new Date(); // ✅ ใช้สำหรับข้อมูลใน Array
+
       cartItems.forEach((item) => {
+        // 1. ลดจำนวนอะไหล่ในสต็อก
         batch.update(doc(db, "spare_parts", item.id), {
           quantity: increment(-item.cartQty),
           updatedAt: ts,
         });
+
+        // 2. บันทึกประวัติการเบิก (Log)
         batch.set(doc(collection(db, "stock_logs")), {
           type: "OUT",
           partId: item.id,
@@ -5243,17 +5248,35 @@ export function StockModule({
           timestamp: ts,
           isImport: !!item.isImport,
         });
+
+        // 3. ✅ อัปเดตข้อมูลเข้าใบแจ้งซ่อม
+        if (item.jobType === "Maintenance" && item.refTicketId) {
+          const ticketRef = doc(db, "maintenance_tickets", item.refTicketId);
+          batch.update(ticketRef, {
+            used_parts: arrayUnion({
+              partId: item.id,
+              name: item.name,
+              sku: item.sku || "-",
+              qty: item.cartQty,
+              price: Number(item.price) || 0,
+              withdrawDate: now, // ✅ เปลี่ยนจาก ts เป็น now เพื่อแก้ Error
+              withdrawnBy: currentUser.fullname || currentUser.username,
+            }),
+            updatedAt: ts,
+          });
+        }
       });
+
       await batch.commit();
-      alert("✅ เบิกสินค้าสำเร็จ");
+      alert("✅ เบิกสินค้าและส่งข้อมูลเข้าใบแจ้งซ่อมเรียบร้อย");
       setCart([]);
     } catch (e: any) {
+      console.error(e);
       alert("Withdraw Error: " + e.message);
     }
   };
 
-  // --- ✅ 7. Handlers: คืนอะไหล่ (แบบใช้ Modal ถามรหัสผ่าน) ---
-  const handleReturnItem = (log: any, qty: number, onSuccess: () => void) => {
+   const handleReturnItem = (log: any, qty: number, onSuccess: () => void) => {
     setConfirmState({
       isOpen: true,
       title: "ยืนยันการคืนอะไหล่",
@@ -5281,6 +5304,8 @@ export function StockModule({
             timestamp: ts,
             isImport: !!log.isImport,
             reason: `คืนของจากรายการ: ${log.reason || "-"}`,
+            // ✅ เพิ่มบรรทัดนี้ เพื่อส่งเลข Ticket ไปหักลบยอดในหน้าปิดงานครับ
+            refTicketId: log.refTicketId || null,
           });
           await batch.commit();
           alert("✅ คืนสินค้าสำเร็จ");
@@ -5701,6 +5726,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
