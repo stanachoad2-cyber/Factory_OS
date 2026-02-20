@@ -936,19 +936,17 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
     const res = cd.repair_result || ticket.maintenance_result || "";
     const resNote = cd.repair_note || ticket.result_remark || "";
 
-    // Checkboxes
     check(117, 201.5, res.includes("สมบูรณ์"));
     check(117, 206.5, res.includes("รออะไหล่"));
     check(117, 216.3, res.includes("ภายนอก"));
     check(117, 226, res.includes("อื่นๆ"));
 
-    // ✅✅✅ แก้ไขตำแหน่งหมายเหตุ ตามที่คุณระบุ ✅✅✅
     if (res.includes("รออะไหล่")) {
-      text(resNote, 155.4, 210.6, 14); // 2. รออะไหล่
+      text(resNote, 155.4, 210.6, 14);
     } else if (res.includes("ภายนอก")) {
-      text(resNote, 155.4, 220.6, 14); // 3. รอช่างภายนอก
+      text(resNote, 155.4, 220.6, 14);
     } else if (res.includes("อื่นๆ")) {
-      text(resNote, 140.6, 225.7, 14); // 4. อื่นๆ
+      text(resNote, 140.6, 225.7, 14);
     }
 
     // --- 8. เวลาและสถานะเครื่อง ---
@@ -968,13 +966,14 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
       text(Math.floor(totalMins / 60).toString(), 145, 242, 14, "center");
       text((totalMins % 60).toString(), 175, 242, 14, "center");
     }
-    check(51, 263.5, ticket.mc_status === "Stop MC");
-    check(51, 268.2, ticket.mc_status === "Not Stop" || !ticket.mc_status);
+
+    // ✅✅✅ แก้ไข: เปลี่ยนท่อไปดึงข้อมูล Stop Mc. จากช่างปิดงาน (cd.mc_status) ✅✅✅
+    check(51, 263.5, cd.mc_status === "Stop Mc.");
+    check(51, 268.2, cd.mc_status === "Non Stop.");
 
     // --- 9. ลายเซ็น ---
     text(ticket.technician_name || "-", 41, 274, 14, "center");
     text(fmtDate(end || ticket.updated_at), 41, 279, 12, "center");
-
     text(ticket.requester_fullname, 100, 274, 14, "center");
     text(
       fmtDate(ticket.verified_at || ticket.created_at),
@@ -983,7 +982,6 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
       12,
       "center"
     );
-
     const approver =
       ticket.approved_by ||
       (ticket.status === "Closed" ? "System Approved" : "");
@@ -1459,7 +1457,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
     bold = false,
   }: any) => {
     if (!children && !testMode) return null;
-
     return (
       <>
         {children && (
@@ -1485,7 +1482,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
             {children}
           </div>
         )}
-
         {testMode && (
           <div
             style={{
@@ -1561,7 +1557,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
 
   return (
     <div className="flex flex-col items-center bg-gray-300 p-4 h-full overflow-hidden">
-      {/* Control Bar */}
       <div className="flex gap-4 mb-3 items-center z-50">
         <button
           onClick={() => setTestMode(!testMode)}
@@ -1574,10 +1569,9 @@ function TicketFormView({ ticket }: { ticket: any }) {
           {testMode ? <Settings size={16} /> : <Eye size={16} />}
           {testMode ? "HIDE TEST DOTS" : "TEST POSITIONS (แสดงจุดแดง)"}
         </button>
-
         <div className="bg-slate-900 text-white w-36 py-2 rounded-lg text-xs font-mono font-bold shadow-lg border border-slate-700 flex justify-center items-center tracking-wider">
           X:{mousePos.x.toFixed(1)}{" "}
-          <span className="mx-2 text-slate-500">|</span> Y:
+          <span className="mx-2 text-slate-500">|</span> Y:{" "}
           {mousePos.y.toFixed(1)}
         </div>
       </div>
@@ -1587,16 +1581,8 @@ function TicketFormView({ ticket }: { ticket: any }) {
         className="w-full overflow-y-auto overflow-x-hidden flex justify-center border border-gray-500 shadow-2xl bg-gray-500/50 custom-scrollbar"
       >
         <style>{`
-          @font-face {
-            font-family: 'THSarabunNew';
-            src: url(data:font/truetype;charset=utf-8;base64,${fontSarabunBase64}) format('truetype');
-            font-weight: normal; font-style: normal;
-          }
-          @font-face {
-            font-family: 'THSarabunNew';
-            src: url(data:font/truetype;charset=utf-8;base64,${fontSarabunBase64}) format('truetype');
-            font-weight: bold; font-style: normal;
-          }
+          @font-face { font-family: 'THSarabunNew'; src: url(data:font/truetype;charset=utf-8;base64,${fontSarabunBase64}) format('truetype'); font-weight: normal; font-style: normal; }
+          @font-face { font-family: 'THSarabunNew'; src: url(data:font/truetype;charset=utf-8;base64,${fontSarabunBase64}) format('truetype'); font-weight: bold; font-style: normal; }
         `}</style>
 
         <div
@@ -1666,7 +1652,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
           {/* --- LOCATION --- */}
           <CheckOverlay x={117} y={73} checked={isT || factory === "SAL01"} />
           <CheckOverlay x={160.5} y={73} checked={isT || factory === "SAL02"} />
-
           {[78, 82.5, 87.5, 92.5, 97.5].map((y, i) => (
             <CheckOverlay
               key={y}
@@ -1688,7 +1673,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
               ? area.split("(")[1]?.replace(")", "")
               : ""}
           </TextOverlay>
-
           {[78, 82.5, 87.5, 92.5].map((y, i) => (
             <CheckOverlay
               key={y}
@@ -1718,7 +1702,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
           <TextOverlay x={15} y={115}>
             {isT ? "ความร้อน" : ticket.close_data?.cause || ""}
           </TextOverlay>
-
           {[114.5, 119.5, 124.5, 129, 134, 139, 144].map((y, i) => (
             <CheckOverlay
               key={y}
@@ -1766,11 +1749,10 @@ function TicketFormView({ ticket }: { ticket: any }) {
             );
           })}
 
-          {/* --- REPAIR RESULT (แก้ไขใหม่ตามสั่ง) --- */}
+          {/* --- REPAIR RESULT --- */}
           <TextOverlay x={15} y={202}>
             {isT ? "การป้องกันเทส" : ticket.close_data?.prevention || ""}
           </TextOverlay>
-
           {[201.5, 206.5, 216.3, 226].map((y, i) => (
             <CheckOverlay
               key={y}
@@ -1782,16 +1764,12 @@ function TicketFormView({ ticket }: { ticket: any }) {
               }
             />
           ))}
-
-          {/* ✅ Remarks แยกตามหัวข้อ (ใส่จุดลงไปให้แล้ว) */}
           <TextOverlay x={155.4} y={210.6}>
             {isT ? "Note: รออะไหล่" : res.includes("รออะไหล่") ? resNote : ""}
           </TextOverlay>
-
           <TextOverlay x={155.4} y={220.6}>
             {isT ? "Note: รอช่างนอก" : res.includes("ภายนอก") ? resNote : ""}
           </TextOverlay>
-
           <TextOverlay x={140.6} y={225.7}>
             {isT ? "Note: อื่นๆ" : res.includes("อื่นๆ") ? resNote : ""}
           </TextOverlay>
@@ -1818,17 +1796,16 @@ function TicketFormView({ ticket }: { ticket: any }) {
             {isT ? "59" : (ticket.close_data?.duration_minutes || 0) % 60}
           </TextOverlay>
 
+          {/* ✅✅✅ แก้ไข: หน้าพรีวิวให้อ่านค่า Stop Mc. จากช่างปิดงาน (close_data) ✅✅✅ */}
           <CheckOverlay
             x={51}
             y={263.5}
-            checked={isT || ticket.mc_status === "Stop MC"}
+            checked={isT || ticket.close_data?.mc_status === "Stop Mc."}
           />
           <CheckOverlay
             x={51}
             y={268.2}
-            checked={
-              isT || ticket.mc_status === "Not Stop" || !ticket.mc_status
-            }
+            checked={isT || ticket.close_data?.mc_status === "Non Stop."}
           />
 
           {/* --- SIGNATURES --- */}
@@ -1840,7 +1817,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
               ? "16 ม.ค. 69"
               : fmtDate(ticket.close_data?.end_time || ticket.updated_at)}
           </TextOverlay>
-
           <TextOverlay x={100} y={274} align="center" bold>
             {ticket.requester_fullname}
           </TextOverlay>
@@ -1849,7 +1825,6 @@ function TicketFormView({ ticket }: { ticket: any }) {
               ? "16 ม.ค. 69"
               : fmtDate(ticket.verified_at || ticket.created_at)}
           </TextOverlay>
-
           <TextOverlay x={165} y={274} align="center" bold>
             {isT ? "ผู้อนุมัติเทส" : ticket.approved_by || ""}
           </TextOverlay>
@@ -1888,22 +1863,18 @@ function CloseJobModal({
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
-  // ✅ State สำหรับรายการอะไหล่
+  // ✅ 1. State สำหรับสถานะเครื่อง (ค่าเริ่มต้นเป็นค่าว่าง)
+  const [mcStatus, setMcStatus] = useState("");
+
   const [parts, setParts] = useState<
     { name: string; qty: number; isLocked?: boolean }[]
   >([]);
-
-  // --- ส่วนจัดการอะไหล่ (Stock Logic) ---
   const [tempPartName, setTempPartName] = useState("");
   const [tempPartQty, setTempPartQty] = useState(1);
   const [stockList, setStockList] = useState<any[]>([]);
   const [selectedStockItem, setSelectedStockItem] = useState<any>(null);
-
-  // Password Guard
   const [showGuard, setShowGuard] = useState(false);
   const [pendingAction, setPendingAction] = useState<() => void>(() => {});
-
-  // Options
   const [categoryOptions, setCategoryOptions] = useState<
     { name: string; require_note: boolean }[]
   >([]);
@@ -1920,7 +1891,6 @@ function CloseJobModal({
   };
 
   useEffect(() => {
-    // 1. Load Master Data
     const fetchMasters = async () => {
       const getList = async (id: string) => {
         const d = await getDoc(doc(db, "maintenance_settings", id));
@@ -1939,20 +1909,17 @@ function CloseJobModal({
     };
     fetchMasters();
 
-    // 2. Load Stock Master
     const fetchStock = async () => {
       try {
         const q = query(collection(db, "spare_parts"), orderBy("name"));
         const snap = await getDocs(q);
-        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setStockList(items);
+        setStockList(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (err) {
         console.error("Failed to load stock:", err);
       }
     };
     fetchStock();
 
-    // 3. Setup Initial Data
     if (ticket.close_data) {
       const cd = ticket.close_data;
       setCause(cd.cause || "");
@@ -1963,6 +1930,9 @@ function CloseJobModal({
       setRepairResult(cd.repair_result || "");
       setRepairNote(cd.repair_note || "");
       setParts(cd.spare_parts || []);
+
+      // ✅ 2. โหลดสถานะเดิมที่เคยปิดงานไว้
+      setMcStatus(cd.mc_status || "");
 
       if (cd.start_time) setStartTime(toLocalISOString(cd.start_time.toDate()));
       if (cd.end_time) setEndTime(toLocalISOString(cd.end_time.toDate()));
@@ -1977,13 +1947,14 @@ function CloseJobModal({
       setEndTime(toLocalISOString(now));
       const diffMs = now.getTime() - ticket.created_at.toDate().getTime();
       if (diffMs / (1000 * 60 * 60) > 48) setIsDelayed(true);
+
+      // ✅ 3. เริ่มงานใหม่ต้องเลือกเองเท่านั้น
+      setMcStatus("");
     }
   }, [ticket]);
 
-  // ✅✅✅ แก้ไข Logic: คำนวณยอดสุทธิ และ ตรวจสอบเวลาเพื่อไม่ให้ข้อมูลเก่าเกาะมา ✅✅✅
   useEffect(() => {
     if (ticket.close_data) return;
-
     const possibleIds = [ticket.id, ticket.ticket_id, ticket.ticket_no].filter(
       Boolean
     );
@@ -1991,49 +1962,33 @@ function CloseJobModal({
       collection(db, "stock_logs"),
       where("refTicketId", "in", possibleIds)
     );
-
     const unsubscribe = onSnapshot(q, (snap) => {
       const partMap = new Map<string, number>();
-
-      // ✅ 1. ดึงเวลาสร้างของ Ticket ใบปัจจุบัน (ใช้เป็นเกณฑ์ตัดสิน)
       const ticketCreated = ticket.created_at?.toDate
         ? ticket.created_at.toDate()
         : new Date(ticket.created_at);
-
       snap.docs.forEach((doc) => {
         const data = doc.data();
-
-        // ✅ 2. ดึงเวลาของรายการเบิก (Log)
         const logTime = data.timestamp?.toDate
           ? data.timestamp.toDate()
           : new Date(data.timestamp || 0);
-
-        // ✅ 3. 🚩 ตรวจสอบ: ถ้ารายการเบิกนี้เกิดก่อนเวลาสร้าง Ticket ใบปัจจุบัน ให้ข้ามไปเลย (กันข้อมูลจากใบงานเก่าที่ถูกลบ)
         if (logTime < ticketCreated) return;
-
         const name = data.partName;
         const qty = Number(data.quantity) || 0;
         const currentTotal = partMap.get(name) || 0;
-
-        if (data.type === "OUT") {
-          partMap.set(name, currentTotal + qty);
-        } else if (
+        if (data.type === "OUT") partMap.set(name, currentTotal + qty);
+        else if (
           data.type === "IN" &&
           (data.isReturn === true || data.isReturn === "true")
-        ) {
+        )
           partMap.set(name, currentTotal - qty);
-        }
       });
-
       const finalParts: any[] = [];
       partMap.forEach((netQty, name) => {
-        if (netQty > 0) {
-          finalParts.push({ name, qty: netQty, isLocked: true });
-        }
+        if (netQty > 0) finalParts.push({ name, qty: netQty, isLocked: true });
       });
       setParts(finalParts);
     });
-
     return () => unsubscribe();
   }, [ticket.id, ticket.created_at, ticket.close_data]);
 
@@ -2076,6 +2031,7 @@ function CloseJobModal({
       return;
     }
 
+    // ✅ 4. ตรวจสอบว่าเลือก Status (mcStatus) หรือยัง
     if (
       !cause ||
       !correction ||
@@ -2083,9 +2039,10 @@ function CloseJobModal({
       !repairResult ||
       !startTime ||
       !endTime ||
-      !customId
+      !customId ||
+      !mcStatus
     ) {
-      alert("กรุณากรอกข้อมูลที่มีดอกจัน (*) ให้ครบถ้วน");
+      alert("กรุณากรอกข้อมูลที่มีดอกจัน (*) ให้ครบถ้วน รวมถึงสถานะเครื่องจักร");
       return;
     }
     if (showCauseNoteInput && !causeNote)
@@ -2118,11 +2075,18 @@ function CloseJobModal({
           duration_minutes: durationMin,
           delay_reason: isDelayed ? delayReason : null,
           is_delayed: isDelayed,
+          // ✅ 5. บันทึกค่าที่เลือกจาก Dropdown
+          mc_status: mcStatus,
         };
 
         await runTransaction(db, async (transaction) => {
+          // ✅✅✅ แก้ไข Logic: ป้องกันสถานะเด้งกลับหน้า Verify ✅✅✅
           let nextStatus = "Wait_Verify";
-          if (
+
+          if (ticket.status === "Closed") {
+            // ถ้าเดิมคือ Closed ให้เป็น Closed ต่อไป ห้ามเด้ง
+            nextStatus = "Closed";
+          } else if (
             ["Wait_Verify", "Wait_Approve"].includes(ticket.status) &&
             ticket.close_data
           ) {
@@ -2138,7 +2102,6 @@ function CloseJobModal({
               throw new Error(`Ticket ID ${customId} ซ้ำ!`);
             const oldDoc = await transaction.get(oldTicketRef);
             if (!oldDoc.exists()) throw new Error("Ticket เดิมหายไป!");
-
             transaction.set(ticketRef, {
               ...oldDoc.data(),
               status: nextStatus,
@@ -2155,7 +2118,6 @@ function CloseJobModal({
             });
           }
         });
-
         onSuccess();
       } catch (e: any) {
         alert("Error: " + e.message);
@@ -2189,14 +2151,36 @@ function CloseJobModal({
           </button>
         </div>
         <div className="p-5 overflow-y-auto custom-scrollbar space-y-3">
-          <div className="mb-2">
-            <label className={`${labelClass} text-yellow-500`}>Ticket ID</label>
-            <input
-              className={`${inputBase} border-yellow-500/30 text-yellow-400 font-mono`}
-              value={customId}
-              onChange={(e) => setCustomId(e.target.value.trim())}
-            />
+          {/* ส่วน Ticket ID และ Dropdown MC STATUS (บรรทัดเดียวกัน) */}
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <div>
+              <label className={`${labelClass} text-yellow-500`}>
+                Ticket ID
+              </label>
+              <input
+                className={`${inputBase} border-yellow-500/30 text-yellow-400 font-mono`}
+                value={customId}
+                onChange={(e) => setCustomId(e.target.value.trim())}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>MC STATUS *</label>
+              <select
+                className={`${inputBase} ${
+                  mcStatus === "Stop Mc."
+                    ? "text-red-500 border-red-500/50"
+                    : ""
+                }`}
+                value={mcStatus}
+                onChange={(e) => setMcStatus(e.target.value)}
+              >
+                <option value="">- เลือก -</option>
+                <option value="Stop Mc.">Stop Mc.</option>
+                <option value="Non Stop.">Non Stop.</option>
+              </select>
+            </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>1. สาเหตุ *</label>
@@ -2265,7 +2249,7 @@ function CloseJobModal({
                   value={tempPartName}
                   onChange={setTempPartName}
                   placeholder="ค้นหาอะไหล่..."
-                  className="w-full h-full bg-transparent border-none text-white text-xs px-3 outline-none focus:ring-0 placeholder-slate-600 rounded-l-lg"
+                  className="w-full h-full bg-transparent border-none text-white text-xs px-3 outline-none focus:ring-0 placeholder:text-slate-600 rounded-l-lg"
                 />
               </div>
               <div className="w-[1px] h-[60%] bg-slate-700"></div>
@@ -2284,7 +2268,6 @@ function CloseJobModal({
                 <Plus size={16} />
               </button>
             </div>
-
             {selectedStockItem && (
               <div className="flex items-center gap-2 mt-1 text-[10px] ml-1 animate-in fade-in slide-in-from-top-1">
                 <span className="text-slate-400">คงเหลือในสต็อก:</span>
@@ -2302,7 +2285,6 @@ function CloseJobModal({
                 )}
               </div>
             )}
-
             {parts.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2 relative z-0">
                 {parts.map((p, i) => (
@@ -4169,4 +4151,5 @@ export function MaintenanceModule({ currentUser, activeTab, onExit }: any) {
     </div>
   );
 }
+
 
