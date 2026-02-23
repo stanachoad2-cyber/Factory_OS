@@ -1863,11 +1863,10 @@ function CloseJobModal({
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
-  // ✅ 1. State สำหรับสถานะเครื่อง (ค่าเริ่มต้นเป็นค่าว่าง)
   const [mcStatus, setMcStatus] = useState("");
 
   const [parts, setParts] = useState<
-    { name: string; qty: number; isLocked?: boolean }[]
+    { name: string; qty: number; price?: number; isLocked?: boolean }[]
   >([]);
   const [tempPartName, setTempPartName] = useState("");
   const [tempPartQty, setTempPartQty] = useState(1);
@@ -1930,8 +1929,6 @@ function CloseJobModal({
       setRepairResult(cd.repair_result || "");
       setRepairNote(cd.repair_note || "");
       setParts(cd.spare_parts || []);
-
-      // ✅ 2. โหลดสถานะเดิมที่เคยปิดงานไว้
       setMcStatus(cd.mc_status || "");
 
       if (cd.start_time) setStartTime(toLocalISOString(cd.start_time.toDate()));
@@ -1947,12 +1944,11 @@ function CloseJobModal({
       setEndTime(toLocalISOString(now));
       const diffMs = now.getTime() - ticket.created_at.toDate().getTime();
       if (diffMs / (1000 * 60 * 60) > 48) setIsDelayed(true);
-
-      // ✅ 3. เริ่มงานใหม่ต้องเลือกเองเท่านั้น
       setMcStatus("");
     }
   }, [ticket]);
 
+  // ✅ จุดแก้ที่ 1: ดึงราคามาใส่ใน Auto-fetch Parts
   useEffect(() => {
     if (ticket.close_data) return;
     const possibleIds = [ticket.id, ticket.ticket_id, ticket.ticket_no].filter(
@@ -1967,6 +1963,7 @@ function CloseJobModal({
       const ticketCreated = ticket.created_at?.toDate
         ? ticket.created_at.toDate()
         : new Date(ticket.created_at);
+
       snap.docs.forEach((doc) => {
         const data = doc.data();
         const logTime = data.timestamp?.toDate
@@ -1983,14 +1980,26 @@ function CloseJobModal({
         )
           partMap.set(name, currentTotal - qty);
       });
+
       const finalParts: any[] = [];
       partMap.forEach((netQty, name) => {
-        if (netQty > 0) finalParts.push({ name, qty: netQty, isLocked: true });
+        if (netQty > 0) {
+          // ค้นหาราคาจาก stockList โดยใช้ชื่ออะไหล่
+          const stockItem = stockList.find((s) => s.name === name);
+          const currentPrice = stockItem?.price || 0;
+
+          finalParts.push({ 
+            name, 
+            qty: netQty, 
+            price: currentPrice, // ✅ เพิ่มบรรทัดนี้
+            isLocked: true 
+          });
+        }
       });
       setParts(finalParts);
     });
     return () => unsubscribe();
-  }, [ticket.id, ticket.created_at, ticket.close_data]);
+  }, [ticket.id, ticket.created_at, ticket.close_data, stockList]); // ✅ เพิ่ม stockList ใน dependency
 
   useEffect(() => {
     const found = stockList.find((s) => s.name === tempPartName);
@@ -2011,7 +2020,13 @@ function CloseJobModal({
 
   const handleAddPart = () => {
     if (!tempPartName) return;
-    setParts([...parts, { name: tempPartName, qty: tempPartQty }]);
+    const priceFromStock = selectedStockItem?.price || 0;
+
+    setParts([...parts, { 
+      name: tempPartName, 
+      qty: tempPartQty, 
+      price: priceFromStock // ✅ บันทึกราคา
+    }]);
     setTempPartName("");
     setTempPartQty(1);
     setSelectedStockItem(null);
@@ -2031,7 +2046,6 @@ function CloseJobModal({
       return;
     }
 
-    // ✅ 4. ตรวจสอบว่าเลือก Status (mcStatus) หรือยัง
     if (
       !cause ||
       !correction ||
@@ -2059,6 +2073,7 @@ function CloseJobModal({
         const durationMin = Math.round(
           (end.getTime() - start.getTime()) / 60000
         );
+        // rest จะรวมเอาฟิลด์ price ไปด้วยโดยอัตโนมัติ
         const cleanParts = parts.map(({ isLocked, ...rest }) => rest);
 
         const closeData = {
@@ -2075,16 +2090,12 @@ function CloseJobModal({
           duration_minutes: durationMin,
           delay_reason: isDelayed ? delayReason : null,
           is_delayed: isDelayed,
-          // ✅ 5. บันทึกค่าที่เลือกจาก Dropdown
           mc_status: mcStatus,
         };
 
         await runTransaction(db, async (transaction) => {
-          // ✅✅✅ แก้ไข Logic: ป้องกันสถานะเด้งกลับหน้า Verify ✅✅✅
           let nextStatus = "Wait_Verify";
-
           if (ticket.status === "Closed") {
-            // ถ้าเดิมคือ Closed ให้เป็น Closed ต่อไป ห้ามเด้ง
             nextStatus = "Closed";
           } else if (
             ["Wait_Verify", "Wait_Approve"].includes(ticket.status) &&
@@ -2151,12 +2162,9 @@ function CloseJobModal({
           </button>
         </div>
         <div className="p-5 overflow-y-auto custom-scrollbar space-y-3">
-          {/* ส่วน Ticket ID และ Dropdown MC STATUS (บรรทัดเดียวกัน) */}
           <div className="grid grid-cols-2 gap-3 mb-2">
             <div>
-              <label className={`${labelClass} text-yellow-500`}>
-                Ticket ID
-              </label>
+              <label className={`${labelClass} text-yellow-500`}>Ticket ID</label>
               <input
                 className={`${inputBase} border-yellow-500/30 text-yellow-400 font-mono`}
                 value={customId}
@@ -2167,9 +2175,7 @@ function CloseJobModal({
               <label className={labelClass}>MC STATUS *</label>
               <select
                 className={`${inputBase} ${
-                  mcStatus === "Stop Mc."
-                    ? "text-red-500 border-red-500/50"
-                    : ""
+                  mcStatus === "Stop Mc." ? "text-red-500 border-red-500/50" : ""
                 }`}
                 value={mcStatus}
                 onChange={(e) => setMcStatus(e.target.value)}
@@ -2184,57 +2190,30 @@ function CloseJobModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>1. สาเหตุ *</label>
-              <input
-                className={inputBase}
-                value={cause}
-                onChange={(e) => setCause(e.target.value)}
-              />
+              <input className={inputBase} value={cause} onChange={(e) => setCause(e.target.value)} />
             </div>
             <div>
               <label className={labelClass}>2. การแก้ไข *</label>
-              <input
-                className={inputBase}
-                value={correction}
-                onChange={(e) => setCorrection(e.target.value)}
-              />
+              <input className={inputBase} value={correction} onChange={(e) => setCorrection(e.target.value)} />
             </div>
             <div>
               <label className={labelClass}>3. การป้องกัน</label>
-              <input
-                className={inputBase}
-                value={prevention}
-                onChange={(e) => setPrevention(e.target.value)}
-              />
+              <input className={inputBase} value={prevention} onChange={(e) => setPrevention(e.target.value)} />
             </div>
-            <div
-              className={`${showCauseNoteInput ? "col-span-1 flex gap-2" : ""}`}
-            >
+            <div className={`${showCauseNoteInput ? "col-span-1 flex gap-2" : ""}`}>
               <div className="flex-1 min-w-0">
                 <label className={labelClass}>4. ประเภทสาเหตุ *</label>
-                <select
-                  className={inputBase}
-                  value={causeCategory}
-                  onChange={(e) => setCauseCategory(e.target.value)}
-                >
+                <select className={inputBase} value={causeCategory} onChange={(e) => setCauseCategory(e.target.value)}>
                   <option value="">- เลือก -</option>
                   {categoryOptions.map((o, i) => (
-                    <option key={i} value={o.name}>
-                      {o.name}
-                    </option>
+                    <option key={i} value={o.name}>{o.name}</option>
                   ))}
                 </select>
               </div>
               {showCauseNoteInput && (
                 <div className="flex-1 min-w-0 animate-in fade-in slide-in-from-left-2 duration-300">
-                  <label className={`${labelClass} text-orange-400`}>
-                    หมายเหตุ *
-                  </label>
-                  <input
-                    className={inputBase}
-                    value={causeNote}
-                    onChange={(e) => setCauseNote(e.target.value)}
-                    autoFocus
-                  />
+                  <label className={`${labelClass} text-orange-400`}>หมายเหตุ *</label>
+                  <input className={inputBase} value={causeNote} onChange={(e) => setCauseNote(e.target.value)} autoFocus />
                 </div>
               )}
             </div>
@@ -2261,64 +2240,27 @@ function CloseJobModal({
                 value={tempPartQty}
                 onChange={(e) => setTempPartQty(parseInt(e.target.value))}
               />
-              <button
-                onClick={handleAddPart}
-                className="h-full px-3 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-r-lg transition-colors border-l border-blue-500"
-              >
+              <button onClick={handleAddPart} className="h-full px-3 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-r-lg transition-colors border-l border-blue-500">
                 <Plus size={16} />
               </button>
             </div>
             {selectedStockItem && (
               <div className="flex items-center gap-2 mt-1 text-[10px] ml-1 animate-in fade-in slide-in-from-top-1">
                 <span className="text-slate-400">คงเหลือในสต็อก:</span>
-                <span
-                  className={`font-bold ${
-                    selectedStockItem.quantity > 0
-                      ? "text-green-400"
-                      : "text-red-400"
-                  }`}
-                >
+                <span className={`font-bold ${selectedStockItem.quantity > 0 ? "text-green-400" : "text-red-400"}`}>
                   {selectedStockItem.quantity} {selectedStockItem.unit || "pcs"}
                 </span>
-                {selectedStockItem.quantity <= 0 && (
-                  <span className="text-red-400">(ของหมด!)</span>
-                )}
               </div>
             )}
             {parts.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2 relative z-0">
                 {parts.map((p, i) => (
-                  <span
-                    key={i}
-                    className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[10px] border ${
-                      p.isLocked
-                        ? "bg-slate-800/50 border-slate-700 text-slate-400"
-                        : "bg-[#1E293B] border-slate-600 text-slate-300"
-                    }`}
-                  >
-                    {p.name}{" "}
-                    <span
-                      className={`font-bold px-1 rounded ${
-                        p.isLocked
-                          ? "text-slate-500 bg-slate-700/50"
-                          : "text-blue-400 bg-blue-400/10"
-                      }`}
-                    >
-                      x{p.qty}
-                    </span>
+                  <span key={i} className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[10px] border ${p.isLocked ? "bg-slate-800/50 border-slate-700 text-slate-400" : "bg-[#1E293B] border-slate-600 text-slate-300"}`}>
+                    {p.name} <span className={`font-bold px-1 rounded ${p.isLocked ? "text-slate-500 bg-slate-700/50" : "text-blue-400 bg-blue-400/10"}`}>x{p.qty}</span>
                     {p.isLocked ? (
-                      <div className="p-0.5 px-1">
-                        <Lock size={10} className="text-slate-500" />
-                      </div>
+                      <div className="p-0.5 px-1"><Lock size={10} className="text-slate-500" /></div>
                     ) : (
-                      <button
-                        onClick={() =>
-                          setParts(parts.filter((_, idx) => idx !== i))
-                        }
-                        className="p-0.5 rounded-full hover:bg-slate-700 text-slate-500 hover:text-red-400"
-                      >
-                        <X size={12} />
-                      </button>
+                      <button onClick={() => setParts(parts.filter((_, idx) => idx !== i))} className="p-0.5 rounded-full hover:bg-slate-700 text-slate-500 hover:text-red-400"><X size={12} /></button>
                     )}
                   </span>
                 ))}
@@ -2326,92 +2268,41 @@ function CloseJobModal({
             )}
           </div>
 
-          <div
-            className={`grid gap-3 ${
-              showResultNoteInput ? "grid-cols-2" : "grid-cols-1"
-            }`}
-          >
+          <div className={`grid gap-3 ${showResultNoteInput ? "grid-cols-2" : "grid-cols-1"}`}>
             <div>
               <label className={labelClass}>6. ผลการซ่อม *</label>
-              <select
-                className={inputBase}
-                value={repairResult}
-                onChange={(e) => setRepairResult(e.target.value)}
-              >
+              <select className={inputBase} value={repairResult} onChange={(e) => setRepairResult(e.target.value)}>
                 <option value="">- เลือก -</option>
                 {resultOptions.map((o, i) => (
-                  <option key={i} value={o.name}>
-                    {o.name}
-                  </option>
+                  <option key={i} value={o.name}>{o.name}</option>
                 ))}
               </select>
             </div>
             {showResultNoteInput && (
               <div className="animate-in fade-in slide-in-from-left-2 duration-300">
-                <label className={`${labelClass} text-orange-400`}>
-                  หมายเหตุ *
-                </label>
-                <input
-                  className={inputBase}
-                  value={repairNote}
-                  onChange={(e) => setRepairNote(e.target.value)}
-                  autoFocus
-                />
+                <label className={`${labelClass} text-orange-400`}>หมายเหตุ *</label>
+                <input className={inputBase} value={repairNote} onChange={(e) => setRepairNote(e.target.value)} autoFocus />
               </div>
             )}
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={labelClass}>เริ่ม *</label>
-              <input
-                type="datetime-local"
-                className={inputBase}
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
+              <input type="datetime-local" className={inputBase} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </div>
             <div>
               <label className={labelClass}>เสร็จ *</label>
-              <input
-                type="datetime-local"
-                className={inputBase}
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
+              <input type="datetime-local" className={inputBase} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
             </div>
             <div>
               <label className={labelClass}>เวลา (Total)</label>
-              <div
-                className={`${inputBase} bg-slate-800 text-emerald-400 font-mono font-bold justify-center`}
-              >
-                {getDurationText()}
-              </div>
+              <div className={`${inputBase} bg-slate-800 text-emerald-400 font-mono font-bold justify-center`}>{getDurationText()}</div>
             </div>
           </div>
-          {isDelayed && (
-            <div className="mt-1">
-              <label className={`${labelClass} text-red-500`}>
-                Late Reason (48h+) *
-              </label>
-              <input
-                className={`${inputBase} border-red-500/50 text-red-200 focus:border-red-500`}
-                value={delayReason}
-                onChange={(e) => setDelayReason(e.target.value)}
-              />
-            </div>
-          )}
         </div>
         <div className="p-4 border-t border-slate-700 bg-[#161E2E] shrink-0">
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all flex justify-center items-center gap-2 disabled:opacity-50"
-          >
-            {submitting
-              ? "Saving..."
-              : ticket.close_data
-              ? "Confirm Edit (Password)"
-              : "Confirm & Save"}
+          <button onClick={handleSubmit} disabled={submitting} className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all flex justify-center items-center gap-2 disabled:opacity-50">
+            {submitting ? "Saving..." : ticket.close_data ? "Confirm Edit (Password)" : "Confirm & Save"}
           </button>
         </div>
       </div>
@@ -4151,5 +4042,6 @@ export function MaintenanceModule({ currentUser, activeTab, onExit }: any) {
     </div>
   );
 }
+
 
 
