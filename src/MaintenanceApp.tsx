@@ -2022,11 +2022,14 @@ function CloseJobModal({
     if (!tempPartName) return;
     const priceFromStock = selectedStockItem?.price || 0;
 
-    setParts([...parts, { 
-      name: tempPartName, 
-      qty: tempPartQty, 
-      price: priceFromStock // ✅ บันทึกราคา
-    }]);
+    setParts([
+      ...parts,
+      {
+        name: tempPartName,
+        qty: tempPartQty,
+        price: priceFromStock, // ✅ บันทึกราคา
+      },
+    ]);
     setTempPartName("");
     setTempPartQty(1);
     setSelectedStockItem(null);
@@ -3774,6 +3777,134 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
     });
   };
 
+  const handleExportExcel = () => {
+    try {
+      if (filteredTickets.length === 0)
+        return alert("ไม่มีข้อมูลสำหรับการ Export");
+
+      const rows: any[] = [];
+
+      filteredTickets.forEach((t) => {
+        const cd = t.close_data || {};
+        const parts = cd.spare_parts || [];
+
+        const targetDate = t.approved_at || t.closed_at || t.created_at;
+        const d = targetDate?.toDate
+          ? targetDate.toDate()
+          : new Date(targetDate);
+        const year = !isNaN(d.getTime()) ? d.getFullYear() : "-";
+        const month = !isNaN(d.getTime())
+          ? d.toLocaleString("th-TH", { month: "long" })
+          : "-";
+
+        const formatDT = (val: any) => {
+          if (!val) return "-";
+          const dateObj = val.toDate ? val.toDate() : new Date(val);
+          return isNaN(dateObj.getTime())
+            ? "-"
+            : dateObj.toLocaleString("th-TH");
+        };
+
+        const baseInfo = {
+          ปี: year,
+          เดือน: month,
+          "Ticket ID": t.id || "-",
+          Status: t.status || "-",
+          วันที่แจ้งซ่อม: formatDT(t.created_at),
+          วันที่ปิดงาน: formatDT(targetDate),
+          ผู้แจ้งซ่อม: t.requester_fullname || "-",
+          แผนก: t.department || "-",
+          โรงงาน: t.factory || "-",
+          "พื้นที่/โซน": t.area || "-",
+          ชื่อเครื่องจักร: t.machine_name || "-",
+          ประเภทงาน: t.job_type || "-",
+          อาการเสีย: t.issue_item || "-",
+          "สถานะเครื่อง (ช่าง)": cd.mc_status || "-",
+          หมวดหมู่สาเหตุ: cd.cause_category || "-",
+          เริ่มซ่อมจริง: formatDT(cd.start_time),
+          // ✅ เพิ่มคอลัมน์นี้เข้าไปแล้วครับ
+          ซ่อมเสร็จจริง: formatDT(cd.end_time),
+          "เวลาซ่อม (นาที)": cd.duration_minutes || 0,
+          ชื่อช่างผู้ซ่อม: t.technician_name || "-",
+        };
+
+        if (parts.length > 0) {
+          parts.forEach((p: any) => {
+            rows.push({
+              ...baseInfo,
+              รายการอะไหล่: p.name,
+              จำนวน: p.qty || 0,
+              ราคาต่อหน่วย: p.price || 0,
+              ราคารวมอะไหล่: (p.price || 0) * (p.qty || 0),
+            });
+          });
+        } else {
+          rows.push({
+            ...baseInfo,
+            รายการอะไหล่: "ไม่มีการใช้อะไหล่",
+            จำนวน: 0,
+            ราคาต่อหน่วย: 0,
+            ราคารวมอะไหล่: 0,
+          });
+        }
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
+
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const address = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!worksheet[address]) continue;
+
+          worksheet[address].s = {
+            alignment: { horizontal: "left", vertical: "center" },
+            font: { sz: 10 },
+          };
+
+          if (R === 0) {
+            worksheet[address].s = {
+              ...worksheet[address].s,
+              fill: { fgColor: { rgb: "1E293B" } },
+              font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11 },
+            };
+          }
+        }
+      }
+
+      worksheet["!cols"] = Object.keys(rows[0] || {}).map(() => ({ wch: 20 }));
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "MT_Analysis");
+
+      const excelBuffer = XLSX.write(workbook, {
+        bookType: "xlsx",
+        type: "binary",
+      });
+      const s2ab = (s: string) => {
+        const buf = new ArrayBuffer(s.length);
+        const view = new Uint8Array(buf);
+        for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xff;
+        return buf;
+      };
+
+      const blob = new Blob([s2ab(excelBuffer)], {
+        type: "application/octet-stream",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `FactoryOS_Analysis_${new Date().getTime()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Excel Export Error:", error);
+      alert("การส่งออกไฟล์ล้มเหลว");
+    }
+  };
+
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden font-sans bg-[#0F172A] text-slate-200 relative">
       {/* --- FILTER HEADER (History Tab) --- */}
@@ -3819,6 +3950,14 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
             <div className="h-6 w-[1px] bg-slate-700 mx-1"></div>
 
             <div className="flex gap-2">
+              {/* ✅ 3. เพิ่มปุ่ม EXCEL (โชว์ตลอดในหน้าประวัติ) */}
+              <button
+                onClick={handleExportExcel}
+                className="px-4 h-10 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2 active:scale-95"
+              >
+                <FileSpreadsheet size={14} /> EXCEL
+              </button>
+
               <button
                 onClick={() => {
                   if (!isSelectionMode) setIsSelectionMode(true);
@@ -3878,16 +4017,13 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
             </p>
           </div>
         ) : activeTab === 5 ? (
-          /* ✅ TABLE LAYOUT: SELECT Fits Content + Others Shared Equally */
           <div className="bg-[#1E293B]/50 border border-slate-700 rounded-2xl overflow-hidden shadow-xl animate-in fade-in duration-500">
             <table className="w-full text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-[#0F172A] text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-700">
-                  {/* ช่องแรกกว้างแค่ 80px พอดีคำว่า SELECT */}
                   <th className="px-4 py-3 w-[80px] text-left font-bold">
                     SELECT
                   </th>
-                  {/* คอลัมน์ที่เหลือไม่ต้องใส่ความกว้าง มันจะหารกันเองเท่าๆ กัน */}
                   <th className="px-4 py-3 text-left font-bold">Ticket ID</th>
                   <th className="px-4 py-3 text-left font-bold">Machine</th>
                   <th className="px-4 py-3 text-left font-bold">Issue</th>
@@ -3957,7 +4093,6 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
             </table>
           </div>
         ) : (
-          /* --- CARD LAYOUT (Other Tabs) --- */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5 pb-24">
             {filteredTickets.map((ticket) => (
               <TicketCard
@@ -3970,7 +4105,6 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
         )}
       </div>
 
-      {/* FAB Create Button */}
       {activeTab !== 5 && canRequest && (
         <button
           onClick={() => setShowCreate(true)}
@@ -3980,7 +4114,6 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
         </button>
       )}
 
-      {/* Modals */}
       {selectedTicket && (
         <TicketDetailModal
           ticket={selectedTicket}
@@ -4042,6 +4175,7 @@ export function MaintenanceModule({ currentUser, activeTab, onExit }: any) {
     </div>
   );
 }
+
 
 
 
