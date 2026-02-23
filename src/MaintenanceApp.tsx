@@ -19,14 +19,9 @@ import {
   increment,
   writeBatch,
 } from "firebase/firestore";
-
-// Import jsPDF
 import jsPDF from "jspdf";
-
-// --- IMPORT ASSETS (จากไฟล์ที่คุณแยกไว้) ---
+import XLSX from "xlsx-js-style";
 import { fontSarabunBase64, formImageBase64 } from "./pdfAssets";
-
-// Icons (✅ เพิ่ม Edit, Box, ThumbsUp ให้ครบแล้ว)
 import {
   Wrench,
   User,
@@ -57,9 +52,9 @@ import {
   Save,
   AlertCircle,
   Clock,
-  ThumbsUp, // <--- สำคัญ
-  Box, // <--- สำคัญ
-  Edit, // <--- สำคัญ
+  ThumbsUp,
+  Box,
+  Edit,
   AlertTriangle,
   LayoutDashboard,
   Briefcase,
@@ -4176,6 +4171,7 @@ export function MaintenanceModule({ currentUser, activeTab, onExit }: any) {
     </div>
   );
 }
+
 
 
 
