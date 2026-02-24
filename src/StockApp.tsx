@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
 import imageCompression from "browser-image-compression";
 import * as XLSX from "xlsx-js-style";
+import { ArrowLeft } from "lucide-react"; // ✅ 1. เพิ่ม import
 import {
   collection,
   doc,
@@ -19,7 +20,6 @@ import {
   increment,
   setDoc,
   arrayUnion,
-  getDoc,
 } from "firebase/firestore";
 
 import {
@@ -69,9 +69,7 @@ import {
   FileText,
   ZoomOut,
   ZoomIn,
-  UserCheck,
-  Info,
-  ArrowLeft
+  item,
 } from "lucide-react";
 
 const CLOUDINARY_CLOUD_NAME = "dmqcyeu9a";
@@ -3791,23 +3789,30 @@ const ManagementView = ({
   );
 };
 
+// ==========================================
+// REPLACE: AuditView (NO IMPORTS / PIN Required / Yearly View / 0 -> -)
+// ==========================================
 const AuditView = ({ items, departments, onBack, currentUser }: any) => {
   const [search, setSearch] = useState("");
-  const [selectedDept, setSelectedDept] = useState("");
+  const [selectedDept, setSelectedDept] = useState("all");
   const [isSaving, setIsSaving] = useState(false);
 
+  // เก็บข้อมูลประวัติ: { "B/F": {...}, "2026-01": {...}, "2026-02": {...} }
   const [historyData, setHistoryData] = useState<any>({});
-  const [deptClosingInfo, setDeptClosingInfo] = useState<any>({});
 
+  // 🔒 รหัสผ่านสำหรับ Admin
   const ADMIN_PIN = "1234";
+
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
-  const currentMonthIndex = currentDate.getMonth() + 1;
+  const currentMonthIndex = currentDate.getMonth() + 1; // 1-12
+
   const currentMonthKey = `${currentYear}-${String(currentMonthIndex).padStart(
     2,
     "0"
   )}`;
 
+  // ชื่อเดือนเต็ม
   const monthsEng = [
     "JANUARY",
     "FEBRUARY",
@@ -3822,21 +3827,23 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
     "NOVEMBER",
     "DECEMBER",
   ];
+
   const currentMonthName = monthsEng[currentDate.getMonth()];
 
+  // 1. โหลดข้อมูล (B/F + รายเดือนปีปัจจุบัน)
   useEffect(() => {
     const fetchYearlyHistory = async () => {
       try {
         const historyMap: any = {};
-        const closingInfoMap: any = {};
 
+        // A. ยอดยกมา (B/F) - ธ.ค. ปีที่แล้ว
         const lastYearDecKey = `${currentYear - 1}-12`;
-        const bfSnap = await getDocs(
-          query(
-            collection(db, "monthly_closings"),
-            where("monthKey", "==", lastYearDecKey)
-          )
+        const bfQuery = query(
+          collection(db, "monthly_closings"),
+          where("monthKey", "==", lastYearDecKey)
         );
+        const bfSnap = await getDocs(bfQuery);
+
         if (!bfSnap.empty) {
           const data = bfSnap.docs[0].data();
           const map: any = {};
@@ -3844,24 +3851,24 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
           historyMap["B/F"] = map;
         }
 
-        const yearSnap = await getDocs(
-          query(
-            collection(db, "monthly_closings"),
-            where("monthKey", ">=", `${currentYear}-01`),
-            where("monthKey", "<=", `${currentYear}-12`)
-          )
+        // B. ข้อมูลทุกเดือนของปีปัจจุบัน
+        const startKey = `${currentYear}-01`;
+        const endKey = `${currentYear}-12`;
+        const yearQuery = query(
+          collection(db, "monthly_closings"),
+          where("monthKey", ">=", startKey),
+          where("monthKey", "<=", endKey)
         );
 
+        const yearSnap = await getDocs(yearQuery);
         yearSnap.forEach((doc) => {
           const data = doc.data();
           const map: any = {};
           data.items.forEach((i: any) => (map[i.id] = i.quantity));
           historyMap[data.monthKey] = map;
-          closingInfoMap[data.monthKey] = data.deptClosings || {};
         });
 
         setHistoryData(historyMap);
-        setDeptClosingInfo(closingInfoMap);
       } catch (err) {
         console.error("Fetch History Error", err);
       }
@@ -3871,8 +3878,8 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
 
   const filteredItems = items
     .filter((i: any) => {
-      if (selectedDept === "" || selectedDept === "all") return false;
-      const matchesDept = i.department === selectedDept;
+      const matchesDept =
+        selectedDept === "all" ? true : i.department === selectedDept;
       const matchesSearch =
         i.name.toLowerCase().includes(search.toLowerCase()) ||
         (i.sku && i.sku.toLowerCase().includes(search.toLowerCase()));
@@ -3882,68 +3889,50 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
       (a.sku || "").localeCompare(b.sku || "", undefined, { numeric: true })
     );
 
+  // 🔒 ปุ่ม Check Stock (ถามรหัส)
   const handleCheckStock = async () => {
-    if (!selectedDept) return alert("❌ กรุณาเลือกแผนก");
-    if (!confirm(`📦 ยืนยันบันทึกสต็อกแผนก "${selectedDept}" ?`)) return;
-    const pin = prompt("🔒 Admin PIN:");
-    if (pin !== ADMIN_PIN) return alert("❌ PIN ผิด!");
+    // 1. ถามยืนยัน
+    if (
+      !confirm(`📦 Confirm closing for "${currentMonthName} ${currentYear}" ?`)
+    )
+      return;
+
+    // 2. ถามรหัส
+    const pin = prompt("🔒 Enter Admin PIN to confirm:");
+    if (pin !== ADMIN_PIN) {
+      alert("❌ Incorrect PIN! Access Denied.");
+      return;
+    }
 
     setIsSaving(true);
     try {
-      const docRef = doc(db, "monthly_closings", currentMonthKey);
-      const docSnap = await getDoc(docRef);
-      const newSnapshots = filteredItems.map((item: any) => ({
+      const snapshotItems = items.map((item: any) => ({
         id: item.id,
         sku: item.sku,
         name: item.name,
         quantity: item.quantity,
         price: item.price,
-        department: item.department,
+        totalValue: item.quantity * item.price,
+        department: item.department || "-",
       }));
 
-      let finalItems = [];
-      let currentDeptClosings = {};
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        finalItems = (data.items || []).filter(
-          (i: any) => i.department !== selectedDept
-        );
-        finalItems = [...finalItems, ...newSnapshots];
-        currentDeptClosings = data.deptClosings || {};
-      } else {
-        finalItems = newSnapshots;
-      }
-
-      const updatedDeptClosings = {
-        ...currentDeptClosings,
-        [selectedDept]: {
-          closedBy: currentUser?.fullname || "Admin",
-          closedAt: new Date().toLocaleString("th-TH", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        },
-      };
-
-      await setDoc(docRef, {
+      await setDoc(doc(db, "monthly_closings", currentMonthKey), {
         monthKey: currentMonthKey,
         monthLabel: `${currentMonthName}-${currentYear}`,
-        items: finalItems,
-        deptClosings: updatedDeptClosings,
+        items: snapshotItems,
+        totalItems: snapshotItems.length,
+        closedBy: currentUser?.fullname || "Admin",
         closedAt: serverTimestamp(),
       });
 
       const newMap: any = {};
-      finalItems.forEach((i: any) => (newMap[i.id] = i.quantity));
-      setHistoryData((prev: any) => ({ ...prev, [currentMonthKey]: newMap }));
-      setDeptClosingInfo((prev: any) => ({
+      snapshotItems.forEach((i: any) => (newMap[i.id] = i.quantity));
+      setHistoryData((prev: any) => ({
         ...prev,
-        [currentMonthKey]: updatedDeptClosings,
+        [currentMonthKey]: newMap,
       }));
-      alert(`✅ บันทึกสต็อกแผนก ${selectedDept} เรียบร้อย!`);
+
+      alert("✅ Closed Successfully!");
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -3951,56 +3940,27 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
     }
   };
 
+  // 🔒 ปุ่ม Uncheck (ถามรหัส)
   const handleUncheck = async () => {
-    if (!selectedDept) return alert("❌ กรุณาเลือกแผนก");
-    if (!confirm(`🔓 ยืนยันยกเลิกการเช็คสต็อกของแผนก "${selectedDept}"?`))
+    // 1. ถามยืนยัน
+    if (!confirm(`🔓 UNCHECK month ${currentMonthName}?`)) return;
+
+    // 2. ถามรหัส
+    const pin = prompt("🔒 Enter Admin PIN to confirm:");
+    if (pin !== ADMIN_PIN) {
+      alert("❌ Incorrect PIN! Access Denied.");
       return;
-    const pin = prompt("🔒 Enter Admin PIN:");
-    if (pin !== ADMIN_PIN) return alert("❌ PIN ผิด!");
+    }
 
     setIsSaving(true);
     try {
-      const docRef = doc(db, "monthly_closings", currentMonthKey);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const remainingItems = (data.items || []).filter(
-          (i: any) => i.department !== selectedDept
-        );
-        const remainingClosings = { ...(data.deptClosings || {}) };
-        delete remainingClosings[selectedDept];
-
-        if (remainingItems.length === 0) {
-          await deleteDoc(docRef);
-          setHistoryData((prev: any) => {
-            const n = { ...prev };
-            delete n[currentMonthKey];
-            return n;
-          });
-          setDeptClosingInfo((prev: any) => {
-            const n = { ...prev };
-            delete n[currentMonthKey];
-            return n;
-          });
-        } else {
-          await setDoc(docRef, {
-            ...data,
-            items: remainingItems,
-            deptClosings: remainingClosings,
-          });
-          const newMap: any = {};
-          remainingItems.forEach((i: any) => (newMap[i.id] = i.quantity));
-          setHistoryData((prev: any) => ({
-            ...prev,
-            [currentMonthKey]: newMap,
-          }));
-          setDeptClosingInfo((prev: any) => ({
-            ...prev,
-            [currentMonthKey]: remainingClosings,
-          }));
-        }
-        alert(`✅ Uncheck แผนก ${selectedDept} สำเร็จ!`);
-      }
+      await deleteDoc(doc(db, "monthly_closings", currentMonthKey));
+      setHistoryData((prev: any) => {
+        const newState = { ...prev };
+        delete newState[currentMonthKey];
+        return newState;
+      });
+      alert("✅ Uncheck Completed");
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -4008,94 +3968,111 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
     }
   };
 
-  // ✅ Export Excel (หัวข้อ & Balance เขียวพาสเทล + เส้นตารางรอบทิศ + ชิดซ้าย)
+  // ✅ Export Excel (Browser Compatible + PIN Check Not Required for Export)
   const handleExportExcel = () => {
     try {
-      const activeMonths: any[] = [];
-      if (historyData["B/F"])
+      const activeMonths: { key: string; label: string }[] = [];
+
+      // B/F Column
+      if (historyData["B/F"]) {
         activeMonths.push({ key: "B/F", label: `B/F (${currentYear - 1})` });
-      for (let i = 1; i <= 12; i++) {
-        const key = `${currentYear}-${String(i).padStart(2, "0")}`;
-        if (deptClosingInfo[key] && deptClosingInfo[key][selectedDept])
-          activeMonths.push({ key, label: monthsEng[i - 1] });
       }
 
+      // Monthly Columns
+      for (let i = 1; i <= 12; i++) {
+        const key = `${currentYear}-${String(i).padStart(2, "0")}`;
+        if (historyData[key]) {
+          activeMonths.push({ key: key, label: monthsEng[i - 1] });
+        }
+      }
+
+      // Map Data
       const dataToExport = filteredItems.map((item: any) => {
-        const row: any = { SKU: item.sku, PartName: item.name };
+        const row: any = {
+          SKU: item.sku,
+          PartName: item.name,
+        };
+
         activeMonths.forEach((col) => {
           const qty = historyData[col.key]
             ? historyData[col.key][item.id]
             : undefined;
+          // 0 -> "-"
           row[col.label] = qty === 0 || qty === undefined ? "-" : qty;
         });
+
+        // Balance: 0 -> "-"
         row["BALANCE"] = item.quantity === 0 ? "-" : item.quantity;
         return row;
       });
 
       const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
 
-      const wscols = [
-        { wch: 15 },
-        { wch: 45 },
-        ...activeMonths.map(() => ({ wch: 15 })),
-        { wch: 15 },
-      ];
+      // Set Column Widths
+      const wscols = [{ wch: 15 }, { wch: 40 }];
+      activeMonths.forEach(() => wscols.push({ wch: 15 }));
+      wscols.push({ wch: 12 });
       ws["!cols"] = wscols;
 
-      const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-      const pastelGreen = { rgb: "E2EFDA" };
-      // เส้นตารางแบบบาง (Thin Border)
-      const borderStyle = {
-        top: { style: "thin" },
-        bottom: { style: "thin" },
-        left: { style: "thin" },
-        right: { style: "thin" },
+      // Apply Styles
+      const range = XLSX.utils.decode_range(ws["!ref"] as string);
+
+      const thinBorder = {
+        top: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } },
       };
 
       for (let R = range.s.r; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
-          const addr = XLSX.utils.encode_cell({ r: R, c: C });
-          if (!ws[addr]) continue;
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
 
-          ws[addr].s = {
+          const isHeader = R === 0;
+          const isBalanceCol = C === range.e.c;
+
+          let fgColor = { rgb: "FFFFFF" };
+          if (isHeader) fgColor = { rgb: "C6E0B4" };
+          else if (isBalanceCol) fgColor = { rgb: "E2EFDA" };
+
+          ws[cellAddress].s = {
+            fill: { fgColor },
+            font: {
+              name: "Calibri",
+              sz: 11,
+              bold: isHeader || isBalanceCol,
+            },
             alignment: { horizontal: "left", vertical: "center" },
-            font: { name: "Calibri", sz: 11 },
-            border: borderStyle,
+            border: thinBorder,
           };
-
-          if (R === 0 || (C === range.e.c && R > 0)) {
-            ws[addr].s.fill = { fgColor: pastelGreen };
-            ws[addr].s.font.bold = true;
-          }
         }
       }
 
-      XLSX.utils.book_append_sheet(wb, ws, "AuditData");
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `Stock_${currentYear}`);
+
+      // ✅ Browser Download (Fix ENOTSUP Error)
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       const blob = new Blob([wbout], { type: "application/octet-stream" });
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Audit_${selectedDept}_${currentYear}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Stock_Yearly_${currentYear}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (e: any) {
-      alert(e.message);
+      alert("Export Error: " + e.message);
     }
   };
 
-  const isCurrentDeptClosed = !!(
-    deptClosingInfo[currentMonthKey] &&
-    deptClosingInfo[currentMonthKey][selectedDept]
-  );
+  const isCurrentMonthClosed = !!historyData[currentMonthKey];
 
   return (
     <div className="flex-1 p-4 overflow-hidden flex flex-col bg-[#0F172A] animate-in slide-in-from-right duration-300">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between mb-4 border-b border-slate-700/50 pb-4 gap-3">
+      <div className="flex flex-wrap items-center justify-between mb-4 border-b border-slate-700/50 pb-4 gap-3 print:hidden">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
@@ -4124,38 +4101,39 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
           >
             <FileSpreadsheet size={14} /> Excel
           </button>
-          {isCurrentDeptClosed ? (
+
+          {isCurrentMonthClosed ? (
             <button
               onClick={handleUncheck}
               disabled={isSaving}
-              className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-lg"
+              className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg font-bold text-xs flex items-center gap-2 disabled:opacity-50"
             >
               {isSaving ? (
                 <Loader2 className="animate-spin" size={14} />
               ) : (
                 <X size={14} />
-              )}{" "}
-              Uncheck
+              )}
+              Uncheck ({currentMonthName})
             </button>
           ) : (
             <button
               onClick={handleCheckStock}
               disabled={isSaving}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-lg"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg font-bold text-xs flex items-center gap-2 disabled:opacity-50"
             >
               {isSaving ? (
                 <Loader2 className="animate-spin" size={14} />
               ) : (
                 <CheckCircle size={14} />
-              )}{" "}
-              Check Stock
+              )}
+              Check Stock ({currentMonthName})
             </button>
           )}
         </div>
       </div>
 
       {/* Filter */}
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-3 print:hidden">
         <div className="relative w-[300px]">
           <Search
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
@@ -4174,7 +4152,7 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
           onChange={(e) => setSelectedDept(e.target.value)}
           className="bg-[#1E293B] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white outline-none w-[150px]"
         >
-          <option value="">-- Select Dept --</option>
+          <option value="all">All Depts</option>
           {departments.map((d: any) => (
             <option key={d.id} value={d.name}>
               {d.name}
@@ -4184,130 +4162,90 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
       </div>
 
       {/* Table Area */}
-      <div className="flex-1 border border-slate-700/50 rounded-lg overflow-auto bg-[#1E293B] shadow-xl">
+      <div className="flex-1 border border-slate-700/50 rounded-lg overflow-auto bg-[#1E293B] flex flex-col items-start print:border-none print:bg-white shadow-xl">
         <div className="custom-scrollbar w-auto min-w-0">
           <table className="text-left border-collapse whitespace-nowrap table-fixed">
-            <thead className="bg-[#020617] sticky top-0 z-50 text-[10px] uppercase text-slate-400 font-bold tracking-widest border-b border-slate-700">
+            <thead className="bg-[#020617] sticky top-0 z-10 text-[10px] uppercase text-slate-400 font-bold tracking-widest border-b border-slate-700 print:bg-white print:text-black">
               <tr>
-                <th className="px-3 py-2 w-[80px] border-r border-slate-700/50 text-left">
+                <th className="px-3 py-2 w-[80px] min-w-[80px] max-w-[80px] text-left border-r border-slate-700/50">
                   SKU
                 </th>
-                <th className="px-3 py-2 w-[300px] border-r border-slate-700/50 text-left">
+                <th className="px-3 py-2 w-[300px] min-w-[300px] max-w-[300px] text-left border-r border-slate-700/50">
                   PART NAME
                 </th>
+
+                {/* B/F Header */}
                 {historyData["B/F"] && (
-                  <th className="px-3 py-2 w-[100px] text-amber-400 border-r border-slate-700/50 font-black text-left">
+                  <th className="px-3 py-2 w-[100px] min-w-[100px] max-w-[100px] text-left text-amber-400 border-r border-slate-700/50 print:text-black print:border-gray-300">
                     B/F ({currentYear - 1})
                   </th>
                 )}
+
+                {/* Monthly Header (Full Name) */}
                 {[...Array(12)].map((_, i) => {
-                  const key = `${currentYear}-${String(i + 1).padStart(
+                  const monthNum = i + 1;
+                  const key = `${currentYear}-${String(monthNum).padStart(
                     2,
                     "0"
                   )}`;
-                  const info = deptClosingInfo[key]
-                    ? deptClosingInfo[key][selectedDept]
-                    : null;
-                  if (info) {
+                  if (historyData[key]) {
                     return (
                       <th
                         key={key}
-                        className="px-3 py-2 w-[110px] text-white border-r border-slate-700/50 relative group cursor-pointer text-left overflow-visible"
+                        className="px-3 py-2 w-[100px] min-w-[100px] max-w-[100px] text-left text-white border-r border-slate-700/50 print:text-black print:border-gray-300"
                       >
-                        <div className="flex items-center gap-1">
-                          {monthsEng[i]}{" "}
-                          <Info size={10} className="text-slate-500" />
-                        </div>
-
-                        {/* ✅ Tooltip ปรับแก้ให้ลอยเด่น ไม่โดนตัดขอบ */}
-                        <div className="absolute hidden group-hover:flex flex-col top-full left-0 mt-1 w-56 p-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-[9999] pointer-events-none normal-case tracking-normal animate-in fade-in slide-in-from-top-1 duration-200">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <div className="p-1.5 bg-emerald-500/10 rounded-lg">
-                              <UserCheck
-                                size={14}
-                                className="text-emerald-500"
-                              />
-                            </div>
-                            <div>
-                              <p className="text-[9px] text-slate-500 font-bold leading-none uppercase">
-                                Checked By
-                              </p>
-                              <p className="text-[11px] text-emerald-400 font-black">
-                                {info.closedBy}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 pt-1.5 border-t border-slate-800">
-                            <div className="p-1.5 bg-blue-500/10 rounded-lg">
-                              <Calendar size={14} className="text-blue-500" />
-                            </div>
-                            <div>
-                              <p className="text-[9px] text-slate-500 font-bold leading-none uppercase">
-                                Date/Time
-                              </p>
-                              <p className="text-[10px] text-slate-300 font-medium">
-                                {info.closedAt}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                        {monthsEng[i]}
                       </th>
                     );
                   }
                   return null;
                 })}
-                <th className="px-3 py-2 w-[100px] text-emerald-400 font-black text-left">
+
+                <th className="px-3 py-2 w-[100px] min-w-[100px] max-w-[100px] text-left text-emerald-400 print:text-black print:border-gray-300">
                   BALANCE
                 </th>
+
                 <th className="px-3 py-2 w-auto"></th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-700/50">
-              {filteredItems.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={20}
-                    className="px-6 py-10 text-center text-slate-500 text-xs italic"
-                  >
-                    {selectedDept === ""
-                      ? "กรุณาเลือกแผนกเพื่อตรวจสอบ"
-                      : "ไม่พบข้อมูลในแผนกนี้"}
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item: any) => (
+            <tbody className="divide-y divide-slate-700/50 print:divide-gray-300">
+              {filteredItems.map((item: any) => {
+                return (
                   <tr
                     key={item.id}
-                    className="hover:bg-slate-700/50 transition-colors"
+                    className="hover:bg-slate-700/50 transition-colors print:hover:bg-transparent"
                   >
-                    <td className="px-3 py-1 font-mono text-[10px] text-slate-400 border-r border-slate-700/50 text-left">
+                    <td className="px-3 py-1 w-[80px] min-w-[80px] max-w-[80px] font-mono text-[10px] text-slate-400 truncate text-left border-r border-slate-700/50 print:text-black">
                       {item.sku}
                     </td>
-                    <td className="px-3 py-1 text-[11px] text-slate-200 truncate border-r border-slate-700/50 text-left">
+                    <td className="px-3 py-1 w-[300px] min-w-[300px] max-w-[300px] text-[11px] text-slate-200 truncate text-left border-r border-slate-700/50 print:text-black">
                       {item.name}
                     </td>
+
+                    {/* B/F Data: 0 -> - */}
                     {historyData["B/F"] && (
-                      <td className="px-3 py-1 text-amber-400 font-bold border-r border-slate-700/50 text-left">
-                        {historyData["B/F"][item.id] || "-"}
+                      <td className="px-3 py-1 w-[100px] min-w-[100px] max-w-[100px] text-left font-mono text-xs font-bold text-amber-400 border-r border-slate-700/50 print:text-black print:border-gray-300">
+                        {historyData["B/F"][item.id] !== undefined &&
+                        historyData["B/F"][item.id] !== 0
+                          ? historyData["B/F"][item.id]
+                          : "-"}
                       </td>
                     )}
+
+                    {/* Monthly Data: 0 -> - */}
                     {[...Array(12)].map((_, i) => {
-                      const key = `${currentYear}-${String(i + 1).padStart(
+                      const monthNum = i + 1;
+                      const key = `${currentYear}-${String(monthNum).padStart(
                         2,
                         "0"
                       )}`;
-                      if (
-                        deptClosingInfo[key] &&
-                        deptClosingInfo[key][selectedDept]
-                      ) {
-                        const qty = historyData[key]
-                          ? historyData[key][item.id]
-                          : undefined;
+                      if (historyData[key]) {
+                        const qty = historyData[key][item.id];
                         return (
                           <td
                             key={key}
-                            className="px-3 py-1 font-bold text-white border-r border-slate-700/50 text-left"
+                            className="px-3 py-1 w-[100px] min-w-[100px] max-w-[100px] text-left font-mono text-xs font-bold text-white border-r border-slate-700/50 print:text-black print:border-gray-300"
                           >
                             {qty !== undefined && qty !== 0 ? qty : "-"}
                           </td>
@@ -4315,13 +4253,16 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
                       }
                       return null;
                     })}
-                    <td className="px-3 py-1 font-bold text-emerald-400 text-left">
+
+                    {/* Balance: 0 -> - */}
+                    <td className="px-3 py-1 w-[100px] min-w-[100px] max-w-[100px] text-left font-mono text-xs font-bold text-emerald-400 print:text-black print:border-gray-300">
                       {item.quantity !== 0 ? item.quantity : "-"}
                     </td>
+
                     <td className="w-auto"></td>
                   </tr>
-                ))
-              )}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -4329,8 +4270,6 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
     </div>
   );
 };
-
-export default AuditView;
 
 export function StockAnalyticsSidebar({
   activeTab,
@@ -5753,9 +5692,6 @@ export default function StockApp({
     </div>
   );
 }
-
-
-
 
 
 
