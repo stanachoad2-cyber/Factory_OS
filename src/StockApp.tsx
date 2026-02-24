@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
 import imageCompression from "browser-image-compression";
 import * as XLSX from "xlsx-js-style";
-import { ArrowLeft } from "lucide-react"; // ✅ 1. เพิ่ม import
 import {
   collection,
   doc,
@@ -70,9 +69,9 @@ import {
   FileText,
   ZoomOut,
   ZoomIn,
-  item,
   UserCheck,
   Info,
+  ArrowLeft
 } from "lucide-react";
 
 const CLOUDINARY_CLOUD_NAME = "dmqcyeu9a";
@@ -5754,6 +5753,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
