@@ -4341,19 +4341,19 @@ export function StockAnalyticsSidebar({
   const menuItems = [
     {
       id: "issued",
-      label: "ประวัติการเบิกของช่าง",
+      label: "ประวัติการเบิกช่าง",
       icon: History,
       color: "text-blue-400",
     },
     {
       id: "parts",
-      label: "ประวัติการเบิกของอะไหล่",
+      label: "ประวัติการเบิกอะไหล่",
       icon: Box,
       color: "text-indigo-400",
     },
     {
       id: "supplier",
-      label: "ประวัติการนำเข้าของอะไหล่",
+      label: "ประวัติการนำเข้าอะไหล่",
       icon: Truck,
       color: "text-purple-400",
     },
@@ -5752,6 +5752,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
