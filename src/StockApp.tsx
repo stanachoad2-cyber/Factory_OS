@@ -1595,34 +1595,48 @@ const AnalyticsView = ({
     }
   };
 
-  // --- Load Data ---
-  useEffect(() => {
-    const unsubUser = db
-      .collection("User")
-      .onSnapshot((snap) =>
-        setUsersList(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-      );
-    const unsubSup = db
-      .collection("suppliers")
-      .onSnapshot((snap) =>
-        setSuppliersList(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-      );
+  // --- 1. ฟังก์ชันโหลดข้อมูล User และคัดกรองเฉพาะ "ช่าง" ---
+  useEffect(() => {
+    const unsubUser = db
+      .collection("User")
+      .onSnapshot((snap) => {
+        // ดึงข้อมูลดิบมาก่อน
+        const allData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        
+        // กรองเอาเฉพาะ "ช่าง" (คนที่มีสิทธิ์ stock_operate หรือเป็น Admin)
+        const technicians = allData.filter((u: any) => {
+          return (
+            u.username === "Bank" || 
+            u.role === "Admin" || 
+            u.role === "super_admin" || 
+            (u.allowedActions && u.allowedActions.includes("stock_operate"))
+          );
+        });
 
-    setHasSearched(false);
-    setHistoryLogs([]);
-    setDeadStockList([]);
-    setLowStockList([]);
-    setSortConfig(null);
-    setSelectedPart("");
-    setSelectedSupplier("all");
-    setSelectedOrigin("all");
-    setEditingId(null);
+        setUsersList(technicians);
+      });
 
-    return () => {
-      unsubUser();
-      unsubSup();
-    };
-  }, [subTab]);
+    const unsubSup = db
+      .collection("suppliers")
+      .onSnapshot((snap) =>
+        setSuppliersList(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      );
+
+    setHasSearched(false);
+    setHistoryLogs([]);
+    setDeadStockList([]);
+    setLowStockList([]);
+    setSortConfig(null);
+    setSelectedPart("");
+    setSelectedSupplier("all");
+    setSelectedOrigin("all");
+    setEditingId(null);
+
+    return () => {
+      unsubUser();
+      unsubSup();
+    };
+  }, [subTab]);
 
   useEffect(() => {
     if (subTab === "supplier") setSelectedSupplier("all");
@@ -5752,6 +5766,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
