@@ -277,7 +277,6 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
 
   return (
     <div className="bg-[#1F1F23] border border-gray-800 rounded-lg overflow-hidden hover:border-blue-500 transition-all group relative flex flex-col shadow-sm hover:shadow-md h-full">
-      {/* ✅ แก้ไขจุดนี้: เปลี่ยน h-40 เป็น aspect-square และจัดตำแหน่งรูป */}
       <div className="aspect-square w-full bg-gray-800 relative overflow-hidden flex items-center justify-center">
         <img
           src={
@@ -288,7 +287,6 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
           loading="lazy"
           className="pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity duration-300"
           style={{
-            // ✅ ดึงพิกัด X, Y และค่าซูมที่พี่ลากไว้มาแสดงผล
             objectFit: "cover",
             objectPosition: `${item.imagePositionX || 50}% ${
               item.imagePositionY || 50
@@ -307,8 +305,8 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
       </div>
 
       <div className="p-3 flex flex-col gap-2 bg-[#16181C] flex-1">
-        <div className="flex justify-between items-start gap-2">
-          <div className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 w-full">
+        <div className="flex justify-between items-center gap-2">
+          <div className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 flex-1 min-w-0">
             <h3
               className="font-bold text-blue-400 text-xs truncate"
               title={item.name}
@@ -317,8 +315,9 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
             </h3>
           </div>
           <div className="text-right shrink-0">
+            {/* ✅ เพิ่ม .toLocaleString() เพื่อใส่ลูกน้ำหลักพัน */}
             <span className="block font-bold text-blue-400 text-sm">
-              ฿{item.price}
+              ฿{Number(item.price).toLocaleString()}
             </span>
           </div>
         </div>
@@ -413,7 +412,6 @@ const ProductCardAdminCompact = ({
       }}
       className="bg-[#1F1F23] border border-gray-800 rounded-lg overflow-hidden hover:border-blue-500 transition-all group relative flex flex-col shadow-sm hover:shadow-md cursor-pointer h-full"
     >
-      {/* Image Section - ✅ แก้ไขจุดนี้: เปลี่ยน h-40 เป็น aspect-square และจัดตำแหน่งรูป */}
       <div className="aspect-square w-full bg-gray-800 relative overflow-hidden flex items-center justify-center">
         <img
           src={item.image || "https://via.placeholder.com/300x400?text=Part"}
@@ -421,7 +419,6 @@ const ProductCardAdminCompact = ({
           loading="lazy"
           className="pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity duration-300"
           style={{
-            // ✅ ดึงพิกัด X, Y และค่าซูมมาใช้เพื่อให้ตรงกับหน้า Edit
             objectFit: "cover",
             objectPosition: `${item.imagePositionX || 50}% ${
               item.imagePositionY || 50
@@ -430,7 +427,6 @@ const ProductCardAdminCompact = ({
             height: `${(item.imageScale || 1) * 100}%`,
           }}
         />
-        {/* Status Badge */}
         <div className="absolute top-1 left-1">
           <span
             className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shadow-sm ${statusColor}`}
@@ -438,7 +434,6 @@ const ProductCardAdminCompact = ({
             {statusText}
           </span>
         </div>
-        {/* Hover Edit Overlay */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
           <div className="bg-black/60 px-3 py-1 rounded-full border border-white/20 text-white text-xs backdrop-blur-sm flex items-center gap-1">
             <Edit3 size={12} /> แก้ไข
@@ -446,10 +441,9 @@ const ProductCardAdminCompact = ({
         </div>
       </div>
 
-      {/* Info Section */}
       <div className="p-3 flex flex-col gap-2 bg-[#16181C] flex-1">
         <div className="flex justify-between items-center gap-2">
-          <div className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 w-full">
+          <div className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 flex-1 min-w-0">
             <h3
               className="font-bold text-blue-400 text-xs truncate"
               title={item.name}
@@ -458,13 +452,13 @@ const ProductCardAdminCompact = ({
             </h3>
           </div>
           <div className="text-right shrink-0">
+            {/* ✅ ใส่ .toLocaleString() ไว้แล้วเพื่อให้มีลูกน้ำเสมอ */}
             <span className="block font-bold text-blue-400 text-sm">
               ฿{Number(item.price).toLocaleString()}
             </span>
           </div>
         </div>
 
-        {/* Tags Row */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1 bg-[#0F172A] border border-slate-700 rounded px-1.5 py-0.5 text-[9px] text-slate-400 shrink-0">
             <Tag size={10} /> <span>{item.sku || "-"}</span>
@@ -486,7 +480,6 @@ const ProductCardAdminCompact = ({
           </div>
         </div>
 
-        {/* Actions Row */}
         <div className="flex gap-2 mt-auto">
           <button
             onClick={(e) => {
@@ -507,7 +500,6 @@ const ProductCardAdminCompact = ({
             <Plus size={12} /> เพิ่มสต็อก
           </button>
 
-          {/* Delete Button */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -5766,6 +5758,7 @@ export default function StockApp({
     </div>
   );
 }
+
 
 
 
