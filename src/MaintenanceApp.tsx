@@ -1944,7 +1944,6 @@ function CloseJobModal({
     }
   }, [ticket]);
 
-  // ✅ จุดแก้ที่ 1: ดึงราคามาใส่ใน Auto-fetch Parts
   useEffect(() => {
     if (ticket.close_data) return;
     const possibleIds = [ticket.id, ticket.ticket_id, ticket.ticket_no].filter(
@@ -1980,22 +1979,21 @@ function CloseJobModal({
       const finalParts: any[] = [];
       partMap.forEach((netQty, name) => {
         if (netQty > 0) {
-          // ค้นหาราคาจาก stockList โดยใช้ชื่ออะไหล่
           const stockItem = stockList.find((s) => s.name === name);
           const currentPrice = stockItem?.price || 0;
 
-          finalParts.push({ 
-            name, 
-            qty: netQty, 
-            price: currentPrice, // ✅ เพิ่มบรรทัดนี้
-            isLocked: true 
+          finalParts.push({
+            name,
+            qty: netQty,
+            price: currentPrice,
+            isLocked: true,
           });
         }
       });
       setParts(finalParts);
     });
     return () => unsubscribe();
-  }, [ticket.id, ticket.created_at, ticket.close_data, stockList]); // ✅ เพิ่ม stockList ใน dependency
+  }, [ticket.id, ticket.created_at, ticket.close_data, stockList]);
 
   useEffect(() => {
     const found = stockList.find((s) => s.name === tempPartName);
@@ -2023,7 +2021,7 @@ function CloseJobModal({
       {
         name: tempPartName,
         qty: tempPartQty,
-        price: priceFromStock, // ✅ บันทึกราคา
+        price: priceFromStock,
       },
     ]);
     setTempPartName("");
@@ -2072,7 +2070,6 @@ function CloseJobModal({
         const durationMin = Math.round(
           (end.getTime() - start.getTime()) / 60000
         );
-        // rest จะรวมเอาฟิลด์ price ไปด้วยโดยอัตโนมัติ
         const cleanParts = parts.map(({ isLocked, ...rest }) => rest);
 
         const closeData = {
@@ -2163,7 +2160,9 @@ function CloseJobModal({
         <div className="p-5 overflow-y-auto custom-scrollbar space-y-3">
           <div className="grid grid-cols-2 gap-3 mb-2">
             <div>
-              <label className={`${labelClass} text-yellow-500`}>Ticket ID</label>
+              <label className={`${labelClass} text-yellow-500`}>
+                Ticket ID
+              </label>
               <input
                 className={`${inputBase} border-yellow-500/30 text-yellow-400 font-mono`}
                 value={customId}
@@ -2174,7 +2173,9 @@ function CloseJobModal({
               <label className={labelClass}>MC STATUS *</label>
               <select
                 className={`${inputBase} ${
-                  mcStatus === "Stop Mc." ? "text-red-500 border-red-500/50" : ""
+                  mcStatus === "Stop Mc."
+                    ? "text-red-500 border-red-500/50"
+                    : ""
                 }`}
                 value={mcStatus}
                 onChange={(e) => setMcStatus(e.target.value)}
@@ -2189,30 +2190,57 @@ function CloseJobModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>1. สาเหตุ *</label>
-              <input className={inputBase} value={cause} onChange={(e) => setCause(e.target.value)} />
+              <input
+                className={inputBase}
+                value={cause}
+                onChange={(e) => setCause(e.target.value)}
+              />
             </div>
             <div>
               <label className={labelClass}>2. การแก้ไข *</label>
-              <input className={inputBase} value={correction} onChange={(e) => setCorrection(e.target.value)} />
+              <input
+                className={inputBase}
+                value={correction}
+                onChange={(e) => setCorrection(e.target.value)}
+              />
             </div>
             <div>
               <label className={labelClass}>3. การป้องกัน</label>
-              <input className={inputBase} value={prevention} onChange={(e) => setPrevention(e.target.value)} />
+              <input
+                className={inputBase}
+                value={prevention}
+                onChange={(e) => setPrevention(e.target.value)}
+              />
             </div>
-            <div className={`${showCauseNoteInput ? "col-span-1 flex gap-2" : ""}`}>
+            <div
+              className={`${showCauseNoteInput ? "col-span-1 flex gap-2" : ""}`}
+            >
               <div className="flex-1 min-w-0">
                 <label className={labelClass}>4. ประเภทสาเหตุ *</label>
-                <select className={inputBase} value={causeCategory} onChange={(e) => setCauseCategory(e.target.value)}>
+                <select
+                  className={inputBase}
+                  value={causeCategory}
+                  onChange={(e) => setCauseCategory(e.target.value)}
+                >
                   <option value="">- เลือก -</option>
                   {categoryOptions.map((o, i) => (
-                    <option key={i} value={o.name}>{o.name}</option>
+                    <option key={i} value={o.name}>
+                      {o.name}
+                    </option>
                   ))}
                 </select>
               </div>
               {showCauseNoteInput && (
                 <div className="flex-1 min-w-0 animate-in fade-in slide-in-from-left-2 duration-300">
-                  <label className={`${labelClass} text-orange-400`}>หมายเหตุ *</label>
-                  <input className={inputBase} value={causeNote} onChange={(e) => setCauseNote(e.target.value)} autoFocus />
+                  <label className={`${labelClass} text-orange-400`}>
+                    หมายเหตุ *
+                  </label>
+                  <input
+                    className={inputBase}
+                    value={causeNote}
+                    onChange={(e) => setCauseNote(e.target.value)}
+                    autoFocus
+                  />
                 </div>
               )}
             </div>
@@ -2239,14 +2267,23 @@ function CloseJobModal({
                 value={tempPartQty}
                 onChange={(e) => setTempPartQty(parseInt(e.target.value))}
               />
-              <button onClick={handleAddPart} className="h-full px-3 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-r-lg transition-colors border-l border-blue-500">
+              <button
+                onClick={handleAddPart}
+                className="h-full px-3 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-r-lg transition-colors border-l border-blue-500"
+              >
                 <Plus size={16} />
               </button>
             </div>
             {selectedStockItem && (
               <div className="flex items-center gap-2 mt-1 text-[10px] ml-1 animate-in fade-in slide-in-from-top-1">
                 <span className="text-slate-400">คงเหลือในสต็อก:</span>
-                <span className={`font-bold ${selectedStockItem.quantity > 0 ? "text-green-400" : "text-red-400"}`}>
+                <span
+                  className={`font-bold ${
+                    selectedStockItem.quantity > 0
+                      ? "text-green-400"
+                      : "text-red-400"
+                  }`}
+                >
                   {selectedStockItem.quantity} {selectedStockItem.unit || "pcs"}
                 </span>
               </div>
@@ -2254,12 +2291,37 @@ function CloseJobModal({
             {parts.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2 relative z-0">
                 {parts.map((p, i) => (
-                  <span key={i} className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[10px] border ${p.isLocked ? "bg-slate-800/50 border-slate-700 text-slate-400" : "bg-[#1E293B] border-slate-600 text-slate-300"}`}>
-                    {p.name} <span className={`font-bold px-1 rounded ${p.isLocked ? "text-slate-500 bg-slate-700/50" : "text-blue-400 bg-blue-400/10"}`}>x{p.qty}</span>
+                  <span
+                    key={i}
+                    className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[10px] border ${
+                      p.isLocked
+                        ? "bg-slate-800/50 border-slate-700 text-slate-400"
+                        : "bg-[#1E293B] border-slate-600 text-slate-300"
+                    }`}
+                  >
+                    {p.name}{" "}
+                    <span
+                      className={`font-bold px-1 rounded ${
+                        p.isLocked
+                          ? "text-slate-500 bg-slate-700/50"
+                          : "text-blue-400 bg-blue-400/10"
+                      }`}
+                    >
+                      x{p.qty}
+                    </span>
                     {p.isLocked ? (
-                      <div className="p-0.5 px-1"><Lock size={10} className="text-slate-500" /></div>
+                      <div className="p-0.5 px-1">
+                        <Lock size={10} className="text-slate-500" />
+                      </div>
                     ) : (
-                      <button onClick={() => setParts(parts.filter((_, idx) => idx !== i))} className="p-0.5 rounded-full hover:bg-slate-700 text-slate-500 hover:text-red-400"><X size={12} /></button>
+                      <button
+                        onClick={() =>
+                          setParts(parts.filter((_, idx) => idx !== i))
+                        }
+                        className="p-0.5 rounded-full hover:bg-slate-700 text-slate-500 hover:text-red-400"
+                      >
+                        <X size={12} />
+                      </button>
                     )}
                   </span>
                 ))}
@@ -2267,41 +2329,96 @@ function CloseJobModal({
             )}
           </div>
 
-          <div className={`grid gap-3 ${showResultNoteInput ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div
+            className={`grid gap-3 ${
+              showResultNoteInput ? "grid-cols-2" : "grid-cols-1"
+            }`}
+          >
             <div>
               <label className={labelClass}>6. ผลการซ่อม *</label>
-              <select className={inputBase} value={repairResult} onChange={(e) => setRepairResult(e.target.value)}>
+              <select
+                className={inputBase}
+                value={repairResult}
+                onChange={(e) => setRepairResult(e.target.value)}
+              >
                 <option value="">- เลือก -</option>
                 {resultOptions.map((o, i) => (
-                  <option key={i} value={o.name}>{o.name}</option>
+                  <option key={i} value={o.name}>
+                    {o.name}
+                  </option>
                 ))}
               </select>
             </div>
             {showResultNoteInput && (
               <div className="animate-in fade-in slide-in-from-left-2 duration-300">
-                <label className={`${labelClass} text-orange-400`}>หมายเหตุ *</label>
-                <input className={inputBase} value={repairNote} onChange={(e) => setRepairNote(e.target.value)} autoFocus />
+                <label className={`${labelClass} text-orange-400`}>
+                  หมายเหตุ *
+                </label>
+                <input
+                  className={inputBase}
+                  value={repairNote}
+                  onChange={(e) => setRepairNote(e.target.value)}
+                  autoFocus
+                />
               </div>
             )}
           </div>
+
+          {/* ✅ เพิ่มส่วนกรอกเหตุผลความล่าช้า (จะแสดงเฉพาะเมื่องานเกิน 48 ชม.) */}
+          {isDelayed && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+              <label className={`${labelClass} text-red-400 font-bold`}>
+                7. เหตุผลความล่าช้า (เนื่องจากงานค้างเกิน 48 ชม.) *
+              </label>
+              <input
+                className={`${inputBase} border-red-500/50 focus:border-red-500`}
+                placeholder="ระบุเหตุผลที่งานล่าช้า..."
+                value={delayReason}
+                onChange={(e) => setDelayReason(e.target.value)}
+              />
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={labelClass}>เริ่ม *</label>
-              <input type="datetime-local" className={inputBase} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              <input
+                type="datetime-local"
+                className={inputBase}
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
             </div>
             <div>
               <label className={labelClass}>เสร็จ *</label>
-              <input type="datetime-local" className={inputBase} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              <input
+                type="datetime-local"
+                className={inputBase}
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+              />
             </div>
             <div>
               <label className={labelClass}>เวลา (Total)</label>
-              <div className={`${inputBase} bg-slate-800 text-emerald-400 font-mono font-bold justify-center`}>{getDurationText()}</div>
+              <div
+                className={`${inputBase} bg-slate-800 text-emerald-400 font-mono font-bold justify-center`}
+              >
+                {getDurationText()}
+              </div>
             </div>
           </div>
         </div>
         <div className="p-4 border-t border-slate-700 bg-[#161E2E] shrink-0">
-          <button onClick={handleSubmit} disabled={submitting} className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all flex justify-center items-center gap-2 disabled:opacity-50">
-            {submitting ? "Saving..." : ticket.close_data ? "Confirm Edit (Password)" : "Confirm & Save"}
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+          >
+            {submitting
+              ? "Saving..."
+              : ticket.close_data
+              ? "Confirm Edit (Password)"
+              : "Confirm & Save"}
           </button>
         </div>
       </div>
@@ -2316,10 +2433,6 @@ function CloseJobModal({
   );
 }
 
-// ==========================================
-// FILE: MaintenanceApp.tsx -> TicketDetailModal
-// (Update: Handle Wait_Approve Edit Logic)
-// ==========================================
 function TicketDetailModal({
   ticket,
   user,
@@ -2462,23 +2575,19 @@ function TicketDetailModal({
     }
   };
 
-  // ✅ แก้ไข Logic ปุ่มแก้ไข (Edit) ใน TicketDetailModal
   const onEditClick = () => {
-    // 1. ถ้าเป็นหน้าประวัติ (mode === "history") หรือสถานะคือ Closed -> ให้เปิดหน้าแก้ไขผลการซ่อม (CloseJobModal)
     if (mode === "history" || displayData.status === "Closed") {
       if (!canClose && !canEdit) return alert("⛔️ คุณไม่มีสิทธิ์แก้ไขข้อมูล");
       setShowCloseJob(true);
       return;
     }
 
-    // 2. ถ้าเป็นสถานะที่รอตรวจสอบ หรือรออนุมัติ -> เปิดหน้าแก้ไขผลการซ่อม (CloseJobModal)
     if (["Wait_Verify", "Wait_Approve"].includes(displayData.status)) {
       if (!canClose && !canEdit) return alert("⛔️ คุณไม่มีสิทธิ์แก้ไขข้อมูล");
       setShowCloseJob(true);
       return;
     }
 
-    // 3. สถานะอื่นๆ (Open / In_Progress) -> เปิดหน้าแก้ไขข้อมูลใบแจ้งซ่อมปกติ (CreateTicketModal)
     if (!canEdit)
       return alert(
         "⛔️ คุณไม่มีสิทธิ์แก้ไขใบแจ้งซ่อม (Need 'mt_edit' permission)"
@@ -2498,7 +2607,7 @@ function TicketDetailModal({
     return (
       <CloseJobModal
         ticket={displayData}
-        user={user} // ✅ ส่ง user ไปให้เช็ครหัสผ่าน
+        user={user}
         onClose={() => setShowCloseJob(false)}
         onSuccess={handleCloseJobSuccess}
       />
@@ -2536,7 +2645,6 @@ function TicketDetailModal({
           isFormView ? "max-w-4xl h-[90vh]" : "max-w-[420px]"
         } rounded-[2rem] shadow-2xl border border-slate-700 flex flex-col overflow-hidden`}
       >
-        {/* --- 1. HEADER --- */}
         <div className="px-4 py-3 flex justify-between items-center bg-[#151C2C] border-b border-slate-700/50 shrink-0 h-12">
           <div className="flex items-center gap-2">
             <span className="text-base font-bold text-white tracking-tight">
@@ -2565,7 +2673,6 @@ function TicketDetailModal({
           </div>
         </div>
 
-        {/* --- 2. CONTENT --- */}
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#1E293B] p-4">
           {isFormView ? (
             <div className="w-full h-full bg-slate-800 p-1 overflow-hidden flex justify-center rounded-3xl border border-slate-700">
@@ -2644,6 +2751,17 @@ function TicketDetailModal({
                         {displayData.close_data.repair_result}
                       </span>
                     </div>
+                    {/* ส่วนแสดงเหตุผลความล่าช้า (ถ้ามี) */}
+                    {displayData.close_data.is_delayed && (
+                      <div className="col-span-2 mt-1">
+                        <MiniField
+                          label="Delay Reason (ล่าช้า)"
+                          value={displayData.close_data.delay_reason}
+                          full
+                          isHighlight
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2651,10 +2769,8 @@ function TicketDetailModal({
           )}
         </div>
 
-        {/* --- 3. FOOTER (Action Buttons) --- */}
         <div className="p-3 bg-[#151C2C] border-t border-slate-700/50 shrink-0">
           <div className="flex gap-2 h-9">
-            {/* Delete Button */}
             <button
               onClick={onDeleteClick}
               className="w-9 flex items-center justify-center rounded-full border border-slate-700 text-slate-500 hover:text-red-400 hover:border-red-400/50 transition-all hover:bg-slate-800"
@@ -2663,7 +2779,6 @@ function TicketDetailModal({
               <Trash2 size={14} />
             </button>
 
-            {/* Edit Button */}
             <button
               onClick={onEditClick}
               className="w-9 flex items-center justify-center rounded-full border border-slate-700 text-slate-500 hover:text-white hover:border-slate-500 transition-all hover:bg-slate-800"
@@ -2672,9 +2787,7 @@ function TicketDetailModal({
               <Edit size={14} />
             </button>
 
-            {/* Main Action Buttons (Matched with Theme Colors) */}
             <div className="flex-1">
-              {/* 1. Open (Red) -> Button Red */}
               {displayData.status === "Open" && (
                 <button
                   onClick={handleAcceptWork}
@@ -2685,7 +2798,6 @@ function TicketDetailModal({
                 </button>
               )}
 
-              {/* 2. In Progress (Blue) -> Button Blue */}
               {["In_Progress", "Waiting_Part"].includes(displayData.status) && (
                 <button
                   onClick={() => setShowCloseJob(true)}
@@ -2696,7 +2808,6 @@ function TicketDetailModal({
                 </button>
               )}
 
-              {/* 3. Wait Verify (Purple) -> Button Purple */}
               {displayData.status === "Wait_Verify" && (
                 <button
                   onClick={handleVerify}
@@ -2707,7 +2818,6 @@ function TicketDetailModal({
                 </button>
               )}
 
-              {/* 4. Wait Approve (Orange) -> Button Orange */}
               {displayData.status === "Wait_Approve" && (
                 <button
                   onClick={handleApprove}
@@ -2718,7 +2828,6 @@ function TicketDetailModal({
                 </button>
               )}
 
-              {/* 5. Closed (Green) -> Label Green */}
               {displayData.status === "Closed" && (
                 <div className="w-full h-full flex items-center justify-center border border-emerald-500/30 rounded-full bg-emerald-900/10 text-[10px] font-bold text-emerald-500 uppercase cursor-not-allowed">
                   Job Closed
@@ -3818,7 +3927,6 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
           "สถานะเครื่อง (ช่าง)": cd.mc_status || "-",
           หมวดหมู่สาเหตุ: cd.cause_category || "-",
           เริ่มซ่อมจริง: formatDT(cd.start_time),
-          // ✅ เพิ่มคอลัมน์นี้เข้าไปแล้วครับ
           ซ่อมเสร็จจริง: formatDT(cd.end_time),
           "เวลาซ่อม (นาที)": cd.duration_minutes || 0,
           ชื่อช่างผู้ซ่อม: t.technician_name || "-",
@@ -3832,6 +3940,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
               จำนวน: p.qty || 0,
               ราคาต่อหน่วย: p.price || 0,
               ราคารวมอะไหล่: (p.price || 0) * (p.qty || 0),
+              เหตุผลความล่าช้า: cd.delay_reason || "-", // เพิ่มช่องนี้ต่อท้าย
             });
           });
         } else {
@@ -3841,6 +3950,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
             จำนวน: 0,
             ราคาต่อหน่วย: 0,
             ราคารวมอะไหล่: 0,
+            เหตุผลความล่าช้า: cd.delay_reason || "-", // เพิ่มช่องนี้ต่อท้าย
           });
         }
       });
@@ -4171,6 +4281,7 @@ export function MaintenanceModule({ currentUser, activeTab, onExit }: any) {
     </div>
   );
 }
+
 
 
 
