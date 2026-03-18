@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Users,
   Briefcase,
@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   Box,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import { db } from "./firebase";
 import {
@@ -156,9 +157,6 @@ interface MaintenanceSettingsContentProps {
   currentUser: any; // ✅ รับ currentUser เข้ามาเพื่อเช็ครหัส
 }
 
-// ==========================================
-// HELPER: ConfirmPasswordModal (วางไว้ก่อน MaintenanceSettingsContent)
-// ==========================================
 function ConfirmPasswordModal({
   isOpen,
   onClose,
@@ -172,7 +170,6 @@ function ConfirmPasswordModal({
   if (!isOpen) return null;
 
   const handleConfirm = () => {
-    // ตรวจสอบรหัสผ่าน
     if (pass === userPass) {
       onConfirm();
       setPass("");
@@ -184,11 +181,10 @@ function ConfirmPasswordModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      {/* ✅ พื้นหลังสีเทาดำ #1F1F23 (Theme เดียวกับหน้าจัดการผู้ใช้) */}
+    // ✅ ปรับ z-index เป็น 13000 เพื่อให้เด้งทับหน้าแก้ไข
+    <div className="fixed inset-0 z-[13000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-[#1F1F23] w-full max-w-xs p-6 rounded-2xl border border-slate-700 shadow-2xl">
         <div className="text-center mb-4">
-          {/* ✅ ไอคอน Key สีเทา */}
           <div className="w-10 h-10 bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
             <Key size={20} />
           </div>
@@ -198,7 +194,6 @@ function ConfirmPasswordModal({
           </p>
         </div>
 
-        {/* ✅ Input พื้นหลังดำเข้ม #0F1115 */}
         <input
           type="password"
           autoFocus
@@ -225,8 +220,6 @@ function ConfirmPasswordModal({
           >
             ยกเลิก
           </button>
-
-          {/* ✅ ปุ่มยืนยันสีน้ำเงิน */}
           <button
             onClick={handleConfirm}
             className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 font-bold text-xs shadow-lg shadow-blue-900/20 transition-colors"
@@ -239,16 +232,13 @@ function ConfirmPasswordModal({
   );
 }
 
-// ==========================================
-// 2. MaintenanceSettingsContent (Update: รองรับ assets)
-// ==========================================
 export default function MaintenanceSettingsContent({
   activeTab,
   currentUser,
 }: MaintenanceSettingsContentProps) {
-  // ... (State เดิมคงไว้)
   const [items, setItems] = useState<any[]>([]);
   const [newItemName, setNewItemName] = useState("");
+  const [newItemAssetID, setNewItemAssetID] = useState("");
   const [newItemCode, setNewItemCode] = useState("");
   const [requireNote, setRequireNote] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -260,11 +250,15 @@ export default function MaintenanceSettingsContent({
     () => Promise<void> | void
   >(() => {});
 
-  // ✅ เพิ่ม assets เข้าไปใน array tabs
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingData, setEditingData] = useState<any>(null);
+  const [editName, setEditName] = useState("");
+  const [editAssetID, setEditAssetID] = useState("");
+
   const tabs = [
     { id: "departments", label: "จัดการแผนก", icon: Users },
     { id: "job_types", label: "ประเภทงาน", icon: Briefcase },
-    { id: "assets", label: "ทรัพย์สินทั่วไป (Assets)", icon: Box }, // <-- เพิ่มบรรทัดนี้
+    { id: "assets", label: "ทรัพย์สินทั่วไป (Assets)", icon: Box },
     { id: "sal01_areas", label: "พื้นที่ S01", icon: MapPin },
     { id: "sal02_areas", label: "พื้นที่ S02", icon: MapPin },
     { id: "cause_categories", label: "สาเหตุเสีย", icon: AlertTriangle },
@@ -272,25 +266,19 @@ export default function MaintenanceSettingsContent({
   ];
 
   const activeTabInfo = tabs.find((t) => t.id === activeTab);
-
-  // ... (ส่วนที่เหลือเหมือนเดิมเป๊ะ ไม่ต้องแก้) ...
-  // (Copy ส่วน Logic useEffect, handleAdd, handleDelete และ JSX เดิมมาใส่ต่อได้เลยครับ)
-  // แต่เพื่อให้ชัวร์ ผมขอวางส่วน Logic ที่สำคัญให้ดูว่าไม่ต้องแก้เยอะ
-
-  const tabsWithNoteConfig = [
+  const showNoteOption = [
     "maintenance_results",
     "job_types",
     "sal01_areas",
     "sal02_areas",
     "cause_categories",
-  ];
-  const showNoteOption = tabsWithNoteConfig.includes(activeTab);
+  ].includes(activeTab);
 
   useEffect(() => {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const docRef = doc(db, "maintenance_settings", activeTab); // activeTab จะเป็น "assets" อัตโนมัติเมื่อเลือก
+        const docRef = doc(db, "maintenance_settings", activeTab);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setItems(docSnap.data().list || []);
@@ -305,40 +293,32 @@ export default function MaintenanceSettingsContent({
     if (activeTab) {
       fetchItems();
       setRequireNote(false);
+      setNewItemAssetID("");
+      setNewItemName("");
     }
   }, [activeTab]);
 
-  // ... (ฟังก์ชัน handleAdd, handleDelete และ JSX ส่วน Render เหมือนเดิมเป๊ะ) ...
-  // ...
-
   const handleAdd = () => {
     if (!newItemName.trim()) return alert("กรุณากรอกข้อมูล");
-
     const action = async () => {
-      let itemToAdd: any = { name: newItemName.trim() };
-
-      if (activeTab === "departments") {
-        itemToAdd.code = newItemCode || "MT";
-      } else if (showNoteOption) {
-        itemToAdd.require_note = requireNote;
-      }
-      // ถ้าเป็น assets ก็จะเก็บแค่ { name: ... } ซึ่งถูกต้องแล้ว
+      const finalID = newItemAssetID.trim() || newItemName.trim();
+      let itemToAdd: any = { name: newItemName.trim(), asset_id: finalID };
+      if (activeTab === "departments") itemToAdd.code = newItemCode || "MT";
+      else if (showNoteOption) itemToAdd.require_note = requireNote;
 
       try {
         const docRef = doc(db, "maintenance_settings", activeTab);
-        // ใช้ arrayUnion เพื่อความปลอดภัย
         const { arrayUnion } = await import("firebase/firestore");
         await setDoc(docRef, { list: arrayUnion(itemToAdd) }, { merge: true });
-
         setItems([...items, itemToAdd]);
         setNewItemName("");
+        setNewItemAssetID("");
         setNewItemCode("");
         setRequireNote(false);
       } catch (e) {
         alert(e);
       }
     };
-
     setGuardMessage(`ยืนยันการเพิ่ม: "${newItemName}"`);
     setPendingAction(() => action);
     setShowGuard(true);
@@ -359,28 +339,63 @@ export default function MaintenanceSettingsContent({
         alert(e);
       }
     };
-
     const nameDisplay = typeof item === "string" ? item : item.name;
-    setGuardMessage(
-      `ยืนยันการลบ: "${nameDisplay}"\n(การกระทำนี้ไม่สามารถกู้คืนได้)`
-    );
+    setGuardMessage(`ยืนยันการลบ: "${nameDisplay}"`);
     setPendingAction(() => action);
     setShowGuard(true);
   };
 
-  const filteredItems = items.filter((item) => {
-    const name = typeof item === "string" ? item : item.name;
-    return name.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const openEditModal = (item: any) => {
+    setEditingData(item);
+    setEditName(item.name);
+    setEditAssetID(item.asset_id || item.name);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editName.trim()) return alert("กรุณาระบุชื่อ");
+    const action = async () => {
+      try {
+        const docRef = doc(db, "maintenance_settings", activeTab);
+        const { arrayRemove, arrayUnion } = await import("firebase/firestore");
+        const updatedItem = {
+          ...editingData,
+          name: editName.trim(),
+          asset_id: editAssetID.trim(),
+        };
+        await updateDoc(docRef, { list: arrayRemove(editingData) });
+        await updateDoc(docRef, { list: arrayUnion(updatedItem) });
+        setItems(items.map((i) => (i === editingData ? updatedItem : i)));
+        setShowEditModal(false);
+      } catch (e) {
+        alert("Error: " + e);
+      }
+    };
+    setGuardMessage("ยืนยันการบันทึกการแก้ไข");
+    setPendingAction(() => action);
+    setShowGuard(true);
+  };
+
+  // ✅ เรียงลำดับ A-Z ตามชื่อ Name
+  const sortedAndFilteredItems = useMemo(() => {
+    const filtered = items.filter((item) => {
+      const name = typeof item === "string" ? item : item.name;
+      return name.toLowerCase().includes(searchTerm.toLowerCase());
+    });
+    return filtered.sort((a, b) => {
+      const nameA = (typeof a === "string" ? a : a.name).toLowerCase();
+      const nameB = (typeof b === "string" ? b : b.name).toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [items, searchTerm]);
 
   return (
     <div className="flex-1 h-full overflow-hidden relative flex flex-col bg-[#0F172A] animate-in fade-in duration-300">
-      {/* ... (ส่วน JSX แสดงผลเหมือนเดิม) ... */}
       <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
       <div className="px-6 pt-6 pb-2 z-10 shrink-0">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-900/20 flex items-center justify-center text-white border border-blue-400/20">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg flex items-center justify-center text-white border border-blue-400/20">
             {React.createElement(activeTabInfo?.icon || Settings, { size: 20 })}
           </div>
           <div>
@@ -399,49 +414,55 @@ export default function MaintenanceSettingsContent({
       <div className="px-6 pb-6 pt-0 flex-1 flex flex-col overflow-hidden z-10 w-full max-w-[1600px]">
         <div className="bg-slate-900/60 backdrop-blur-md p-3 rounded-xl border border-slate-800/60 flex flex-wrap gap-3 items-center justify-between mb-4 shadow-xl shrink-0">
           <div className="flex flex-wrap gap-2 items-center w-full lg:w-auto flex-1">
-            <div className="flex-1 min-w-[250px]">
+            {/* ✅ ปรับขนาด Input ให้ยาวเท่ากัน (180px) */}
+            <div
+              className={
+                activeTab === "assets" ? "w-[180px]" : "flex-1 min-w-[250px]"
+              }
+            >
               <input
                 className="w-full bg-[#0B1121] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:border-blue-500 outline-none h-[34px] placeholder-slate-600"
-                placeholder={`ชื่อ ${activeTabInfo?.label}...`}
+                placeholder={
+                  activeTab === "assets"
+                    ? "ชื่อตำแหน่งเครื่อง..."
+                    : `ชื่อ ${activeTabInfo?.label}...`
+                }
                 value={newItemName}
                 onChange={(e) => setNewItemName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               />
             </div>
 
-            {activeTab === "departments" && (
-              <div className="w-[100px] relative">
-                {/* ... (Code ส่วน Code input) ... */}
+            {activeTab === "assets" && (
+              <div className="w-[180px]">
                 <input
-                  className="w-full bg-[#0B1121] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-blue-400 font-mono font-bold uppercase focus:border-blue-500 outline-none h-[34px] placeholder-slate-700"
-                  placeholder="CODE"
-                  value={newItemCode}
-                  onChange={(e) => setNewItemCode(e.target.value)}
+                  className="w-full bg-[#0B1121] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-emerald-400 font-mono focus:border-emerald-500 outline-none h-[34px] placeholder-slate-600"
+                  placeholder="Asset ID (ถ้ามี)"
+                  value={newItemAssetID}
+                  onChange={(e) => setNewItemAssetID(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAdd()}
                 />
               </div>
             )}
 
-            {showNoteOption && (
-              <button
-                onClick={() => setRequireNote(!requireNote)}
-                className={`h-[34px] px-3 rounded-lg flex items-center gap-1.5 border transition-all ${
-                  requireNote
-                    ? "bg-orange-500/10 border-orange-500 text-orange-400"
-                    : "bg-[#0B1121] border-slate-700 text-slate-500 hover:text-slate-300"
-                }`}
-                title="บังคับให้ใส่หมายเหตุเมื่อเลือกรายการนี้"
-              >
-                {requireNote ? <CheckSquare size={16} /> : <Square size={16} />}
-                <span className="text-[10px] font-bold whitespace-nowrap">
-                  รับหมายเหตุ
-                </span>
-              </button>
+            {activeTab === "departments" && (
+              <div className="w-[100px] relative">
+                <Hash
+                  size={12}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
+                />
+                <input
+                  className="w-full bg-[#0B1121] border border-slate-700 rounded-lg pl-7 pr-2 py-1.5 text-xs text-blue-400 font-mono font-bold uppercase focus:border-blue-500 outline-none h-[34px]"
+                  placeholder="CODE"
+                  value={newItemCode}
+                  onChange={(e) => setNewItemCode(e.target.value)}
+                />
+              </div>
             )}
 
             <button
               onClick={handleAdd}
-              className="h-[34px] px-4 rounded-lg flex items-center justify-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition-all hover:scale-105"
+              className="h-[34px] px-4 rounded-lg flex items-center justify-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition-all"
             >
               <Plus size={14} strokeWidth={3} />
               <span>ADD</span>
@@ -463,73 +484,73 @@ export default function MaintenanceSettingsContent({
         </div>
 
         <div className="border border-slate-800/60 rounded-xl overflow-hidden bg-slate-900/60 backdrop-blur-md flex-1 flex flex-col shadow-2xl">
-          <div className="overflow-hidden flex-1 flex flex-col">
-            <div className="overflow-x-auto custom-scrollbar flex-1">
-              <table className="w-full text-left text-xs text-slate-400 table-fixed">
-                <thead className="bg-[#0B1121] text-slate-300 font-bold uppercase text-[15px] sticky top-0 z-10">
-                  <tr>
-                    <th className="px-4 py-2 w-[8%] text-center border-b border-slate-800">
-                      No.
+          <div className="overflow-x-auto custom-scrollbar flex-1">
+            <table className="w-full text-left text-xs text-slate-400 table-fixed">
+              <thead className="bg-[#0B1121] text-slate-300 font-bold uppercase text-[15px] sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-2 w-[8%] text-center border-b border-slate-800">
+                    No.
+                  </th>
+                  <th
+                    className={`px-4 py-2 border-b border-slate-800 ${
+                      activeTab === "assets" ? "w-[20%]" : "w-[20%]"
+                    }`}
+                  >
+                    Name
+                  </th>
+                  {/* ✅ สลับคอลัมน์ Asset ID มาไว้ตรงนี้ */}
+                  {activeTab === "assets" && (
+                    <th className="px-4 py-2 w-[20%] border-b border-slate-800 text-slate-500">
+                      Asset ID
                     </th>
-                    <th
-                      className={`px-4 py-2 border-b border-slate-800 ${
-                        activeTab === "departments" ? "w-[67%]" : "w-[82%]"
-                      }`}
-                    >
-                      Name
-                    </th>
-                    {activeTab === "departments" && (
-                      <th className="px-4 py-2 w-[15%] text-center border-b border-slate-800">
-                        Code
-                      </th>
-                    )}
-                    <th className="px-4 py-2 w-[10%] text-center border-b border-slate-800">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/50">
-                  {filteredItems.map((item, idx) => {
-                    const name = typeof item === "string" ? item : item.name;
-                    const hasNote =
-                      typeof item === "object" && item.require_note;
-
-                    return (
-                      <tr key={idx} className="hover:bg-blue-600/5 group">
-                        <td className="px-4 py-1.5 text-center font-mono">
-                          {(idx + 1).toString().padStart(2, "0")}
+                  )}
+                  <th className="px-4 py-2 w-[52%] text-right border-b border-slate-800">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {sortedAndFilteredItems.map((item, idx) => {
+                  const name = typeof item === "string" ? item : item.name;
+                  const assetId =
+                    typeof item === "object" ? item.asset_id : "-";
+                  return (
+                    <tr key={idx} className="hover:bg-blue-600/5 group">
+                      <td className="px-4 py-1.5 text-center font-mono">
+                        {(idx + 1).toString().padStart(2, "0")}
+                      </td>
+                      <td className="px-4 py-1.5 text-slate-300 truncate font-bold">
+                        {name}
+                      </td>
+                      {/* ✅ แสดง Asset ID ติดกับ Name */}
+                      {activeTab === "assets" && (
+                        <td className="px-4 py-1.5 text-emerald-500/60 font-mono">
+                          {assetId || name}
                         </td>
-                        <td className="px-4 py-1.5 text-slate-300 group-hover:text-white truncate">
-                          <div className="flex items-center gap-2">
-                            <span>{name}</span>
-                            {hasNote && (
-                              <span className="text-[9px] bg-orange-500/10 text-orange-400 border border-orange-500/20 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">
-                                + NOTE
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        {activeTab === "departments" && (
-                          <td className="px-4 py-1.5 text-center">
-                            <span className="bg-[#0F172A] text-blue-400 px-1.5 rounded font-mono font-bold">
-                              {item.code || "-"}
-                            </span>
-                          </td>
-                        )}
-                        <td className="px-4 py-1.5 text-center">
+                      )}
+                      <td className="px-4 py-1.5 text-right">
+                        <div className="flex justify-end gap-2">
+                          {activeTab === "assets" && (
+                            <button
+                              onClick={() => openEditModal(item)}
+                              className="text-slate-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDelete(item)}
-                            className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                           >
                             <Trash2 size={12} />
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
           <div className="bg-[#0B1121] px-4 py-1.5 border-t border-slate-800 flex justify-between items-center text-[9px] text-slate-600 uppercase font-bold tracking-widest shrink-0">
             <span>
@@ -542,6 +563,59 @@ export default function MaintenanceSettingsContent({
         </div>
       </div>
 
+      {/* ✅ หน้าต่างแก้ไข (Edit Modal) ปรับ z-index เป็น 12000 */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#1F1F23] w-full max-w-xs p-6 rounded-2xl border border-slate-700 shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="w-10 h-10 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Pencil size={20} />
+              </div>
+              <h3 className="text-base font-bold text-white">
+                แก้ไขข้อมูลทรัพย์สิน
+              </h3>
+            </div>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">
+                  ชื่อตำแหน่งเครื่อง
+                </label>
+                <input
+                  className="w-full bg-[#0F1115] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">
+                  Asset ID
+                </label>
+                <input
+                  className="w-full bg-[#0F1115] border border-slate-700 rounded-lg px-3 py-2 text-emerald-400 font-mono text-sm outline-none focus:border-emerald-500"
+                  value={editAssetID}
+                  onChange={(e) => setEditAssetID(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-xs"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 font-bold text-xs"
+              >
+                บันทึก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ หน้า ConfirmPassword จะมาทับข้างบนเพราะ z-index สูงกว่า (13000) */}
       <ConfirmPasswordModal
         isOpen={showGuard}
         onClose={() => setShowGuard(false)}
