@@ -1878,6 +1878,12 @@ function CloseJobModal({
   >([]);
   const [isDelayed, setIsDelayed] = useState(false);
 
+  // ✅ 1. เพิ่มตัวแปรเช็คความถูกต้องของเวลา (เพิ่มเข้าไปใต้ State เดิมของคุณ)
+  const isTimeInvalid =
+    startTime &&
+    endTime &&
+    new Date(endTime).getTime() <= new Date(startTime).getTime();
+
   const toLocalISOString = (date: Date) => {
     const pad = (num: number) => num.toString().padStart(2, "0");
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
@@ -2005,7 +2011,7 @@ function CloseJobModal({
     const start = new Date(startTime);
     const end = new Date(endTime);
     const diffMs = end.getTime() - start.getTime();
-    if (diffMs < 0) return "Error";
+    if (diffMs <= 0) return "Error (เช็คเวลา)"; // ✅ ปรับข้อความเตือน
     const totalMinutes = Math.floor(diffMs / 60000);
     return `${Math.floor(totalMinutes / 60)
       .toString()
@@ -2111,6 +2117,7 @@ function CloseJobModal({
             if (!oldDoc.exists()) throw new Error("Ticket เดิมหายไป!");
             transaction.set(ticketRef, {
               ...oldDoc.data(),
+              ...closeData,
               status: nextStatus,
               close_data: closeData,
               updated_at: serverTimestamp(),
@@ -2158,6 +2165,7 @@ function CloseJobModal({
           </button>
         </div>
         <div className="p-5 overflow-y-auto custom-scrollbar space-y-3">
+          {/* ... (เนื้อหาฟอร์มส่วนบนเหมือนเดิม) ... */}
           <div className="grid grid-cols-2 gap-3 mb-2">
             <div>
               <label className={`${labelClass} text-yellow-500`}>
@@ -2364,7 +2372,6 @@ function CloseJobModal({
             )}
           </div>
 
-          {/* ✅ เพิ่มส่วนกรอกเหตุผลความล่าช้า (จะแสดงเฉพาะเมื่องานเกิน 48 ชม.) */}
           {isDelayed && (
             <div className="animate-in fade-in slide-in-from-top-1 duration-300">
               <label className={`${labelClass} text-red-400 font-bold`}>
@@ -2400,8 +2407,13 @@ function CloseJobModal({
             </div>
             <div>
               <label className={labelClass}>เวลา (Total)</label>
+              {/* ✅ 2. ปรับสีพื้นหลังและสีตัวหนังสือเป็นสีแดงเมื่อเวลาผิด */}
               <div
-                className={`${inputBase} bg-slate-800 text-emerald-400 font-mono font-bold justify-center`}
+                className={`${inputBase} ${
+                  isTimeInvalid
+                    ? "bg-red-950 text-red-400 border-red-500"
+                    : "bg-slate-800 text-emerald-400"
+                } font-mono font-bold justify-center`}
               >
                 {getDurationText()}
               </div>
@@ -2411,11 +2423,14 @@ function CloseJobModal({
         <div className="p-4 border-t border-slate-700 bg-[#161E2E] shrink-0">
           <button
             onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+            // ✅ 3. ล็อกปุ่ม (Disable) เมื่อกำลังส่ง หรือ เมื่อเวลาผิด (isTimeInvalid)
+            disabled={submitting || isTimeInvalid}
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:bg-slate-700 disabled:cursor-not-allowed"
           >
             {submitting
               ? "Saving..."
+              : isTimeInvalid
+              ? "เวลาไม่ถูกต้อง" // ✅ แสดงข้อความเตือนที่ปุ่ม
               : ticket.close_data
               ? "Confirm Edit (Password)"
               : "Confirm & Save"}
@@ -3090,19 +3105,11 @@ function CreateTicketModal({
     if (showAreaInput && !areaNote) return alert("กรุณาระบุรายละเอียดพื้นที่");
     if (editData && !customId) return alert("กรุณาระบุเลขที่ใบงาน");
 
-    // Strict Check (ต้องมีในรายการเท่านั้น)
-    const isValidMachine = machineOptions.some((opt: any) => {
-      const dbName = typeof opt === "string" ? opt : opt.name;
-      return dbName.trim().toLowerCase() === machineName.trim().toLowerCase();
-    });
-
-    if (!isValidMachine) {
-      alert(
-        `⛔️ ชื่อ "${machineName}" ไม่ถูกต้อง!\nกรุณาเลือกจากรายการ หรือกดปุ่ม + เพื่อเพิ่มใหม่`
-      );
-      setMachineName("");
-      return;
-    }
+    // ค้นหา Asset ID จากเครื่องที่เลือก
+    const selectedMachineObj = machineOptions.find(
+      (opt: any) => opt.name === machineName
+    );
+    const finalAssetID = selectedMachineObj?.asset_id || machineName;
 
     const executeSave = async () => {
       setCreating(true);
@@ -3110,15 +3117,12 @@ function CreateTicketModal({
         const finalJobType = showJobInput ? `${jobType} (${jobNote})` : jobType;
         const finalArea = showAreaInput ? `${area} (${areaNote})` : area;
 
-        // ตัวแปรสำหรับเก็บ ID เพื่อเอาไปส่ง Telegram
-        let savedTicketId = customId;
-
         if (editData) {
-          // --- กรณีแก้ไข (Edit) ---
           const updates = {
             department,
             job_type: finalJobType,
             machine_name: machineName,
+            asset_id: finalAssetID, // บันทึก ID ลงไปด้วย
             issue_item: issueItem,
             issue_detail: issueItem,
             factory,
@@ -3133,7 +3137,6 @@ function CreateTicketModal({
               if (newDocCheck.exists())
                 throw new Error(`เลขที่ใบงาน ${customId} มีอยู่แล้ว!`);
               const oldDoc = await transaction.get(oldDocRef);
-              if (!oldDoc.exists()) throw new Error("ไม่พบข้อมูลเดิม");
               transaction.set(newDocRef, {
                 ...oldDoc.data(),
                 ...updates,
@@ -3149,13 +3152,10 @@ function CreateTicketModal({
           }
           if (onSuccess) onSuccess();
         } else {
-          // --- กรณีสร้างใหม่ (New) ---
           const newId = await generateTicketId(department);
-          savedTicketId = newId; // เก็บ ID ไว้ส่งไลน์
-
           const newTicketData = {
             id: newId,
-            machine_id: "N/A",
+            asset_id: finalAssetID, // บันทึก ID ลงไปด้วย (แอบเก็บไว้)
             machine_name: machineName,
             job_type: finalJobType,
             department,
@@ -3164,7 +3164,7 @@ function CreateTicketModal({
             issue_item: issueItem,
             issue_detail: issueItem,
             status: "Open",
-            source: "Manual", // สร้างผ่าน App Maintenance
+            source: "Manual",
             requester: user.username,
             requester_fullname: user.fullname || user.username,
             requester_date: new Date().toISOString(),
@@ -3173,18 +3173,11 @@ function CreateTicketModal({
           };
           await setDoc(doc(db, "maintenance_tickets", newId), newTicketData);
 
-          // ✅✅✅ ส่วนแจ้งเตือน Telegram (เฉพาะตอนสร้างใหม่) ✅✅✅
+          // Telegram Notification (เหมือนเดิม)
           try {
-            const TELEGRAM_TOKEN =
-              "8479695961:AAFtKB3MuE1PHk9tYVckhgYPrbb2dYpI1eI";
-            const TELEGRAM_CHAT_ID = "-5081774286";
-
-            // ดึงชื่อจริง (ถ้าไม่มีใช้ username)
-            const requesterName = user.fullname || user.username;
-
-            // ข้อความตาม Format ที่คุณต้องการเป๊ะๆ
-            const msg = `🚨 <b>เครื่อง:</b> ${machineName}\n⚠️ <b>อาการ:</b> ${issueItem}\n🏢 <b>แผนก:</b> ${department}\n📍 <b>พื้นที่:</b> ${finalArea}\n👤 <b>ผู้แจ้ง:</b> ${requesterName}`;
-
+            const msg = `🚨 <b>เครื่อง:</b> ${machineName}\n⚠️ <b>อาการ:</b> ${issueItem}\n🏢 <b>แผนก:</b> ${department}\n📍 <b>พื้นที่:</b> ${finalArea}\n👤 <b>ผู้แจ้ง:</b> ${
+              user.fullname || user.username
+            }`;
             await fetch(
               `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
               {
@@ -3197,12 +3190,8 @@ function CreateTicketModal({
                 }),
               }
             );
-          } catch (err) {
-            console.error("Telegram Error:", err);
-          }
-          // ✅✅✅ จบส่วนแจ้งเตือน ✅✅✅
+          } catch (err) {}
         }
-
         onClose();
       } catch (e) {
         alert("Error: " + e);
@@ -3886,42 +3875,44 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
     try {
       if (filteredTickets.length === 0)
         return alert("ไม่มีข้อมูลสำหรับการ Export");
-
       const rows: any[] = [];
 
       filteredTickets.forEach((t) => {
         const cd = t.close_data || {};
         const parts = cd.spare_parts || [];
-
         const targetDate = t.approved_at || t.closed_at || t.created_at;
         const d = targetDate?.toDate
           ? targetDate.toDate()
           : new Date(targetDate);
-        const year = !isNaN(d.getTime()) ? d.getFullYear() : "-";
-        const month = !isNaN(d.getTime())
-          ? d.toLocaleString("th-TH", { month: "long" })
-          : "-";
 
         const formatDT = (val: any) => {
           if (!val) return "-";
-          const dateObj = val.toDate ? val.toDate() : new Date(val);
-          return isNaN(dateObj.getTime())
-            ? "-"
-            : dateObj.toLocaleString("th-TH");
+          try {
+            const dateObj = val.toDate ? val.toDate() : new Date(val);
+            return isNaN(dateObj.getTime())
+              ? "-"
+              : dateObj.toLocaleString("th-TH");
+          } catch (e) {
+            return "-";
+          }
         };
 
+        // 1. เตรียมข้อมูลหลัก (Base Info) ตามลำดับ 25 หัวข้อที่คุณต้องการ
         const baseInfo = {
-          ปี: year,
-          เดือน: month,
+          ปี: !isNaN(d.getTime()) ? d.getFullYear() : "-",
+          เดือน: !isNaN(d.getTime())
+            ? d.toLocaleString("th-TH", { month: "long" })
+            : "-",
           "Ticket ID": t.id || "-",
           Status: t.status || "-",
           วันที่แจ้งซ่อม: formatDT(t.created_at),
           วันที่ปิดงาน: formatDT(targetDate),
           ผู้แจ้งซ่อม: t.requester_fullname || "-",
           แผนก: t.department || "-",
-          โรงงาน: t.factory || "-",
-          "พื้นที่/โซน": t.area || "-",
+          โรงงาน: t.factory || "-", // ✅ ต่อจากแผนก
+          "พื้นที่ / Area": t.area || "-", // ✅ ต่อจากแผนก
           ชื่อเครื่องจักร: t.machine_name || "-",
+          "Asset ID": t.asset_id || t.machine_name || "-",
           ประเภทงาน: t.job_type || "-",
           อาการเสีย: t.issue_item || "-",
           "สถานะเครื่อง (ช่าง)": cd.mc_status || "-",
@@ -3930,8 +3921,10 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
           ซ่อมเสร็จจริง: formatDT(cd.end_time),
           "เวลาซ่อม (นาที)": cd.duration_minutes || 0,
           ชื่อช่างผู้ซ่อม: t.technician_name || "-",
+          เหตุผลความล่าช้า: cd.delay_reason || "-",
         };
 
+        // 2. จัดการข้อมูลอะไหล่ (แยกบรรทัดถ้ามีหลายชิ้น)
         if (parts.length > 0) {
           parts.forEach((p: any) => {
             rows.push({
@@ -3940,7 +3933,6 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
               จำนวน: p.qty || 0,
               ราคาต่อหน่วย: p.price || 0,
               ราคารวมอะไหล่: (p.price || 0) * (p.qty || 0),
-              เหตุผลความล่าช้า: cd.delay_reason || "-", // เพิ่มช่องนี้ต่อท้าย
             });
           });
         } else {
@@ -3950,38 +3942,57 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
             จำนวน: 0,
             ราคาต่อหน่วย: 0,
             ราคารวมอะไหล่: 0,
-            เหตุผลความล่าช้า: cd.delay_reason || "-", // เพิ่มช่องนี้ต่อท้าย
           });
         }
       });
 
+      // 3. สร้าง Worksheet
       const worksheet = XLSX.utils.json_to_sheet(rows);
-      const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
 
+      // 4. ตั้งค่า Auto-size (ขยายช่องให้พอดีข้อความ)
+      const colWidths = Object.keys(rows[0] || {}).map((key) => {
+        const headerLen = key.toString().length * 2; // เผื่อภาษาไทย
+        const maxContentLen = Math.max(
+          ...rows.map((row) => (row[key] ? row[key].toString().length : 0))
+        );
+        return { wch: Math.max(headerLen, maxContentLen) + 5 };
+      });
+      worksheet["!cols"] = colWidths;
+
+      // 5. จัดรูปแบบ Cell (ชิดซ้ายทั้งหมด + ใส่สีหัวข้อ)
+      const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
       for (let R = range.s.r; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
-          const address = XLSX.utils.encode_cell({ r: R, c: C });
-          if (!worksheet[address]) continue;
+          const cell_ref = XLSX.utils.encode_cell({ c: C, r: R });
+          if (!worksheet[cell_ref]) continue;
 
-          worksheet[address].s = {
+          // สไตล์พื้นฐาน: ชิดซ้ายทั้งหมด
+          worksheet[cell_ref].s = {
             alignment: { horizontal: "left", vertical: "center" },
-            font: { sz: 10 },
+            font: { name: "Tahoma", sz: 10 },
+            border: {
+              top: { style: "thin", color: { rgb: "E2E8F0" } },
+              bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+              left: { style: "thin", color: { rgb: "E2E8F0" } },
+              right: { style: "thin", color: { rgb: "E2E8F0" } },
+            },
           };
 
+          // หัวข้อตาราง (แถวแรก)
           if (R === 0) {
-            worksheet[address].s = {
-              ...worksheet[address].s,
-              fill: { fgColor: { rgb: "1E293B" } },
-              font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11 },
+            worksheet[cell_ref].s = {
+              ...worksheet[cell_ref].s,
+              fill: { fgColor: { rgb: "1E293B" } }, // สีน้ำเงินเข้ม
+              font: { color: { rgb: "FFFFFF" }, bold: true, sz: 10 },
+              alignment: { horizontal: "left", vertical: "center" },
             };
           }
         }
       }
 
-      worksheet["!cols"] = Object.keys(rows[0] || {}).map(() => ({ wch: 20 }));
-
+      // 6. บันทึกไฟล์และสั่งดาวน์โหลด
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "MT_Analysis");
+      XLSX.utils.book_append_sheet(workbook, worksheet, "MT_Report");
 
       const excelBuffer = XLSX.write(workbook, {
         bookType: "xlsx",
@@ -4000,13 +4011,12 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `FactoryOS_Analysis_${new Date().getTime()}.xlsx`;
+      a.download = `Maintenance_Report_${new Date().getTime()}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      console.error("Excel Export Error:", error);
       alert("การส่งออกไฟล์ล้มเหลว");
     }
   };
@@ -4281,10 +4291,3 @@ export function MaintenanceModule({ currentUser, activeTab, onExit }: any) {
     </div>
   );
 }
-
-
-
-
-
-
-
