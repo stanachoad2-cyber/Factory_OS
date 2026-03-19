@@ -923,7 +923,7 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
     // 2. วนลูปพิมพ์ข้อความการแก้ไข (บรรทัดแรกเริ่มที่ Y158)
     correctionLines.forEach((line: string, i: number) => {
       if (i < 3) { // จำกัดไม่เกิน 3 บรรทัดตามแบบฟอร์ม
-        text(line, 15, 158 + (i * 5.3), 14);
+        text(line, 15, 158 + (i * 5), 14);
       }
     });
 
