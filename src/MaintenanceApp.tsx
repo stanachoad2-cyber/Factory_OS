@@ -913,16 +913,29 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
       text(cd.cause_note || ticket.cause_category_other || "", 143, 144, 14);
     }
 
-    // --- 6. การแก้ไขและอะไหล่ ---
-    text(cd.correction || ticket.solution || "", 15, 158, 14);
-    let partY = 158;
+    // --- 6. การแก้ไขและอะไหล่ (แก้ไขให้ตัดบรรทัดจบที่ X98) ---
+    
+    // 1. จัดการข้อมูล "การแก้ไข" (Correction)
+    const correctionText = (cd.correction || ticket.solution || "").toString();
+    // หั่นข้อความที่ความกว้าง 83mm (เริ่ม X15 + 83 = จบที่ X98 พอดี)
+    const correctionLines = doc.splitTextToSize(correctionText, 83); 
+
+    // 2. วนลูปพิมพ์ข้อความการแก้ไข (บรรทัดแรกเริ่มที่ Y158)
+    correctionLines.forEach((line: string, i: number) => {
+      if (i < 3) { // จำกัดไม่เกิน 3 บรรทัดตามแบบฟอร์ม
+        text(line, 15, 158 + (i * 5.3), 14);
+      }
+    });
+
+    // 3. ส่วนของ "รายการอะไหล่" (Replacement Parts)
+    let partY = 158; // เริ่มพิกัด Y เดียวกับบรรทัดแรกของการแก้ไข
     const parts = cd.spare_parts || ticket.spare_parts;
     if (parts) {
       parts.forEach((p: any, i: number) => {
         if (i < 8) {
           text(p.name, 112, partY, 12);
           text(p.qty.toString(), 170, partY, 12, "center");
-          partY += 5;
+          partY += 5; // ระยะห่างระหว่างรายการอะไหล่ (ใช้ 5 เหมือนเดิม)
         }
       });
     }
@@ -1727,10 +1740,32 @@ function TicketFormView({ ticket }: { ticket: any }) {
                 ""}
           </TextOverlay>
 
-          {/* --- CORRECTION & PARTS --- */}
-          <TextOverlay x={15} y={158}>
-            {isT ? "การแก้ไขเทส" : ticket.close_data?.correction || ""}
-          </TextOverlay>
+{/* --- 6. แยกเฉพาะหัวข้อ "การแก้ไข" ให้อิสระจากแม่พิมพ์หลัก --- */}
+<div
+  style={{
+    position: "absolute",
+    // ✅ กำหนดพิกัด X เริ่มต้นที่ 15mm
+    left: "15mm", 
+    // ✅ กำหนดพิกัด Y ตายตัวที่บรรทัดแรกเริ่ม (ต้องปรับตัวเลขนี้ให้ตรงเส้นบรรทัด)
+    top: "154.5mm", 
+    // ✅ กำหนดความกว้างสิ้นสุดที่ X98 (98-15 = 83mm)
+    width: "83mm", 
+    // ✅ สไตล์ตัวอักษรBlue, Size 14pt (เท่าเดิม)
+    fontSize: "14pt",
+    fontFamily: myFont, // ใช้ตัวแปร Font เดิม
+    color: "blue",
+    fontWeight: "normal",
+    // ✅ หัวใจสำคัญ: จัดการงานหลายบรรทัด
+    whiteSpace: "pre-wrap",  // แสดงผลขึ้นบรรทัดใหม่จากข้อมูลดิบ
+    wordBreak: "break-word", // บังคับตัดคำภาษาไทยตรงขอบ width เป๊ะๆ
+    lineHeight: "5.3mm",     // ✅ กำหนดระยะห่างบรรทัดให้ตรงกับเส้นประในฟอร์ม
+    zIndex: 10,
+    pointerEvents: "none",
+  }}
+>
+  {/* ตัวข้อมูลการแก้ไข */}
+  {isT ? "การแก้ไขเทส" : ticket.close_data?.correction || ""}
+</div>
           {Array.from({ length: 8 }).map((_, i) => {
             const p = ticket.close_data?.spare_parts?.[i];
             return (
