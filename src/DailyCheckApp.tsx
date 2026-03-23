@@ -65,6 +65,9 @@ import {
   Play,
   SkipForward,
   Key,
+  FileX,
+  CheckCircle2,
+  Info,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { QRCodeSVG } from "qrcode.react";
@@ -4522,7 +4525,7 @@ function DashboardView({
                         ).length === 0 && (
                           <div className="h-full flex items-center justify-center py-6 opacity-20">
                             <p className="text-[9px] font-bold uppercase">
-                              Healthy
+                              ไม่พบความผิดปกติ
                             </p>
                           </div>
                         )}
@@ -4621,12 +4624,12 @@ function DashboardView({
           <p className="text-3xl text-white">{stats.total}</p>
         </div>
         <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
-          <p className="text-[10px] text-red-400 uppercase">พบผิดปกติ</p>
+          <p className="text-[10px] text-red-400 uppercase">ผิดปกติ</p>
           <p className="text-3xl text-red-500">{stats.abnormal}</p>
         </div>
         <div className="bg-yellow-500/10 p-4 rounded-xl border border-yellow-500/20">
           <p className="text-[10px] text-yellow-400 uppercase">
-            ตรวจไม่ครบเดือน
+            ตรวจไม่ครบ
           </p>
           <p className="text-3xl text-yellow-500">{stats.missing}</p>
         </div>
