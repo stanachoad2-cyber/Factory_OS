@@ -75,7 +75,21 @@ const checkPerm = (user: any, allowedRoles: string[]) => {
   return allowedRoles.includes(user?.role);
 };
 
-// ✅ Dropdown ค้นหาได้ (แก้ไขให้โชว์ Label แทน Value หลังเลือก)
+const MONTH_OPTIONS = [
+  { label: "January", value: 1 },
+  { label: "February", value: 2 },
+  { label: "March", value: 3 },
+  { label: "April", value: 4 },
+  { label: "May", value: 5 },
+  { label: "June", value: 6 },
+  { label: "July", value: 7 },
+  { label: "August", value: 8 },
+  { label: "September", value: 9 },
+  { label: "October", value: 10 },
+  { label: "November", value: 11 },
+  { label: "December", value: 12 },
+];
+
 const SearchableSelect = ({
   options,
   value,
@@ -86,11 +100,16 @@ const SearchableSelect = ({
 }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // ✅ แก้ไข: เมื่อค่า (Value) เปลี่ยน ให้ไปหา "ชื่อ" มาโชว์ในช่อง
   useEffect(() => {
-    if (!value) {
+    if (
+      value === undefined ||
+      value === null ||
+      value === "" ||
+      value === "All"
+    ) {
       setInputValue("");
       return;
     }
@@ -111,50 +130,23 @@ const SearchableSelect = ({
     } else {
       setInputValue(String(value));
     }
+    setIsTyping(false);
   }, [value, options]);
 
   useEffect(() => {
     function handleClickOutside(event: any) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
+        setIsTyping(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef]);
 
-  const handleBlur = () => {
-    setTimeout(() => {
-      const currentInput = String(inputValue || "").toLowerCase();
-      const match = (options || []).find((item: any) => {
-        if (!item) return false;
-        const label =
-          typeof item === "string" ? item : item.label || item.name || "";
-        return String(label).toLowerCase() === currentInput;
-      });
-
-      if (!match && inputValue !== "") {
-        // ถ้าพิมพ์ชื่อที่ไม่ตรงกับในรายการเลย ให้ล้างค่าทิ้ง
-        const isCurrentValueValid = (options || []).some((opt: any) => {
-          const optVal =
-            typeof opt === "string"
-              ? opt
-              : opt.value !== undefined
-              ? opt.value
-              : opt.name;
-          return String(optVal) === String(value);
-        });
-        if (!isCurrentValueValid) {
-          setInputValue("");
-          onChange("");
-        }
-      }
-    }, 200);
-  };
-
   const filteredOptions = useMemo(() => {
     if (!options) return [];
-    if (!inputValue) return options;
+    if (!isTyping || !inputValue) return options;
 
     const safeInput = String(inputValue).toLowerCase();
     return options.filter((item: any) => {
@@ -162,7 +154,7 @@ const SearchableSelect = ({
         typeof item === "string" ? item : item.label || item.name || "";
       return String(label).toLowerCase().includes(safeInput);
     });
-  }, [options, inputValue]);
+  }, [options, inputValue, isTyping]);
 
   return (
     <div className="relative" ref={wrapperRef}>
@@ -177,17 +169,27 @@ const SearchableSelect = ({
             placeholder={placeholder}
             value={inputValue}
             autoComplete="off"
-            onClick={() => !disabled && setIsOpen(true)}
+            onClick={() => {
+              if (!disabled) {
+                setIsOpen(true);
+                setIsTyping(false);
+              }
+            }}
             onFocus={() => setIsOpen(true)}
             onChange={(e) => {
               setInputValue(e.target.value);
+              setIsTyping(true);
               setIsOpen(true);
             }}
-            onBlur={handleBlur}
           />
           <div
             className="absolute right-0 top-0 h-full w-10 flex items-center justify-center cursor-pointer"
-            onClick={() => !disabled && setIsOpen(!isOpen)}
+            onClick={() => {
+              if (!disabled) {
+                setIsOpen(!isOpen);
+                setIsTyping(false);
+              }
+            }}
           >
             <ChevronDown
               className={`text-slate-500 transition-transform ${
@@ -197,7 +199,6 @@ const SearchableSelect = ({
             />
           </div>
         </div>
-
         {onAddNew && (
           <button
             type="button"
@@ -231,9 +232,10 @@ const SearchableSelect = ({
                     className="px-3 py-2 hover:bg-blue-600/20 hover:text-blue-400 text-slate-300 text-sm rounded cursor-pointer transition-colors"
                     onMouseDown={(e) => {
                       e.preventDefault();
-                      onChange(val); // ส่ง Value ไปเก็บ (ID)
-                      setInputValue(label); // แต่โชว์ชื่อ (Name)
+                      onChange(val);
+                      setInputValue(label);
                       setIsOpen(false);
+                      setIsTyping(false);
                     }}
                   >
                     {label}
@@ -4143,42 +4145,22 @@ function DashboardView({
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const [showPdf, setShowPdf] = useState(false);
-  const [targetMachine, setTargetMachine] = useState<Machine | null>(null);
-  const [selectedMachineIds, setSelectedMachineIds] = useState<string[]>([]);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [currentGenMachine, setCurrentGenMachine] = useState<any>(null);
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  // ✅ Validation States
+  const [filterMode, setFilterMode] = useState<"ALL" | "ABNORMAL" | "MISSING">(
+    "ALL"
+  );
+  const [stats, setStats] = useState({ total: 0, abnormal: 0, missing: 0 });
+  const [detailMachine, setDetailMachine] = useState<any>(null);
+  const [selectedDayInfo, setSelectedDayInfo] = useState<any>(null);
 
-  const printRef = useRef<HTMLDivElement>(null);
-
-  // 1. เดือนภาษาอังกฤษ
-  const monthOptions = [
-    { label: "January", value: 1 },
-    { label: "February", value: 2 },
-    { label: "March", value: 3 },
-    { label: "April", value: 4 },
-    { label: "May", value: 5 },
-    { label: "June", value: 6 },
-    { label: "July", value: 7 },
-    { label: "August", value: 8 },
-    { label: "September", value: 9 },
-    { label: "October", value: 10 },
-    { label: "November", value: 11 },
-    { label: "December", value: 12 },
-  ];
-
-  // 2. รายการปี
   const yearOptions = useMemo(() => {
     const cur = new Date().getFullYear();
-    return [cur - 2, cur - 1, cur, cur + 1].map((y) => ({
-      label: String(y),
-      value: y,
-    }));
+    return [cur - 1, cur, cur + 1].map((y) => ({ label: String(y), value: y }));
   }, []);
 
-  // 3. รายชื่อ Line ผลิต
   const processOptions = useMemo(() => {
+    if (!machines || machines.length === 0)
+      return [{ label: "-- All Lines --", value: "All" }];
     const uniqueProcesses = Array.from(
       new Set(machines.map((m) => m.process || "General"))
     ).sort();
@@ -4188,11 +4170,10 @@ function DashboardView({
     ];
   }, [machines]);
 
-  // 4. รายชื่อเครื่องจักร
   const machineOptions = useMemo(() => {
-    let filtered = machines;
+    let filtered = machines || [];
     if (selectedProcess !== "All") {
-      filtered = machines.filter(
+      filtered = filtered.filter(
         (m) => (m.process || "General") === selectedProcess
       );
     }
@@ -4200,10 +4181,7 @@ function DashboardView({
       { label: "-- All Machines --", value: "All" },
       ...filtered
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((m) => ({
-          label: m.name,
-          value: m.id,
-        })),
+        .map((m) => ({ label: m.name, value: m.id })),
     ];
   }, [selectedProcess, machines]);
 
@@ -4216,13 +4194,12 @@ function DashboardView({
     setReportData([]);
     setAllLogs([]);
     try {
+      const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
       const mStr = String(selectedMonth).padStart(2, "0");
       const startDateStr = `${selectedYear}-${mStr}-01`;
-      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
-      const endDateStr = `${selectedYear}-${mStr}-${String(lastDay).padStart(
-        2,
-        "0"
-      )}`;
+      const endDateStr = `${selectedYear}-${mStr}-${String(
+        daysInMonth
+      ).padStart(2, "0")}`;
 
       const q = query(
         collection(db, "logs"),
@@ -4233,33 +4210,54 @@ function DashboardView({
       const fetchedLogs = snapshot.docs.map((d) => d.data() as LogEntry);
       setAllLogs(fetchedLogs);
 
-      const grouped: any = {};
-      const machinesToShow =
-        selectedMachineId === "All"
-          ? selectedProcess === "All"
-            ? machines
-            : machines.filter(
-                (m) => (m.process || "General") === selectedProcess
-              )
-          : machines.filter((m) => m.id === selectedMachineId);
+      const grouped: Record<string, any> = {};
+      let abnormalTotal = 0;
+
+      const machinesToShow = machines.filter((m) => {
+        const matchP =
+          selectedProcess === "All" ||
+          (m.process || "General") === selectedProcess;
+        const matchM =
+          selectedMachineId === "All" || m.id === selectedMachineId;
+        return matchP && matchM;
+      });
 
       machinesToShow.forEach((m) => {
         grouped[m.id] = {
-          mid: m.id,
-          machineName: m.name,
-          process: m.process || "General",
-          hasCheck: false,
+          ...m,
+          status: "GRAY",
+          checkDays: new Set(),
+          abnormalCount: 0,
         };
       });
 
       fetchedLogs.forEach((log) => {
-        if (grouped[log.mid]) grouped[log.mid].hasCheck = true;
+        if (grouped[log.mid]) {
+          grouped[log.mid].checkDays.add(log.date);
+          if (log.result === "ABNORMAL") {
+            grouped[log.mid].status = "RED";
+            grouped[log.mid].abnormalCount += 1;
+          }
+        }
       });
-      setReportData(
-        Object.values(grouped).sort((a: any, b: any) =>
-          a.machineName.localeCompare(b.machineName)
-        )
-      );
+
+      const finalArray = Object.values(grouped).map((m: any) => {
+        const uniqueDays = m.checkDays.size;
+        if (m.status !== "RED") {
+          if (uniqueDays >= daysInMonth) m.status = "GREEN";
+          else if (uniqueDays > 0) m.status = "YELLOW";
+          else m.status = "GRAY";
+        }
+        if (m.status === "RED") abnormalTotal++;
+        return { ...m, checkCount: uniqueDays };
+      });
+
+      setReportData(finalArray.sort((a, b) => a.name.localeCompare(b.name)));
+      setStats({
+        total: finalArray.length,
+        abnormal: abnormalTotal,
+        missing: finalArray.filter((m) => m.checkCount < daysInMonth).length,
+      });
     } catch (error) {
       console.error(error);
     } finally {
@@ -4267,217 +4265,477 @@ function DashboardView({
     }
   };
 
-  const handleTicketAction = (machineId: string) => {
-    if (isSelectionMode) {
-      setSelectedMachineIds((prev) =>
-        prev.includes(machineId)
-          ? prev.filter((x) => x !== machineId)
-          : [...prev, machineId]
+  const handleExportCSV = () => {
+    if (allLogs.length === 0) return alert("กรุณากดค้นหาข้อมูลก่อน Export");
+    const filteredLogs = allLogs.filter((log) => {
+      const m = machines.find((x) => x.id === log.mid);
+      return (
+        (selectedProcess === "All" || m?.process === selectedProcess) &&
+        (selectedMachineId === "All" || log.mid === selectedMachineId)
       );
-    } else {
-      const m = machines.find((x) => x.id === machineId);
-      if (m) {
-        setTargetMachine(m);
-        setShowPdf(true);
-      }
-    }
+    });
+    const headers = [
+      "Date",
+      "Year",
+      "Month",
+      "Shift",
+      "Machine_ID",
+      "Machine_Name",
+      "Line",
+      "Check_Item",
+      "Result",
+      "Problem_Detail",
+      "Inspector",
+    ];
+    const rows = filteredLogs.map((log) => {
+      const m = machines.find((x) => x.id === log.mid);
+      const d = new Date(log.date);
+      return [
+        log.date,
+        d.getFullYear(),
+        d.getMonth() + 1,
+        log.shift,
+        log.mid,
+        `"${m?.name}"`,
+        `"${m?.process}"`,
+        `"${log.checklist_item}"`,
+        log.result,
+        `"${(log.problem_detail || "-").replace(/,/g, " ")}"`,
+        log.inspector,
+      ].join(",");
+    });
+    const blob = new Blob(
+      ["\ufeff" + [headers.join(","), ...rows].join("\n")],
+      { type: "text/csv;charset=utf-8;" }
+    );
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Audit_Data_${selectedYear}_${selectedMonth}.csv`;
+    link.click();
   };
 
-  const handleBatchDownload = async () => {
-    if (selectedMachineIds.length === 0) return;
-    setIsDownloading(true);
-    for (const mid of selectedMachineIds) {
-      const m = machines.find((x) => x.id === mid);
-      if (m) {
-        setCurrentGenMachine({ machine: m });
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const filename = `${m.name}_${selectedYear}${String(
-          selectedMonth
-        ).padStart(2, "0")}.pdf`;
-        if (printRef.current) {
-          const opt = {
-            margin: 0,
-            filename,
-            image: { type: "jpeg", quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
-          };
-          // @ts-ignore
-          await html2pdf().set(opt).from(printRef.current).save();
-        }
-      }
-    }
-    setIsDownloading(false);
-    setCurrentGenMachine(null);
-    setSelectedMachineIds([]);
-    setIsSelectionMode(false);
+  const handleCardClick = (row: any) => {
+    setDetailMachine(row);
+    setSelectedDayInfo(null);
+  };
+
+  // ✅ MODAL: Audit Overview Matrix
+  const MachineDetailModal = () => {
+    if (!detailMachine) return null;
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+    const calendarDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    const handleDayClick = (day: number) => {
+      const dateStr = `${selectedYear}-${String(selectedMonth).padStart(
+        2,
+        "0"
+      )}-${String(day).padStart(2, "0")}`;
+      const dayLogs = allLogs.filter(
+        (l) => l.mid === detailMachine.id && l.date === dateStr
+      );
+      const masterChecklist = detailMachine.checklist || [];
+      const abnormalLogs = dayLogs.filter((l) => l.result === "ABNORMAL");
+
+      const getShiftIssues = (s: string) => {
+        const checkedNames = dayLogs
+          .filter((l) => l.shift === s)
+          .map((l) => String(l.checklist_item));
+        const shiftAbnormal = abnormalLogs
+          .filter((l) => l.shift === s)
+          .map((a) => ({
+            type: "ABNORMAL",
+            label: a.checklist_item,
+            desc: a.problem_detail,
+            user: a.inspector,
+          }));
+        const shiftMissing = masterChecklist
+          .filter((item: any) => !checkedNames.includes(String(item.detail)))
+          .map((item: any) => ({
+            type: "MISSING",
+            label: item.detail,
+            desc: "ยังไม่ได้บันทึกข้อมูล",
+            user: "-",
+          }));
+        return [...shiftAbnormal, ...shiftMissing];
+      };
+
+      setSelectedDayInfo({
+        date: dateStr,
+        dayShift: getShiftIssues("D"),
+        nightShift: getShiftIssues("N"),
+      });
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+        <div className="bg-[#1E293B] w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 flex flex-col max-h-[95vh] overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-700 bg-slate-800/50">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-600/20 p-2 rounded-lg">
+                  <BarChart3 size={20} className="text-blue-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white uppercase tracking-tight">
+                    {detailMachine.name}
+                  </h3>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em]">
+                    Audit Overview Matrix
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setDetailMachine(null);
+                  setSelectedDayInfo(null);
+                }}
+                className="text-slate-500 hover:text-white transition-colors"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            {/* Legend in Header */}
+            <div className="flex items-center gap-5 pt-2 border-t border-slate-700/50">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <span className="text-[9px] text-slate-400 font-black uppercase">
+                  Complete
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                <span className="text-[9px] text-slate-400 font-black uppercase">
+                  Missing
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                <span className="text-[9px] text-slate-400 font-black uppercase">
+                  Abnormal
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-slate-700"></div>
+                <span className="text-[9px] text-slate-400 font-black uppercase">
+                  No Data
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 overflow-y-auto custom-scrollbar space-y-6">
+            <div className="grid grid-cols-7 sm:grid-cols-10 gap-1.5">
+              {calendarDays.map((day) => {
+                const dateStr = `${selectedYear}-${String(
+                  selectedMonth
+                ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const dayLogs = allLogs.filter(
+                  (l) => l.mid === detailMachine.id && l.date === dateStr
+                );
+                const isAbnormal = dayLogs.some((l) => l.result === "ABNORMAL");
+                const isComplete =
+                  dayLogs.length >= (detailMachine.checklist?.length || 0) * 2;
+                let bgColor = "bg-slate-800 text-slate-600 opacity-40";
+                if (dayLogs.length > 0) {
+                  if (isAbnormal)
+                    bgColor = "bg-red-500 text-white shadow-lg animate-pulse";
+                  else if (isComplete) bgColor = "bg-green-600 text-white";
+                  else bgColor = "bg-amber-500 text-slate-900";
+                }
+                const isSelected = selectedDayInfo?.date === dateStr;
+                return (
+                  <button
+                    key={day}
+                    onClick={() => handleDayClick(day)}
+                    className={`aspect-square rounded-md flex items-center justify-center text-[11px] font-black transition-all hover:scale-110 ${bgColor} ${
+                      isSelected
+                        ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-900 scale-110 z-10"
+                        : ""
+                    }`}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                  EXCEPTION SUMMARY:{" "}
+                  {selectedDayInfo
+                    ? new Date(selectedDayInfo.date).getDate()
+                    : "--"}{" "}
+                  {MONTH_OPTIONS[selectedMonth - 1].label}
+                </span>
+              </div>
+              {selectedDayInfo ? (
+                <div className="grid grid-cols-2 gap-4 min-h-[160px]">
+                  {["D", "N"].map((s) => (
+                    <div
+                      key={s}
+                      className="bg-[#0F172A]/40 rounded-xl p-3 border border-slate-800/50"
+                    >
+                      <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-1.5">
+                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">
+                          Shift {s === "D" ? "Day" : "Night"}
+                        </span>
+                        {(s === "D"
+                          ? selectedDayInfo.dayShift
+                          : selectedDayInfo.nightShift
+                        ).length === 0 && (
+                          <CheckCircle size={12} className="text-emerald-500" />
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        {(s === "D"
+                          ? selectedDayInfo.dayShift
+                          : selectedDayInfo.nightShift
+                        ).map((issue: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <div
+                              className={`w-1 h-5 rounded-full shrink-0 ${
+                                issue.type === "ABNORMAL"
+                                  ? "bg-red-500"
+                                  : "bg-amber-500"
+                              }`}
+                            ></div>
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={`text-[10px] font-bold truncate leading-none ${
+                                  issue.type === "ABNORMAL"
+                                    ? "text-red-400"
+                                    : "text-amber-500/80"
+                                }`}
+                              >
+                                {issue.label}
+                              </p>
+                              <p className="text-[8px] text-slate-500 italic truncate mt-0.5">
+                                {issue.desc}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {(s === "D"
+                          ? selectedDayInfo.dayShift
+                          : selectedDayInfo.nightShift
+                        ).length === 0 && (
+                          <div className="h-full flex items-center justify-center py-6 opacity-20">
+                            <p className="text-[9px] font-bold uppercase">
+                              Healthy
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-32 flex flex-col items-center justify-center bg-[#0F172A]/30 rounded-xl border border-dashed border-slate-800 opacity-20">
+                  <Info size={24} className="mb-2" />
+                  <p className="text-[9px] font-black uppercase tracking-widest text-center">
+                    Select a date from the calendar matrix
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="w-full max-w-[100%] mx-auto pb-20 relative pt-4">
-      <div className="bg-[#1E293B] p-5 rounded-xl shadow-sm border border-slate-700 mb-6">
+      {/* ✅ Search Panel (ปรับขนาดปุ่มให้เล็กลง) */}
+      <div className="bg-[#1E293B] p-5 rounded-xl border border-slate-700 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end">
           <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1.5 block tracking-wide">
+            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1.5 block">
               Line
             </label>
             <SearchableSelect
               options={processOptions}
               value={selectedProcess}
               onChange={setSelectedProcess}
-              placeholder="Select Line..."
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1.5 block tracking-wide">
+            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1.5 block">
               Machine
             </label>
             <SearchableSelect
               options={machineOptions}
               value={selectedMachineId}
               onChange={setSelectedMachineId}
-              placeholder="Select Machine..."
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1.5 block tracking-wide">
+            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1.5 block">
               Month
             </label>
             <SearchableSelect
-              options={monthOptions}
+              options={MONTH_OPTIONS}
               value={selectedMonth}
               onChange={setSelectedMonth}
-              placeholder="Select Month..."
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1.5 block tracking-wide">
+            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1.5 block">
               Year
             </label>
             <SearchableSelect
               options={yearOptions}
               value={selectedYear}
               onChange={setSelectedYear}
-              placeholder="Select Year..."
             />
           </div>
 
-          {/* ✅ ส่วนของปุ่มกดที่เว้นที่ไว้ถาวร */}
-          <div className="lg:col-span-3 grid grid-cols-3 gap-2">
+          {/* ปุ่มที่ปรับขนาดให้ Compact ลง (30% ของพื้นที่เดิม) */}
+          <div className="lg:col-span-3 flex gap-2">
             <button
               onClick={fetchReport}
-              disabled={isLoading}
-              className="bg-blue-600 text-white px-2 py-2.5 rounded-lg font-bold hover:bg-blue-700 flex items-center justify-center gap-2 shadow-lg transition-all h-[42px] text-xs"
+              className="bg-blue-600 text-white px-6 rounded-lg font-bold h-[42px] text-[11px] shadow-lg active:scale-95 w-fit min-w-[120px]"
             >
               {isLoading ? (
-                <Loader2 className="animate-spin" size={16} />
+                <Loader2 className="animate-spin mx-auto" size={16} />
               ) : (
-                <Search size={16} />
-              )}{" "}
-              ค้นหา
-            </button>
-
-            <button
-              onClick={() => {
-                setIsSelectionMode(!isSelectionMode);
-                setSelectedMachineIds([]);
-              }}
-              className={`px-2 py-2.5 rounded-lg font-bold border transition-all h-[42px] text-xs ${
-                isSelectionMode
-                  ? "bg-red-500 text-white border-red-600"
-                  : "bg-slate-700 text-slate-200 border-slate-600 hover:bg-slate-600"
-              }`}
-            >
-              {isSelectionMode ? "ยกเลิก" : "เลือก"}
-            </button>
-
-            {/* ✅ ปุ่ม PDF: จองพื้นที่ไว้ตลอดเวลา (Invisible เมื่อไม่ใช้) */}
-            <button
-              onClick={handleBatchDownload}
-              disabled={isDownloading || selectedMachineIds.length === 0}
-              className={`bg-green-600 text-white px-2 py-2.5 rounded-lg font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-lg transition-all h-[42px] text-xs disabled:opacity-50 disabled:bg-slate-800 ${
-                isSelectionMode
-                  ? "opacity-100 visible"
-                  : "opacity-0 invisible pointer-events-none"
-              }`}
-            >
-              {isDownloading ? (
-                <Loader2 className="animate-spin" size={16} />
-              ) : (
-                <Download size={16} />
+                "ค้นหาข้อมูล"
               )}
-              PDF{" "}
-              {selectedMachineIds.length > 0 &&
-                `(${selectedMachineIds.length})`}
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={allLogs.length === 0}
+              className="bg-emerald-600 text-white px-6 rounded-lg font-bold h-[42px] text-[11px] shadow-lg disabled:opacity-50 w-fit min-w-[120px]"
+            >
+              Excel
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {reportData.map((row) => (
-          <div
-            key={row.mid}
-            onClick={() => handleTicketAction(row.mid)}
-            className={`bg-[#1E293B] p-3 rounded-xl border shadow-sm flex items-center justify-between gap-2 cursor-pointer transition-all ${
-              selectedMachineIds.includes(row.mid)
-                ? "border-blue-500 ring-1 ring-blue-500 bg-[#2d3b52]"
-                : "border-slate-700 hover:border-slate-500"
-            }`}
-          >
-            <div className="flex items-center gap-3 overflow-hidden">
-              {isSelectionMode && (
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-slate-600 text-blue-600 bg-slate-800"
-                  checked={selectedMachineIds.includes(row.mid)}
-                  readOnly
-                />
-              )}
-              <div
-                className={`w-3 h-3 rounded-full shrink-0 ${
-                  !row.hasCheck ? "bg-slate-600" : "bg-green-500"
+      {/* Stats Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 font-black text-center">
+        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+          <p className="text-[10px] text-slate-500 uppercase">ทั้งหมด</p>
+          <p className="text-3xl text-white">{stats.total}</p>
+        </div>
+        <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
+          <p className="text-[10px] text-red-400 uppercase">พบผิดปกติ</p>
+          <p className="text-3xl text-red-500">{stats.abnormal}</p>
+        </div>
+        <div className="bg-yellow-500/10 p-4 rounded-xl border border-yellow-500/20">
+          <p className="text-[10px] text-yellow-400 uppercase">
+            ตรวจไม่ครบเดือน
+          </p>
+          <p className="text-3xl text-yellow-500">{stats.missing}</p>
+        </div>
+      </div>
+
+      {/* ✅ Action & Legend Bar (Legend ต่อท้ายปุ่ม) */}
+      <div className="flex flex-col lg:flex-row justify-between items-center mb-6 gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
+            {(["ALL", "ABNORMAL", "MISSING"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setFilterMode(mode)}
+                className={`px-4 py-1.5 rounded-md text-[11px] font-black transition-all ${
+                  filterMode === mode
+                    ? "bg-blue-600 text-white shadow-lg"
+                    : "text-slate-500 hover:text-slate-300"
                 }`}
-              ></div>
-              <div className="flex flex-col truncate">
-                <span className="text-[10px] text-slate-400 uppercase">
-                  {row.process}
-                </span>
-                <span className="font-bold text-slate-200 text-sm truncate">
-                  {row.machineName}
-                </span>
-              </div>
+              >
+                {mode === "ALL"
+                  ? "ทั้งหมด"
+                  : mode === "ABNORMAL"
+                  ? "ผิดปกติ"
+                  : "ตรวจไม่ครบ"}
+              </button>
+            ))}
+          </div>
+          {/* Legend Section */}
+          <div className="hidden md:flex items-center gap-4 px-4 border-l border-slate-700 h-6">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+              <span className="text-[9px] text-slate-400 font-bold uppercase">
+                ปกติ
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+              <span className="text-[9px] text-slate-400 font-bold uppercase">
+                ตรวจไม่ครบ
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
+              <span className="text-[9px] text-slate-400 font-bold uppercase">
+                พบปัญหา
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-slate-700"></div>
+              <span className="text-[9px] text-slate-400 font-bold uppercase">
+                ไม่มีข้อมูล
+              </span>
             </div>
           </div>
-        ))}
+        </div>
       </div>
 
-      <div className="fixed left-[-9999px] top-0">
-        {currentGenMachine && (
-          <div ref={printRef}>
-            <MonthlySummaryReport
-              machine={currentGenMachine.machine}
-              month={selectedMonth.toString()}
-              year={selectedYear}
-              masterList={currentGenMachine.machine.checklist}
-              allLogs={allLogs}
-              isBatchMode={true}
-              onClose={() => {}}
-            />
-          </div>
-        )}
+      {/* Machine Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        {reportData
+          .filter((m) => {
+            if (filterMode === "ABNORMAL") return m.status === "RED";
+            if (filterMode === "MISSING")
+              return m.status === "YELLOW" || m.status === "GRAY";
+            return true;
+          })
+          .map((row) => (
+            <div
+              key={row.mid}
+              onClick={() => handleCardClick(row)}
+              className={`p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.03] ${
+                row.status === "RED"
+                  ? "border-red-500/50 bg-red-500/5 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+                  : "border-slate-700 bg-[#1E293B]"
+              }`}
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div
+                  className={`w-3.5 h-3.5 rounded-full ${
+                    row.status === "RED"
+                      ? "bg-red-500 shadow-[0_0_10px_#ef4444] animate-pulse"
+                      : row.status === "GREEN"
+                      ? "bg-green-500"
+                      : row.status === "YELLOW"
+                      ? "bg-amber-500"
+                      : "bg-slate-700"
+                  }`}
+                />
+                <span className="text-[10px] font-black text-slate-500 bg-black/20 px-2 py-0.5 rounded-full">
+                  {row.checkCount} /{" "}
+                  {new Date(selectedYear, selectedMonth, 0).getDate()} D
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-500 uppercase font-black tracking-tighter truncate block">
+                {row.process}
+              </span>
+              <span className="font-bold text-slate-200 text-sm truncate block tracking-tight">
+                {row.name}
+              </span>
+              {row.abnormalCount > 0 && (
+                <span className="text-[10px] text-red-400 font-bold mt-2 flex items-center gap-1 bg-red-500/10 w-fit px-2 py-0.5 rounded border border-red-500/10 animate-bounce">
+                  พบปัญหา {row.abnormalCount} ครั้ง
+                </span>
+              )}
+            </div>
+          ))}
       </div>
 
-      {showPdf && targetMachine && (
-        <MonthlySummaryReport
-          machine={targetMachine}
-          month={selectedMonth.toString()}
-          year={selectedYear}
-          masterList={targetMachine.checklist}
-          allLogs={allLogs}
-          onClose={() => setShowPdf(false)}
-        />
-      )}
+      <MachineDetailModal />
     </div>
   );
 }
