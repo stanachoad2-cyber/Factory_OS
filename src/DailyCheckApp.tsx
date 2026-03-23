@@ -4197,7 +4197,25 @@ function DashboardView({
     setReportData([]);
     setAllLogs([]);
     try {
+      const now = new Date();
+      const todayDate = now.getDate();
+      // เช็คว่าเป็นเดือนปัจจุบัน/ปีปัจจุบัน หรือไม่
+      const isCurrentMonth =
+        now.getMonth() + 1 === selectedMonth &&
+        now.getFullYear() === selectedYear;
+      const isPastMonth =
+        selectedYear < now.getFullYear() ||
+        (selectedYear === now.getFullYear() &&
+          selectedMonth < now.getMonth() + 1);
+
       const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+      // ✅ วันที่ "ควรจะ" ตรวจเสร็จแล้ว (ถ้าเดือนที่แล้ว = ทั้งเดือน, ถ้าเดือนนี้ = ถึงแค่วันนี้)
+      const daysToBeChecked = isPastMonth
+        ? daysInMonth
+        : isCurrentMonth
+        ? todayDate
+        : 0;
+
       const mStr = String(selectedMonth).padStart(2, "0");
       const startDateStr = `${selectedYear}-${mStr}-01`;
       const endDateStr = `${selectedYear}-${mStr}-${String(
@@ -4246,11 +4264,18 @@ function DashboardView({
 
       const finalArray = Object.values(grouped).map((m: any) => {
         const uniqueDays = m.checkDays.size;
+
+        // ✅ ตรรกะแบ่งประเภท สีเหลือง (Missing) vs สีเทา (No Data)
         if (m.status !== "RED") {
-          if (uniqueDays >= daysInMonth) m.status = "GREEN";
-          else if (uniqueDays > 0) m.status = "YELLOW";
-          else m.status = "GRAY";
+          if (uniqueDays >= daysToBeChecked && daysToBeChecked > 0) {
+            m.status = "GREEN";
+          } else if (daysToBeChecked > 0 && uniqueDays < daysToBeChecked) {
+            m.status = "YELLOW"; // ตรวจไม่ครบ หรือ ลืมตรวจเลยในวันที่ผ่านมาแล้ว
+          } else {
+            m.status = "GRAY"; // อนาคต (ยังไม่ถึงเวลาตรวจ)
+          }
         }
+
         if (m.status === "RED") abnormalTotal++;
         return { ...m, checkCount: uniqueDays };
       });
@@ -4259,7 +4284,7 @@ function DashboardView({
       setStats({
         total: finalArray.length,
         abnormal: abnormalTotal,
-        missing: finalArray.filter((m) => m.checkCount < daysInMonth).length,
+        missing: finalArray.filter((m) => m.status === "YELLOW").length,
       });
     } catch (error) {
       console.error(error);
@@ -4322,7 +4347,6 @@ function DashboardView({
     setSelectedDayInfo(null);
   };
 
-  // ✅ MODAL: Audit Overview Matrix
   const MachineDetailModal = () => {
     if (!detailMachine) return null;
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
@@ -4340,9 +4364,10 @@ function DashboardView({
       const abnormalLogs = dayLogs.filter((l) => l.result === "ABNORMAL");
 
       const getShiftIssues = (s: string) => {
-        const checkedNames = dayLogs
-          .filter((l) => l.shift === s)
-          .map((l) => String(l.checklist_item));
+        const logsInShift = dayLogs.filter((l) => l.shift === s);
+        const checkedNames = logsInShift.map((l) => String(l.checklist_item));
+
+        // 1. รายการที่ผิดปกติ (ABNORMAL)
         const shiftAbnormal = abnormalLogs
           .filter((l) => l.shift === s)
           .map((a) => ({
@@ -4351,6 +4376,8 @@ function DashboardView({
             desc: a.problem_detail,
             user: a.inspector,
           }));
+
+        // 2. รายการที่หายไป (MISSING)
         const shiftMissing = masterChecklist
           .filter((item: any) => !checkedNames.includes(String(item.detail)))
           .map((item: any) => ({
@@ -4359,19 +4386,30 @@ function DashboardView({
             desc: "ยังไม่ได้บันทึกข้อมูล",
             user: "-",
           }));
-        return [...shiftAbnormal, ...shiftMissing];
+
+        return {
+          issues: [...shiftAbnormal, ...shiftMissing],
+          checkedCount: new Set(checkedNames).size, // นับจำนวนข้อที่ไม่ซ้ำที่ตรวจแล้ว
+          totalCount: masterChecklist.length,
+        };
       };
+
+      const dayData = getShiftIssues("D");
+      const nightData = getShiftIssues("N");
 
       setSelectedDayInfo({
         date: dateStr,
-        dayShift: getShiftIssues("D"),
-        nightShift: getShiftIssues("N"),
+        dayShift: dayData.issues,
+        dayScore: `${dayData.checkedCount}/${dayData.totalCount}`,
+        nightShift: nightData.issues,
+        nightScore: `${nightData.checkedCount}/${nightData.totalCount}`,
       });
     };
 
     return (
       <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[110] flex items-center justify-center p-4">
-        <div className="bg-[#1E293B] w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 flex flex-col max-h-[95vh] overflow-hidden">
+        <div className="bg-[#1E293B] w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 flex flex-col max-h-[95vh] overflow-hidden animate-in zoom-in-95 duration-200">
+          {/* 1. Modal Header & Legend */}
           <div className="px-5 py-4 border-b border-slate-700 bg-slate-800/50">
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center gap-3">
@@ -4397,7 +4435,8 @@ function DashboardView({
                 <X size={22} />
               </button>
             </div>
-            {/* Legend in Header */}
+
+            {/* Legend Section */}
             <div className="flex items-center gap-5 pt-2 border-t border-slate-700/50">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded-full bg-green-500"></div>
@@ -4427,24 +4466,42 @@ function DashboardView({
           </div>
 
           <div className="p-5 overflow-y-auto custom-scrollbar space-y-6">
+            {/* 2. Matrix Calendar (กับตรรกะวันที่ Past/Future) */}
             <div className="grid grid-cols-7 sm:grid-cols-10 gap-1.5">
               {calendarDays.map((day) => {
                 const dateStr = `${selectedYear}-${String(
                   selectedMonth
                 ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+                // ตรรกะเช็ควันที่
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const checkDate = new Date(
+                  selectedYear,
+                  selectedMonth - 1,
+                  day
+                );
+                const isPastOrToday = checkDate <= today;
+
                 const dayLogs = allLogs.filter(
                   (l) => l.mid === detailMachine.id && l.date === dateStr
                 );
                 const isAbnormal = dayLogs.some((l) => l.result === "ABNORMAL");
                 const isComplete =
                   dayLogs.length >= (detailMachine.checklist?.length || 0) * 2;
-                let bgColor = "bg-slate-800 text-slate-600 opacity-40";
+
+                let bgColor = "bg-slate-800 text-slate-600 opacity-40"; // สีเทา (อนาคต)
+
                 if (dayLogs.length > 0) {
                   if (isAbnormal)
                     bgColor = "bg-red-500 text-white shadow-lg animate-pulse";
                   else if (isComplete) bgColor = "bg-green-600 text-white";
                   else bgColor = "bg-amber-500 text-slate-900";
+                } else if (isPastOrToday) {
+                  // อดีตแต่ไม่มีข้อมูล = สีเหลือง (ลืมตรวจ)
+                  bgColor = "bg-amber-500 text-slate-900 font-black";
                 }
+
                 const isSelected = selectedDayInfo?.date === dateStr;
                 return (
                   <button
@@ -4462,6 +4519,7 @@ function DashboardView({
               })}
             </div>
 
+            {/* 3. Exception Summary (แบ่งกะซ้าย-ขวา + Score + Healthy) */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
                 <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
@@ -4472,66 +4530,124 @@ function DashboardView({
                   {MONTH_OPTIONS[selectedMonth - 1].label}
                 </span>
               </div>
+
               {selectedDayInfo ? (
                 <div className="grid grid-cols-2 gap-4 min-h-[160px]">
-                  {["D", "N"].map((s) => (
-                    <div
-                      key={s}
-                      className="bg-[#0F172A]/40 rounded-xl p-3 border border-slate-800/50"
-                    >
-                      <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-1.5">
+                  {/* Shift Day */}
+                  <div className="bg-[#0F172A]/40 rounded-xl p-3 border border-slate-800/50">
+                    <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-1.5">
+                      <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">
-                          Shift {s === "D" ? "Day" : "Night"}
+                          Shift Day
                         </span>
-                        {(s === "D"
-                          ? selectedDayInfo.dayShift
-                          : selectedDayInfo.nightShift
-                        ).length === 0 && (
-                          <CheckCircle size={12} className="text-emerald-500" />
-                        )}
+                        <span className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 font-bold">
+                          {selectedDayInfo.dayScore}
+                        </span>
                       </div>
-                      <div className="space-y-1.5">
-                        {(s === "D"
-                          ? selectedDayInfo.dayShift
-                          : selectedDayInfo.nightShift
-                        ).map((issue: any, idx: number) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <div
-                              className={`w-1 h-5 rounded-full shrink-0 ${
-                                issue.type === "ABNORMAL"
-                                  ? "bg-red-500"
-                                  : "bg-amber-500"
-                              }`}
-                            ></div>
-                            <div className="min-w-0 flex-1">
-                              <p
-                                className={`text-[10px] font-bold truncate leading-none ${
-                                  issue.type === "ABNORMAL"
-                                    ? "text-red-400"
-                                    : "text-amber-500/80"
-                                }`}
-                              >
-                                {issue.label}
-                              </p>
-                              <p className="text-[8px] text-slate-500 italic truncate mt-0.5">
-                                {issue.desc}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                        {(s === "D"
-                          ? selectedDayInfo.dayShift
-                          : selectedDayInfo.nightShift
-                        ).length === 0 && (
-                          <div className="h-full flex items-center justify-center py-6 opacity-20">
-                            <p className="text-[9px] font-bold uppercase">
-                              ไม่พบความผิดปกติ
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                      {selectedDayInfo.dayShift.length === 0 && (
+                        <CheckCircle size={12} className="text-emerald-500" />
+                      )}
                     </div>
-                  ))}
+                    <div className="space-y-1.5 min-h-[60px] flex flex-col justify-center">
+                      {selectedDayInfo.dayShift.length > 0 ? (
+                        selectedDayInfo.dayShift.map(
+                          (issue: any, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <div
+                                className={`w-1 h-5 rounded-full shrink-0 ${
+                                  issue.type === "ABNORMAL"
+                                    ? "bg-red-500"
+                                    : "bg-amber-500"
+                                }`}
+                              ></div>
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={`text-[10px] font-bold truncate leading-none ${
+                                    issue.type === "ABNORMAL"
+                                      ? "text-red-400"
+                                      : "text-amber-500/80"
+                                  }`}
+                                >
+                                  {issue.label}
+                                </p>
+                                <p className="text-[8px] text-slate-500 italic truncate mt-0.5">
+                                  {issue.desc}
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        )
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-4 opacity-30">
+                          <CheckCircle2
+                            size={24}
+                            className="text-emerald-500 mb-1"
+                          />
+                          <p className="text-[9px] font-black uppercase tracking-tighter text-emerald-500/80">
+                            Healthy Data
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Shift Night */}
+                  <div className="bg-[#0F172A]/40 rounded-xl p-3 border border-slate-800/50">
+                    <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">
+                          Shift Night
+                        </span>
+                        <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 font-bold">
+                          {selectedDayInfo.nightScore}
+                        </span>
+                      </div>
+                      {selectedDayInfo.nightShift.length === 0 && (
+                        <CheckCircle size={12} className="text-emerald-500" />
+                      )}
+                    </div>
+                    <div className="space-y-1.5 min-h-[60px] flex flex-col justify-center">
+                      {selectedDayInfo.nightShift.length > 0 ? (
+                        selectedDayInfo.nightShift.map(
+                          (issue: any, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <div
+                                className={`w-1 h-5 rounded-full shrink-0 ${
+                                  issue.type === "ABNORMAL"
+                                    ? "bg-red-500"
+                                    : "bg-amber-500"
+                                }`}
+                              ></div>
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={`text-[10px] font-bold truncate leading-none ${
+                                    issue.type === "ABNORMAL"
+                                      ? "text-red-400"
+                                      : "text-amber-500/80"
+                                  }`}
+                                >
+                                  {issue.label}
+                                </p>
+                                <p className="text-[8px] text-slate-500 italic truncate mt-0.5">
+                                  {issue.desc}
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        )
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-4 opacity-30">
+                          <CheckCircle2
+                            size={24}
+                            className="text-emerald-500 mb-1"
+                          />
+                          <p className="text-[9px] font-black uppercase tracking-tighter text-emerald-500/80">
+                            Healthy Data
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="h-32 flex flex-col items-center justify-center bg-[#0F172A]/30 rounded-xl border border-dashed border-slate-800 opacity-20">
