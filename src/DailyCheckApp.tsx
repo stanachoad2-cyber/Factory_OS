@@ -4294,14 +4294,10 @@ function DashboardView({
   };
 
   const handleExportCSV = () => {
+    // เช็คเบื้องต้นว่ามีการดึงข้อมูลมาหรือยัง (เพื่อความเร็วในการหาข้อมูลในลูป)
     if (allLogs.length === 0) return alert("กรุณากดค้นหาข้อมูลก่อน Export");
-    const filteredLogs = allLogs.filter((log) => {
-      const m = machines.find((x) => x.id === log.mid);
-      return (
-        (selectedProcess === "All" || m?.process === selectedProcess) &&
-        (selectedMachineId === "All" || log.mid === selectedMachineId)
-      );
-    });
+
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
     const headers = [
       "Date",
       "Year",
@@ -4315,30 +4311,74 @@ function DashboardView({
       "Problem_Detail",
       "Inspector",
     ];
-    const rows = filteredLogs.map((log) => {
-      const m = machines.find((x) => x.id === log.mid);
-      const d = new Date(log.date);
-      return [
-        log.date,
-        d.getFullYear(),
-        d.getMonth() + 1,
-        log.shift,
-        log.mid,
-        `"${m?.name}"`,
-        `"${m?.process}"`,
-        `"${log.checklist_item}"`,
-        log.result,
-        `"${(log.problem_detail || "-").replace(/,/g, " ")}"`,
-        log.inspector,
-      ].join(",");
-    });
+
+    const rows: string[] = [];
+
+    // --- เริ่มการสร้างข้อมูลแบบ Full Matrix ---
+
+    // 1. วนลูปทุกวันในเดือนที่เลือก
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${selectedYear}-${String(selectedMonth).padStart(
+        2,
+        "0"
+      )}-${String(day).padStart(2, "0")}`;
+
+      // 2. วนลูปทุกกะ (Day และ Night)
+      ["D", "N"].forEach((shift) => {
+        // 3. วนลูปทุกเครื่องจักรที่มีในระบบ (กรองตามที่เลือกหน้าจอ)
+        machines.forEach((m) => {
+          const matchP =
+            selectedProcess === "All" ||
+            (m.process || "General") === selectedProcess;
+          const matchM =
+            selectedMachineId === "All" || m.id === selectedMachineId;
+
+          if (matchP && matchM) {
+            // 4. วนลูปทุกหัวข้อการตรวจ (Master Checklist) ของเครื่องนั้นๆ
+            const checklist = m.checklist || [];
+            checklist.forEach((item: any) => {
+              // 🔍 ค้นหา Log ที่ตรงกับ วัน/กะ/เครื่อง/หัวข้อ นี้
+              const log = allLogs.find(
+                (l) =>
+                  l.date === dateStr &&
+                  l.shift === shift &&
+                  l.mid === m.id &&
+                  String(l.checklist_item) === String(item.detail)
+              );
+
+              // สร้างแถวข้อมูล (ถ้าไม่เจอ Log ให้ใส่สถานะ MISSING)
+              const row = [
+                dateStr, // Date
+                selectedYear, // Year
+                selectedMonth, // Month
+                shift === "D" ? "Day" : "Night", // Shift
+                m.id, // Machine_ID
+                `"${m.name}"`, // Machine_Name
+                `"${m.process || "General"}"`, // Line
+                `"${item.detail}"`, // Check_Item
+                log ? log.result : "MISSING", // Result (หัวใจสำคัญคือจุดนี้)
+                log
+                  ? `"${(log.problem_detail || "-").replace(/,/g, " ")}"`
+                  : "-", // Problem
+                log ? log.inspector : "-", // Inspector
+              ];
+
+              rows.push(row.join(","));
+            });
+          }
+        });
+      });
+    }
+
+    // สร้างไฟล์ CSV และสั่ง Download
     const blob = new Blob(
       ["\ufeff" + [headers.join(","), ...rows].join("\n")],
       { type: "text/csv;charset=utf-8;" }
     );
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Audit_Data_${selectedYear}_${selectedMonth}.csv`;
+    const fileName = `Full_Audit_Report_${selectedYear}_${selectedMonth}.csv`;
+    link.download = fileName;
     link.click();
   };
 
@@ -4367,17 +4407,26 @@ function DashboardView({
         const logsInShift = dayLogs.filter((l) => l.shift === s);
         const checkedNames = logsInShift.map((l) => String(l.checklist_item));
 
-        // 1. รายการที่ผิดปกติ (ABNORMAL)
-        const shiftAbnormal = abnormalLogs
-          .filter((l) => l.shift === s)
-          .map((a) => ({
-            type: "ABNORMAL",
-            label: a.checklist_item,
-            desc: a.problem_detail,
-            user: a.inspector,
-          }));
+        // 🔥 แก้ปัญหาตัวเบิ้ล: ใช้ Map เพื่อเก็บเฉพาะรายการที่ไม่ซ้ำกัน
+        const abnormalMap = new Map();
 
-        // 2. รายการที่หายไป (MISSING)
+        abnormalLogs
+          .filter((l) => l.shift === s)
+          .forEach((a) => {
+            // ถ้าใน Map ยังไม่มีชื่อรายการนี้ ให้เพิ่มเข้าไป (ถ้ามีแล้วจะข้ามตัวถัดไปที่ซ้ำกัน)
+            if (!abnormalMap.has(a.checklist_item)) {
+              abnormalMap.set(a.checklist_item, {
+                type: "ABNORMAL",
+                label: a.checklist_item,
+                desc: a.problem_detail,
+                user: a.inspector,
+              });
+            }
+          });
+
+        // แปลงจาก Map กลับเป็น Array เพื่อนำไปแสดงผล
+        const shiftAbnormal = Array.from(abnormalMap.values());
+
         const shiftMissing = masterChecklist
           .filter((item: any) => !checkedNames.includes(String(item.detail)))
           .map((item: any) => ({
