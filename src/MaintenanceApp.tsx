@@ -3856,14 +3856,20 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
     if (activeTab === 5) {
       if (!activeFilters.hasSearched) return [];
       result = result.filter((t) => {
-        const targetDate = t.approved_at || t.closed_at || t.updated_at;
+        // ✅ แก้ไข: เปลี่ยนจากวันที่ Approve/Close มาเป็นวันที่แจ้งซ่อม (created_at)
+        const targetDate = t.created_at;
+
         if (!targetDate) return false;
         const ticketDate = targetDate.toDate
           ? targetDate.toDate()
           : new Date(targetDate);
+
         const filterStart = new Date(activeFilters.start);
         const filterEnd = new Date(activeFilters.end);
+
+        // ตรวจสอบว่าวันที่แจ้งซ่อม อยู่ในช่วงที่เลือกหรือไม่
         if (ticketDate < filterStart || ticketDate > filterEnd) return false;
+
         if (
           activeFilters.text &&
           !`${t.id} ${t.machine_name} ${t.requester_fullname}`
