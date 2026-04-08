@@ -1873,11 +1873,13 @@ function CloseJobModal({
   user,
   onClose,
   onSuccess,
+  onOpenPRForm, // รับฟังก์ชันมาจากตัวแม่
 }: {
   ticket: any;
   user: User;
   onClose: () => void;
   onSuccess: () => void;
+  onOpenPRForm: (data: any) => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [customId, setCustomId] = useState(ticket.id);
@@ -1893,27 +1895,15 @@ function CloseJobModal({
   const [delayReason, setDelayReason] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-
   const [mcStatus, setMcStatus] = useState("");
 
-  const [parts, setParts] = useState<
-    { name: string; qty: number; price?: number; isLocked?: boolean }[]
-  >([]);
-  const [tempPartName, setTempPartName] = useState("");
-  const [tempPartQty, setTempPartQty] = useState(1);
-  const [stockList, setStockList] = useState<any[]>([]);
-  const [selectedStockItem, setSelectedStockItem] = useState<any>(null);
+  const [parts, setParts] = useState<any[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<any[]>([]);
+  const [resultOptions, setResultOptions] = useState<any[]>([]);
+  const [isDelayed, setIsDelayed] = useState(false);
   const [showGuard, setShowGuard] = useState(false);
   const [pendingAction, setPendingAction] = useState<() => void>(() => {});
-  const [categoryOptions, setCategoryOptions] = useState<
-    { name: string; require_note: boolean }[]
-  >([]);
-  const [resultOptions, setResultOptions] = useState<
-    { name: string; require_note: boolean }[]
-  >([]);
-  const [isDelayed, setIsDelayed] = useState(false);
 
-  // ✅ 1. เพิ่มตัวแปรเช็คความถูกต้องของเวลา (เพิ่มเข้าไปใต้ State เดิมของคุณ)
   const isTimeInvalid =
     startTime &&
     endTime &&
@@ -1926,35 +1916,27 @@ function CloseJobModal({
     )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   };
 
+  // 1. Load Master Data
   useEffect(() => {
     const fetchMasters = async () => {
       const getList = async (id: string) => {
         const d = await getDoc(doc(db, "maintenance_settings", id));
         return d.exists() ? d.data().list || [] : [];
       };
+      const cats = await getList("cause_categories");
       setCategoryOptions(
-        (await getList("cause_categories")).map((c: any) =>
+        cats.map((c: any) =>
           typeof c === "string" ? { name: c, require_note: false } : c
         )
       );
+      const results = await getList("maintenance_results");
       setResultOptions(
-        (await getList("maintenance_results")).map((r: any) =>
+        results.map((r: any) =>
           typeof r === "string" ? { name: r, require_note: false } : r
         )
       );
     };
     fetchMasters();
-
-    const fetchStock = async () => {
-      try {
-        const q = query(collection(db, "spare_parts"), orderBy("name"));
-        const snap = await getDocs(q);
-        setStockList(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      } catch (err) {
-        console.error("Failed to load stock:", err);
-      }
-    };
-    fetchStock();
 
     if (ticket.close_data) {
       const cd = ticket.close_data;
@@ -1967,7 +1949,6 @@ function CloseJobModal({
       setRepairNote(cd.repair_note || "");
       setParts(cd.spare_parts || []);
       setMcStatus(cd.mc_status || "");
-
       if (cd.start_time) setStartTime(toLocalISOString(cd.start_time.toDate()));
       if (cd.end_time) setEndTime(toLocalISOString(cd.end_time.toDate()));
       if (cd.delay_reason) setDelayReason(cd.delay_reason);
@@ -1981,10 +1962,10 @@ function CloseJobModal({
       setEndTime(toLocalISOString(now));
       const diffMs = now.getTime() - ticket.created_at.toDate().getTime();
       if (diffMs / (1000 * 60 * 60) > 48) setIsDelayed(true);
-      setMcStatus("");
     }
   }, [ticket]);
 
+  // 2. Sync Parts
   useEffect(() => {
     if (ticket.close_data) return;
     const possibleIds = [ticket.id, ticket.ticket_id, ticket.ticket_no].filter(
@@ -1996,78 +1977,36 @@ function CloseJobModal({
     );
     const unsubscribe = onSnapshot(q, (snap) => {
       const partMap = new Map<string, number>();
-      const ticketCreated = ticket.created_at?.toDate
-        ? ticket.created_at.toDate()
-        : new Date(ticket.created_at);
-
       snap.docs.forEach((doc) => {
         const data = doc.data();
-        const logTime = data.timestamp?.toDate
-          ? data.timestamp.toDate()
-          : new Date(data.timestamp || 0);
-        if (logTime < ticketCreated) return;
-        const name = data.partName;
         const qty = Number(data.quantity) || 0;
-        const currentTotal = partMap.get(name) || 0;
-        if (data.type === "OUT") partMap.set(name, currentTotal + qty);
+        if (data.type === "OUT")
+          partMap.set(data.partName, (partMap.get(data.partName) || 0) + qty);
         else if (
           data.type === "IN" &&
           (data.isReturn === true || data.isReturn === "true")
         )
-          partMap.set(name, currentTotal - qty);
+          partMap.set(data.partName, (partMap.get(data.partName) || 0) - qty);
       });
-
       const finalParts: any[] = [];
-      partMap.forEach((netQty, name) => {
-        if (netQty > 0) {
-          const stockItem = stockList.find((s) => s.name === name);
-          const currentPrice = stockItem?.price || 0;
-
-          finalParts.push({
-            name,
-            qty: netQty,
-            price: currentPrice,
-            isLocked: true,
-          });
-        }
+      partMap.forEach((qty, name) => {
+        if (qty > 0) finalParts.push({ name, qty });
       });
       setParts(finalParts);
     });
     return () => unsubscribe();
-  }, [ticket.id, ticket.created_at, ticket.close_data, stockList]);
-
-  useEffect(() => {
-    const found = stockList.find((s) => s.name === tempPartName);
-    setSelectedStockItem(found || null);
-  }, [tempPartName, stockList]);
+  }, [ticket.id, ticket.close_data]);
 
   const getDurationText = () => {
     if (!startTime || !endTime) return "-";
     const start = new Date(startTime);
     const end = new Date(endTime);
     const diffMs = end.getTime() - start.getTime();
-    if (diffMs <= 0) return "Error (เช็คเวลา)"; // ✅ ปรับข้อความเตือน
+    if (diffMs <= 0) return "Error";
     const totalMinutes = Math.floor(diffMs / 60000);
     return `${Math.floor(totalMinutes / 60)
       .toString()
       .padStart(2, "0")}:${(totalMinutes % 60).toString().padStart(2, "0")} น.`;
-  };
-
-  const handleAddPart = () => {
-    if (!tempPartName) return;
-    const priceFromStock = selectedStockItem?.price || 0;
-
-    setParts([
-      ...parts,
-      {
-        name: tempPartName,
-        qty: tempPartQty,
-        price: priceFromStock,
-      },
-    ]);
-    setTempPartName("");
-    setTempPartQty(1);
-    setSelectedStockItem(null);
   };
 
   const showCauseNoteInput =
@@ -2075,15 +2014,12 @@ function CloseJobModal({
     false;
   const showResultNoteInput =
     resultOptions.find((r) => r.name === repairResult)?.require_note || false;
+  const sparePartsString =
+    parts.length > 0
+      ? parts.map((p) => `${p.name} (${p.qty})`).join(", ")
+      : "ไม่มีรายการเบิกอะไหล่";
 
   const handleSubmit = async () => {
-    if (tempPartName && tempPartName.trim() !== "") {
-      alert(
-        "⚠️ คุณกรอกชื่ออะไหล่ค้างไว้!\n\nกรุณากดปุ่ม (+) สีน้ำเงิน เพื่อเพิ่มรายการลงในตารางก่อนกดบันทึกครับ"
-      );
-      return;
-    }
-
     if (
       !cause ||
       !correction ||
@@ -2093,26 +2029,13 @@ function CloseJobModal({
       !endTime ||
       !customId ||
       !mcStatus
-    ) {
-      alert("กรุณากรอกข้อมูลที่มีดอกจัน (*) ให้ครบถ้วน รวมถึงสถานะเครื่องจักร");
-      return;
-    }
-    if (showCauseNoteInput && !causeNote)
-      return alert("กรุณาระบุหมายเหตุของ 'ประเภทสาเหตุ'");
-    if (showResultNoteInput && !repairNote)
-      return alert("กรุณาระบุหมายเหตุของ 'ผลการซ่อม'");
-    if (isDelayed && !delayReason) return alert("กรุณาระบุเหตุผลความล่าช้า");
-
+    )
+      return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
     const executeSave = async () => {
       setSubmitting(true);
       try {
         const start = new Date(startTime);
         const end = new Date(endTime);
-        const durationMin = Math.round(
-          (end.getTime() - start.getTime()) / 60000
-        );
-        const cleanParts = parts.map(({ isLocked, ...rest }) => rest);
-
         const closeData = {
           cause,
           correction,
@@ -2121,59 +2044,29 @@ function CloseJobModal({
           cause_note: causeNote,
           repair_result: repairResult,
           repair_note: repairNote,
-          spare_parts: cleanParts,
+          spare_parts: parts,
           start_time: start,
           end_time: end,
-          duration_minutes: durationMin,
+          duration_minutes: Math.round(
+            (end.getTime() - start.getTime()) / 60000
+          ),
           delay_reason: isDelayed ? delayReason : null,
           is_delayed: isDelayed,
           mc_status: mcStatus,
         };
-
         await runTransaction(db, async (transaction) => {
-          let nextStatus = "Wait_Verify";
-          if (ticket.status === "Closed") {
-            nextStatus = "Closed";
-          } else if (
-            ["Wait_Verify", "Wait_Approve"].includes(ticket.status) &&
-            ticket.close_data
-          ) {
-            nextStatus = ticket.status;
-          }
-
-          const ticketRef = doc(db, "maintenance_tickets", customId);
-          const oldTicketRef = doc(db, "maintenance_tickets", ticket.id);
-
-          if (customId !== ticket.id) {
-            const newDocCheck = await transaction.get(ticketRef);
-            if (newDocCheck.exists())
-              throw new Error(`Ticket ID ${customId} ซ้ำ!`);
-            const oldDoc = await transaction.get(oldTicketRef);
-            if (!oldDoc.exists()) throw new Error("Ticket เดิมหายไป!");
-            transaction.set(ticketRef, {
-              ...oldDoc.data(),
-              ...closeData,
-              status: nextStatus,
-              close_data: closeData,
-              updated_at: serverTimestamp(),
-              id: customId,
-            });
-            transaction.delete(oldTicketRef);
-          } else {
-            transaction.update(ticketRef, {
-              status: nextStatus,
-              close_data: closeData,
-              updated_at: serverTimestamp(),
-            });
-          }
+          transaction.update(doc(db, "maintenance_tickets", ticket.id), {
+            status: ticket.status === "Closed" ? "Closed" : "Wait_Verify",
+            close_data: closeData,
+            updated_at: serverTimestamp(),
+          });
         });
         onSuccess();
       } catch (e: any) {
-        alert("Error: " + e.message);
+        alert(e.message);
         setSubmitting(false);
       }
     };
-
     if (ticket.close_data) {
       setPendingAction(() => executeSave);
       setShowGuard(true);
@@ -2185,10 +2078,10 @@ function CloseJobModal({
   const labelClass =
     "text-[10px] uppercase font-bold text-slate-500 mb-1 block truncate";
   const inputBase =
-    "w-full h-[38px] bg-[#0F172A] text-white text-xs border border-slate-700 rounded-lg px-2.5 outline-none focus:border-blue-500 transition-all placeholder:text-slate-600 flex items-center";
+    "w-full h-[38px] bg-[#0F172A] text-white text-xs border border-slate-700 rounded-lg px-2.5 outline-none focus:border-blue-500 transition-all flex items-center";
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
       <div className="bg-[#1E293B] w-full max-w-lg rounded-2xl shadow-2xl border border-slate-700/50 flex flex-col overflow-hidden max-h-[90vh]">
         <div className="px-5 py-3 border-b border-slate-700/50 flex justify-between items-center bg-[#1E293B] shrink-0">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -2199,27 +2092,21 @@ function CloseJobModal({
             <X size={18} className="text-slate-500 hover:text-white" />
           </button>
         </div>
-        <div className="p-5 overflow-y-auto custom-scrollbar space-y-3">
-          {/* ... (เนื้อหาฟอร์มส่วนบนเหมือนเดิม) ... */}
-          <div className="grid grid-cols-2 gap-3 mb-2">
+
+        <div className="p-5 overflow-y-auto custom-scrollbar space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={`${labelClass} text-yellow-500`}>
-                Ticket ID
-              </label>
+              <label className={labelClass}>Ticket ID</label>
               <input
-                className={`${inputBase} border-yellow-500/30 text-yellow-400 font-mono`}
+                className={`${inputBase} text-yellow-400 font-mono`}
                 value={customId}
-                onChange={(e) => setCustomId(e.target.value.trim())}
+                readOnly
               />
             </div>
             <div>
               <label className={labelClass}>MC STATUS *</label>
               <select
-                className={`${inputBase} ${
-                  mcStatus === "Stop Mc."
-                    ? "text-red-500 border-red-500/50"
-                    : ""
-                }`}
+                className={inputBase}
                 value={mcStatus}
                 onChange={(e) => setMcStatus(e.target.value)}
               >
@@ -2247,6 +2134,9 @@ function CloseJobModal({
                 onChange={(e) => setCorrection(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>3. การป้องกัน</label>
               <input
@@ -2255,15 +2145,16 @@ function CloseJobModal({
                 onChange={(e) => setPrevention(e.target.value)}
               />
             </div>
-            <div
-              className={`${showCauseNoteInput ? "col-span-1 flex gap-2" : ""}`}
-            >
-              <div className="flex-1 min-w-0">
-                <label className={labelClass}>4. ประเภทสาเหตุ *</label>
+            <div>
+              <label className={labelClass}>4. ประเภทสาเหตุ *</label>
+              <div className="flex gap-2">
                 <select
                   className={inputBase}
                   value={causeCategory}
-                  onChange={(e) => setCauseCategory(e.target.value)}
+                  onChange={(e) => {
+                    setCauseCategory(e.target.value);
+                    setCauseNote("");
+                  }}
                 >
                   <option value="">- เลือก -</option>
                   {categoryOptions.map((o, i) => (
@@ -2272,149 +2163,90 @@ function CloseJobModal({
                     </option>
                   ))}
                 </select>
-              </div>
-              {showCauseNoteInput && (
-                <div className="flex-1 min-w-0 animate-in fade-in slide-in-from-left-2 duration-300">
-                  <label className={`${labelClass} text-orange-400`}>
-                    หมายเหตุ *
-                  </label>
+                {showCauseNoteInput && (
                   <input
                     className={inputBase}
+                    placeholder="Note..."
                     value={causeNote}
                     onChange={(e) => setCauseNote(e.target.value)}
-                    autoFocus
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
           <div>
-            <label className={labelClass}>5. อะไหล่ (เบิกจาก Stock)</label>
-            <div className="flex w-full h-[38px] bg-[#0F172A] border border-slate-700 rounded-lg relative z-20 items-center">
-              <div className="flex-1 h-full min-w-0">
-                <SearchableSelect
-                  options={stockList}
-                  value={tempPartName}
-                  onChange={setTempPartName}
-                  placeholder="ค้นหาอะไหล่..."
-                  className="w-full h-full bg-transparent border-none text-white text-xs px-3 outline-none focus:ring-0 placeholder:text-slate-600 rounded-l-lg"
-                />
-              </div>
-              <div className="w-[1px] h-[60%] bg-slate-700"></div>
-              <input
-                type="number"
-                className="w-14 h-full bg-transparent text-center text-xs text-white outline-none focus:bg-slate-800/50 transition-colors"
-                min="1"
-                placeholder="Qty"
-                value={tempPartQty}
-                onChange={(e) => setTempPartQty(parseInt(e.target.value))}
-              />
-              <button
-                onClick={handleAddPart}
-                className="h-full px-3 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-r-lg transition-colors border-l border-blue-500"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-            {selectedStockItem && (
-              <div className="flex items-center gap-2 mt-1 text-[10px] ml-1 animate-in fade-in slide-in-from-top-1">
-                <span className="text-slate-400">คงเหลือในสต็อก:</span>
-                <span
-                  className={`font-bold ${
-                    selectedStockItem.quantity > 0
-                      ? "text-green-400"
-                      : "text-red-400"
-                  }`}
-                >
-                  {selectedStockItem.quantity} {selectedStockItem.unit || "pcs"}
-                </span>
-              </div>
-            )}
-            {parts.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2 relative z-0">
-                {parts.map((p, i) => (
-                  <span
-                    key={i}
-                    className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[10px] border ${
-                      p.isLocked
-                        ? "bg-slate-800/50 border-slate-700 text-slate-400"
-                        : "bg-[#1E293B] border-slate-600 text-slate-300"
-                    }`}
-                  >
-                    {p.name}{" "}
-                    <span
-                      className={`font-bold px-1 rounded ${
-                        p.isLocked
-                          ? "text-slate-500 bg-slate-700/50"
-                          : "text-blue-400 bg-blue-400/10"
-                      }`}
-                    >
-                      x{p.qty}
-                    </span>
-                    {p.isLocked ? (
-                      <div className="p-0.5 px-1">
-                        <Lock size={10} className="text-slate-500" />
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() =>
-                          setParts(parts.filter((_, idx) => idx !== i))
-                        }
-                        className="p-0.5 rounded-full hover:bg-slate-700 text-slate-500 hover:text-red-400"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </div>
-            )}
+            <label className={`${labelClass} text-blue-400`}>
+              5. รายการอะไหล่ที่เบิก (จากสต็อก)
+            </label>
+            <input
+              className={`${inputBase} bg-[#0B1121] text-slate-400 cursor-not-allowed border-dashed`}
+              value={sparePartsString}
+              readOnly
+            />
           </div>
 
-          <div
-            className={`grid gap-3 ${
-              showResultNoteInput ? "grid-cols-2" : "grid-cols-1"
-            }`}
-          >
-            <div>
-              <label className={labelClass}>6. ผลการซ่อม *</label>
-              <select
-                className={inputBase}
-                value={repairResult}
-                onChange={(e) => setRepairResult(e.target.value)}
-              >
-                <option value="">- เลือก -</option>
-                {resultOptions.map((o, i) => (
-                  <option key={i} value={o.name}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {showResultNoteInput && (
-              <div className="animate-in fade-in slide-in-from-left-2 duration-300">
-                <label className={`${labelClass} text-orange-400`}>
-                  หมายเหตุ *
-                </label>
-                <input
+          {/* ✅ Row 5: Repair Result & PR Button (90% | 10%) - ปรับปุ่มให้เหมือนหน้า Stock */}
+          <div className="flex items-end gap-2">
+            <div className="flex-1 flex gap-2 w-[88%]">
+              <div className={showResultNoteInput ? "w-1/2" : "w-full"}>
+                <label className={labelClass}>6. ผลการซ่อม *</label>
+                <select
                   className={inputBase}
-                  value={repairNote}
-                  onChange={(e) => setRepairNote(e.target.value)}
-                  autoFocus
-                />
+                  value={repairResult}
+                  onChange={(e) => {
+                    setRepairResult(e.target.value);
+                    setRepairNote("");
+                  }}
+                >
+                  <option value="">- เลือก -</option>
+                  {resultOptions.map((o, i) => (
+                    <option key={i} value={o.name}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+              {showResultNoteInput && (
+                <div className="w-1/2 animate-in fade-in slide-in-from-right-1">
+                  <label className={`${labelClass} text-orange-400`}>
+                    หมายเหตุ *
+                  </label>
+                  <input
+                    className={`${inputBase} border-orange-500/50`}
+                    placeholder="ระบุรายละเอียด..."
+                    value={repairNote}
+                    onChange={(e) => setRepairNote(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* ✅ ปุ่ม PR: ใช้สไตล์เดียวกับ ProductCardAdminCompact ในหน้า Stock */}
+            <div className="w-[12%] flex justify-center">
+              <button
+                type="button"
+                title="ออกใบสั่งซื้อ (PR)"
+                onClick={() =>
+                  onOpenPRForm({
+                    name: ticket.machine_name,
+                    refTicketId: ticket.id,
+                    department: ticket.department,
+                    price: "",
+                  })
+                }
+                className="w-9 h-[38px] rounded flex items-center justify-center transition-colors border border-cyan-500/50 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500 hover:text-white"
+              >
+                <FileText size={14} />
+              </button>
+            </div>
           </div>
 
           {isDelayed && (
-            <div className="animate-in fade-in slide-in-from-top-1 duration-300">
-              <label className={`${labelClass} text-red-400 font-bold`}>
-                7. เหตุผลความล่าช้า (เนื่องจากงานค้างเกิน 48 ชม.) *
-              </label>
+            <div className="animate-in fade-in">
+              <label className={labelClass}>7. เหตุผลความล่าช้า *</label>
               <input
-                className={`${inputBase} border-red-500/50 focus:border-red-500`}
-                placeholder="ระบุเหตุผลที่งานล่าช้า..."
+                className={`${inputBase} border-red-500/50`}
                 value={delayReason}
                 onChange={(e) => setDelayReason(e.target.value)}
               />
@@ -2441,33 +2273,28 @@ function CloseJobModal({
               />
             </div>
             <div>
-              <label className={labelClass}>เวลา (Total)</label>
-              {/* ✅ 2. ปรับสีพื้นหลังและสีตัวหนังสือเป็นสีแดงเมื่อเวลาผิด */}
+              <label className={labelClass}>Total</label>
               <div
-                className={`${inputBase} ${
-                  isTimeInvalid
-                    ? "bg-red-950 text-red-400 border-red-500"
-                    : "bg-slate-800 text-emerald-400"
-                } font-mono font-bold justify-center`}
+                className={`${inputBase} bg-slate-800 text-emerald-400 font-mono font-bold justify-center`}
               >
                 {getDurationText()}
               </div>
             </div>
           </div>
         </div>
+
         <div className="p-4 border-t border-slate-700 bg-[#161E2E] shrink-0">
           <button
             onClick={handleSubmit}
-            // ✅ 3. ล็อกปุ่ม (Disable) เมื่อกำลังส่ง หรือ เมื่อเวลาผิด (isTimeInvalid)
             disabled={submitting || isTimeInvalid}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:bg-slate-700 disabled:cursor-not-allowed"
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all disabled:opacity-50"
           >
             {submitting
               ? "Saving..."
               : isTimeInvalid
-              ? "เวลาไม่ถูกต้อง" // ✅ แสดงข้อความเตือนที่ปุ่ม
+              ? "เวลาไม่ถูกต้อง"
               : ticket.close_data
-              ? "Confirm Edit (Password)"
+              ? "Confirm Edit"
               : "Confirm & Save"}
           </button>
         </div>
@@ -2477,7 +2304,7 @@ function CloseJobModal({
         onClose={() => setShowGuard(false)}
         onConfirm={pendingAction}
         userPass={user.pass}
-        message="ยืนยันรหัสผ่านเพื่อแก้ไขข้อมูล"
+        message="ยืนยันเพื่อแก้ไขข้อมูล"
       />
     </div>
   );
@@ -2488,12 +2315,14 @@ function TicketDetailModal({
   user,
   onClose,
   onDelete,
+  onOpenPRForm, // ✅ 1. รับสายไฟมาจาก Dashboard
   mode,
 }: {
   ticket: MaintenanceTicket;
   user: User;
   onClose: () => void;
   onDelete: (id: string, status: string) => void;
+  onOpenPRForm: (data: any) => void; // ✅ 2. เพิ่ม Type
   mode: "approve" | "history" | "repair";
 }) {
   const [showEditModal, setShowEditModal] = useState(false);
@@ -2653,6 +2482,7 @@ function TicketDetailModal({
     onDelete(displayData.id, displayData.status);
   };
 
+  // ✅ ✅ ✅ แก้ไขจุดนี้: ส่ง onOpenPRForm ต่อไปให้ CloseJobModal ✅ ✅ ✅
   if (showCloseJob) {
     return (
       <CloseJobModal
@@ -2660,6 +2490,7 @@ function TicketDetailModal({
         user={user}
         onClose={() => setShowCloseJob(false)}
         onSuccess={handleCloseJobSuccess}
+        onOpenPRForm={onOpenPRForm} // ✅ ส่งต่อสายไฟเส้นสุดท้าย
       />
     );
   }
@@ -2801,7 +2632,24 @@ function TicketDetailModal({
                         {displayData.close_data.repair_result}
                       </span>
                     </div>
-                    {/* ส่วนแสดงเหตุผลความล่าช้า (ถ้ามี) */}
+
+                    {/* ✅ ส่วนที่เพิ่ม: แสดงเลขใบขอซื้อที่ลิงก์อยู่ ✅ */}
+                    {displayData.linked_pr && (
+                      <div className="col-span-2 mt-2 p-3 bg-cyan-950/30 border border-cyan-500/30 rounded-xl flex justify-between items-center animate-in fade-in zoom-in-95">
+                        <div>
+                          <p className="text-[9px] font-bold text-cyan-500 uppercase leading-none mb-1">
+                            Linked PR Document
+                          </p>
+                          <p className="text-sm font-black text-cyan-400 font-mono tracking-wider">
+                            {displayData.linked_pr}
+                          </p>
+                        </div>
+                        <div className="p-2 bg-cyan-500/10 rounded-lg">
+                          <FileText size={16} className="text-cyan-400" />
+                        </div>
+                      </div>
+                    )}
+
                     {displayData.close_data.is_delayed && (
                       <div className="col-span-2 mt-1">
                         <MiniField
@@ -3801,6 +3649,38 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
+  // ✅ ✅ ✅ ส่วนที่เพิ่ม: สถานะสำหรับหน้าจอใบขอซื้อ (PR) ✅ ✅ ✅
+  const [isPRModalOpen, setIsPRModalOpen] = useState(false);
+  const [selectedPRItem, setSelectedPRItem] = useState<any>(null);
+
+  const handleOpenPRForm = (data: any) => {
+    setSelectedPRItem(data);
+    setIsPRModalOpen(true);
+  };
+
+  const onPRCreatedSuccess = async (generatedPrNo: string) => {
+    if (selectedPRItem?.refTicketId) {
+      try {
+        // บันทึกเลข PR กลับเข้าไปที่ Ticket ทันที
+        const ticketRef = doc(
+          db,
+          "maintenance_tickets",
+          selectedPRItem.refTicketId
+        );
+        await updateDoc(ticketRef, {
+          linked_pr: generatedPrNo,
+          updated_at: serverTimestamp(),
+        });
+        console.log(
+          `✅ Linked PR ${generatedPrNo} to Ticket ${selectedPRItem.refTicketId}`
+        );
+      } catch (e) {
+        console.error("Error linking PR:", e);
+      }
+    }
+  };
+  // ---------------------------------------------------------
+
   const isSuper = user?.username === "Bank" || user?.role === "super_admin";
   const canRequest = isSuper || user?.allowedActions?.includes("mt_request");
   const canDelete = isSuper || user?.allowedActions?.includes("mt_delete");
@@ -3856,20 +3736,14 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
     if (activeTab === 5) {
       if (!activeFilters.hasSearched) return [];
       result = result.filter((t) => {
-        // ✅ แก้ไข: เปลี่ยนจากวันที่ Approve/Close มาเป็นวันที่แจ้งซ่อม (created_at)
         const targetDate = t.created_at;
-
         if (!targetDate) return false;
         const ticketDate = targetDate.toDate
           ? targetDate.toDate()
           : new Date(targetDate);
-
         const filterStart = new Date(activeFilters.start);
         const filterEnd = new Date(activeFilters.end);
-
-        // ตรวจสอบว่าวันที่แจ้งซ่อม อยู่ในช่วงที่เลือกหรือไม่
         if (ticketDate < filterStart || ticketDate > filterEnd) return false;
-
         if (
           activeFilters.text &&
           !`${t.id} ${t.machine_name} ${t.requester_fullname}`
@@ -3912,12 +3786,77 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
     });
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     try {
       if (filteredTickets.length === 0)
         return alert("ไม่มีข้อมูลสำหรับการ Export");
-      const rows: any[] = [];
 
+      if (!XLSX || !XLSX.utils) {
+        throw new Error("ไม่สามารถเรียกใช้ไลบรารี Excel ได้");
+      }
+
+      const GOOGLE_SHEET_CSV_URL =
+        "https://docs.google.com/spreadsheets/d/e/2PACX-1vTuPsdUrnwSZ3_Dw_xLvaVIXC55jq9mdP8qYofOfo5_skOwxoP5pKQXaCm6iKprCVGNS7J3MmUH4S16/pub?gid=0&single=true&output=csv";
+
+      let prMap: any = {};
+      let gsHeaders: string[] = [];
+
+      try {
+        const response = await fetch(GOOGLE_SHEET_CSV_URL);
+        const csvText = await response.text();
+
+        const lines = csvText.split(/\r?\n/);
+        if (lines.length > 0) {
+          // ฟังก์ชันช่วยแกะ CSV ที่แม่นยำ (รองรับคอมม่าข้างในฟันหนู)
+          const parseCSVRow = (row: string) => {
+            const result = [];
+            let current = "";
+            let inQuotes = false;
+            for (let i = 0; i < row.length; i++) {
+              const char = row[i];
+              if (char === '"') inQuotes = !inQuotes;
+              else if (char === "," && !inQuotes) {
+                result.push(current.trim().replace(/^"|"$/g, "")); // ล้างฟันหนูหน้าหลัง
+                current = "";
+              } else current += char;
+            }
+            result.push(current.trim().replace(/^"|"$/g, ""));
+            return result;
+          };
+
+          // 1. อ่าน Header และหาตำแหน่ง PR_No
+          gsHeaders = parseCSVRow(lines[0]);
+          const prKeyIndex = gsHeaders.indexOf("PR_No");
+
+          if (prKeyIndex === -1) {
+            console.error(
+              "❌ ไม่พบคอลัมน์ 'PR_No' ในไฟล์ Google Sheets (หัวข้อที่มีคือ: " +
+                gsHeaders.join(",") +
+                ")"
+            );
+          } else {
+            // 2. เก็บข้อมูลทุกแถวลง Map
+            for (let i = 1; i < lines.length; i++) {
+              if (!lines[i].trim()) continue;
+              const cols = parseCSVRow(lines[i]);
+
+              const prNoValue = cols[prKeyIndex];
+              if (prNoValue) {
+                const rowData: any = {};
+                gsHeaders.forEach((header, idx) => {
+                  // ใส่ Prefix GS_ เพื่อแยกโซนให้ชัดเจน
+                  rowData[`GS_${header}`] = cols[idx] || "-";
+                });
+                prMap[prNoValue] = rowData;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Fetching Google Sheets Failed:", err);
+      }
+
+      const rows: any[] = [];
       filteredTickets.forEach((t) => {
         const cd = t.close_data || {};
         const parts = cd.spare_parts || [];
@@ -3938,7 +3877,18 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
           }
         };
 
-        // 1. เตรียมข้อมูลหลัก (Base Info) ตามลำดับ 25 หัวข้อที่คุณต้องการ
+        // --- ส่วนการ Join ข้อมูล ---
+        // ล้างเลข PR จากแอปให้สะอาด (ตัดช่องว่าง) เพื่อใช้เทียบ
+        const currentTicketPR = (t.linked_pr || "").toString().trim();
+        let prFullDataFromGS = prMap[currentTicketPR];
+
+        // กรณีไม่เจอข้อมูลใน GS ให้สร้างช่องว่างไว้ (รักษาโครงสร้างตาราง)
+        if (!prFullDataFromGS) {
+          prFullDataFromGS = {};
+          gsHeaders.forEach((h) => (prFullDataFromGS[`GS_${h}`] = "-"));
+        }
+
+        // 1. เตรียมข้อมูลจากโปรแกรมหลัก
         const baseInfo = {
           ปี: !isNaN(d.getTime()) ? d.getFullYear() : "-",
           เดือน: !isNaN(d.getTime())
@@ -3950,8 +3900,8 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
           วันที่ปิดงาน: formatDT(targetDate),
           ผู้แจ้งซ่อม: t.requester_fullname || "-",
           แผนก: t.department || "-",
-          โรงงาน: t.factory || "-", // ✅ ต่อจากแผนก
-          "พื้นที่ / Area": t.area || "-", // ✅ ต่อจากแผนก
+          โรงงาน: t.factory || "-",
+          "พื้นที่ / Area": t.area || "-",
           ชื่อเครื่องจักร: t.machine_name || "-",
           "Asset ID": t.asset_id || t.machine_name || "-",
           ประเภทงาน: t.job_type || "-",
@@ -3965,11 +3915,18 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
           เหตุผลความล่าช้า: cd.delay_reason || "-",
         };
 
-        // 2. จัดการข้อมูลอะไหล่ (แยกบรรทัดถ้ามีหลายชิ้น)
+        // 2. รวมข้อมูลแล้วเอาข้อมูลจาก Google Sheet (prFullDataFromGS) ต่อท้ายสุด
+        const pushToRows = (partsInfo: any) => {
+          rows.push({
+            ...baseInfo,
+            ...partsInfo,
+            ...prFullDataFromGS, // ต่อท้ายแบบ Zoning ชัดเจน
+          });
+        };
+
         if (parts.length > 0) {
           parts.forEach((p: any) => {
-            rows.push({
-              ...baseInfo,
+            pushToRows({
               รายการอะไหล่: p.name,
               จำนวน: p.qty || 0,
               ราคาต่อหน่วย: p.price || 0,
@@ -3977,8 +3934,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
             });
           });
         } else {
-          rows.push({
-            ...baseInfo,
+          pushToRows({
             รายการอะไหล่: "ไม่มีการใช้อะไหล่",
             จำนวน: 0,
             ราคาต่อหน่วย: 0,
@@ -3987,84 +3943,49 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
         }
       });
 
-      // 3. สร้าง Worksheet
+      // --- ส่วนการสร้างไฟล์ Excel ---
       const worksheet = XLSX.utils.json_to_sheet(rows);
-
-      // 4. ตั้งค่า Auto-size (ขยายช่องให้พอดีข้อความ)
       const colWidths = Object.keys(rows[0] || {}).map((key) => {
-        const headerLen = key.toString().length * 2; // เผื่อภาษาไทย
-        const maxContentLen = Math.max(
-          ...rows.map((row) => (row[key] ? row[key].toString().length : 0))
-        );
-        return { wch: Math.max(headerLen, maxContentLen) + 5 };
+        let maxLen = key.toString().length;
+        for (let i = 0; i < rows.length; i++) {
+          const cellValue = rows[i][key] ? rows[i][key].toString().length : 0;
+          if (cellValue > maxLen) maxLen = cellValue;
+        }
+        return { wch: maxLen + 5 };
       });
       worksheet["!cols"] = colWidths;
 
-      // 5. จัดรูปแบบ Cell (ชิดซ้ายทั้งหมด + ใส่สีหัวข้อ)
-      const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
-      for (let R = range.s.r; R <= range.e.r; ++R) {
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-          const cell_ref = XLSX.utils.encode_cell({ c: C, r: R });
-          if (!worksheet[cell_ref]) continue;
-
-          // สไตล์พื้นฐาน: ชิดซ้ายทั้งหมด
-          worksheet[cell_ref].s = {
-            alignment: { horizontal: "left", vertical: "center" },
-            font: { name: "Tahoma", sz: 10 },
-            border: {
-              top: { style: "thin", color: { rgb: "E2E8F0" } },
-              bottom: { style: "thin", color: { rgb: "E2E8F0" } },
-              left: { style: "thin", color: { rgb: "E2E8F0" } },
-              right: { style: "thin", color: { rgb: "E2E8F0" } },
-            },
-          };
-
-          // หัวข้อตาราง (แถวแรก)
-          if (R === 0) {
-            worksheet[cell_ref].s = {
-              ...worksheet[cell_ref].s,
-              fill: { fgColor: { rgb: "1E293B" } }, // สีน้ำเงินเข้ม
-              font: { color: { rgb: "FFFFFF" }, bold: true, sz: 10 },
-              alignment: { horizontal: "left", vertical: "center" },
-            };
-          }
-        }
-      }
-
-      // 6. บันทึกไฟล์และสั่งดาวน์โหลด
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "MT_Report");
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Maintenance_Report");
 
       const excelBuffer = XLSX.write(workbook, {
         bookType: "xlsx",
-        type: "binary",
+        type: "array",
       });
-      const s2ab = (s: string) => {
-        const buf = new ArrayBuffer(s.length);
-        const view = new Uint8Array(buf);
-        for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xff;
-        return buf;
-      };
+      const fileData = new Blob([excelBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(fileData);
+      const link = document.createElement("a");
+      link.href = url;
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, "0"); // ดึงเดือน (01-12)
+      const year = String(now.getFullYear()).slice(-2); // ดึงปี 2 หลักท้าย (26)
 
-      const blob = new Blob([s2ab(excelBuffer)], {
-        type: "application/octet-stream",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Maintenance_Report_${new Date().getTime()}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      alert("การส่งออกไฟล์ล้มเหลว");
+      link.download = `Maintenance_Report_${month}-${year}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error("Export Error:", error);
+      alert(`ส่งออกล้มเหลว: ${error.message}`);
     }
   };
 
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden font-sans bg-[#0F172A] text-slate-200 relative">
-      {/* --- FILTER HEADER (History Tab) --- */}
+      {/* Filter Header */}
       {activeTab === 5 && (
         <div className="shrink-0 p-4 pb-2 z-10">
           <div className="flex flex-wrap gap-2 items-center bg-[#1E293B]/80 backdrop-blur-md p-3 rounded-2xl border border-slate-700/50 shadow-lg">
@@ -4083,7 +4004,6 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
                 onChange={(e) => setEndInput(e.target.value)}
               />
             </div>
-
             <div className="relative group flex-1 max-w-[200px]">
               <Search
                 size={14}
@@ -4096,25 +4016,20 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
                 onChange={(e) => setSearchTextInput(e.target.value)}
               />
             </div>
-
             <button
               onClick={handlePerformSearch}
               className="px-4 h-10 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2 active:scale-95"
             >
               <Search size={14} /> ค้นหา
             </button>
-
             <div className="h-6 w-[1px] bg-slate-700 mx-1"></div>
-
             <div className="flex gap-2">
-              {/* ✅ 3. เพิ่มปุ่ม EXCEL (โชว์ตลอดในหน้าประวัติ) */}
               <button
                 onClick={handleExportExcel}
                 className="px-4 h-10 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2 active:scale-95"
               >
                 <FileSpreadsheet size={14} /> EXCEL
               </button>
-
               <button
                 onClick={() => {
                   if (!isSelectionMode) setIsSelectionMode(true);
@@ -4131,10 +4046,9 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
                     : "bg-[#0F172A] text-slate-400 border-slate-700 hover:text-white hover:border-slate-500"
                 }`}
               >
-                <CheckSquare size={14} />
+                <CheckSquare size={14} />{" "}
                 {isSelectionMode ? "เลือกทั้งหมด" : "เลือก"}
               </button>
-
               {isSelectionMode && (
                 <>
                   <button
@@ -4142,7 +4056,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
                     disabled={selectedIds.size === 0}
                     className="px-4 h-10 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold shadow-lg disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    <Download size={14} /> PDF ({selectedIds.size})
+                    <FileText size={14} /> PDF ({selectedIds.size})
                   </button>
                   <button
                     onClick={() => {
@@ -4160,7 +4074,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
         </div>
       )}
 
-      {/* --- DATA LIST AREA --- */}
+      {/* Data List Area */}
       <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
         {filteredTickets.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-600">
@@ -4230,13 +4144,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
                         {ticket.issue_item}
                       </td>
                       <td className="px-4 py-3 text-left text-slate-400 font-mono">
-                        {dateObj.toLocaleString("th-TH", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {dateObj.toLocaleString("th-TH")}
                       </td>
                       <td className="px-4 py-3 text-left">
                         <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
@@ -4265,7 +4173,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
       {activeTab !== 5 && canRequest && (
         <button
           onClick={() => setShowCreate(true)}
-          className="fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-2xl shadow-xl shadow-blue-900/30 flex items-center justify-center z-50 transition-all hover:scale-105 active:scale-95 border border-white/10"
+          className="fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-2xl shadow-xl flex items-center justify-center z-50 transition-all hover:scale-105 active:scale-95 border border-white/10"
         >
           <Plus size={28} strokeWidth={3} />
         </button>
@@ -4277,14 +4185,26 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
           user={user}
           onClose={() => setSelectedTicket(null)}
           onDelete={handleDeleteTicket}
+          // ✅ ✅ ✅ ส่วนที่เพิ่ม: ส่งรีโมทเปิดหน้า PR ไปให้ตัวกลาง ✅ ✅ ✅
+          onOpenPRForm={handleOpenPRForm}
           mode={
             activeTab === 5 ? "history" : activeTab === 4 ? "approve" : "repair"
           }
         />
       )}
+
       {showCreate && (
         <CreateTicketModal user={user} onClose={() => setShowCreate(false)} />
       )}
+
+      {/* ✅ ✅ ✅ ส่วนที่เพิ่ม: หน้ากาก PR สแตนด์บายไว้ที่นี่ ✅ ✅ ✅ */}
+      <CreatePRModal
+        isOpen={isPRModalOpen}
+        onClose={() => setIsPRModalOpen(false)}
+        initialItem={selectedPRItem}
+        onPRCreated={onPRCreatedSuccess}
+      />
+
       <ConfirmPasswordModal
         isOpen={showPasswordGuard}
         onClose={() => setShowPasswordGuard(false)}
