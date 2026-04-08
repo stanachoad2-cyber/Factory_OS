@@ -22,6 +22,7 @@ import {
 import jsPDF from "jspdf";
 import XLSX from "xlsx-js-style";
 import { fontSarabunBase64, formImageBase64 } from "./pdfAssets";
+import CreatePRModal from "./CreatePRModal";
 import {
   Wrench,
   User,
@@ -64,6 +65,7 @@ import {
   Key,
   hasSearched,
   FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 
 function ConfirmActionModal({
