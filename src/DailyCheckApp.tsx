@@ -721,7 +721,7 @@ function QRPrintSystem({
     .filter((m) => selectedMachineIds.includes(m.id))
     .map((m) => {
       const isDew = (m.systemMode || "DAILY") === "DEW_POINT";
-      const suffix = isDew ? "-DP" : "-DC";
+      const suffix = isDew ? "-DP" : "";
       const modeText = isDew ? "(Dew Point)" : "(Daily)";
       return {
         machineName: `${m.name} ${modeText}`,
@@ -1174,7 +1174,7 @@ function MachineQRModal({
               <div className="relative border-2 border-dashed border-black p-3 bg-white rounded-lg">
                 {/* ใช้ SVG คมชัด */}
                 <QRCodeSVG
-                  value={`${machine.name}${(machine.systemMode || "DAILY") === "DEW_POINT" ? "-DP" : "-DC"}`}
+                  value={`${machine.name}${(machine.systemMode || "DAILY") === "DEW_POINT" ? "-DP" : ""}`}
                   size={160}
                   level={"H"}
                   includeMargin={false}
@@ -3134,7 +3134,7 @@ function ScanPage({
       scannedMachine = code.substring(0, separatorIndex).trim();
     }
 
-    const modeSuffix = (machine.systemMode || "DAILY") === "DEW_POINT" ? "-DP" : "-DC";
+    const modeSuffix = (machine.systemMode || "DAILY") === "DEW_POINT" ? "-DP" : "";
     const expectedWithMode = `${machine.name}${modeSuffix}`;
 
     if (scannedMachine === expectedWithMode || scannedMachine === machine.id) {
@@ -3150,7 +3150,7 @@ function ScanPage({
 
       // ถ้าชื่อเครื่องตรง แต่โหมดไม่ตรง (โกงสแกนข้ามจุด)
       if (scannedMachine.startsWith(machine.name) && scannedMachine !== expectedWithMode) {
-        errorMsg = `⛔ ผิดจุด! นี่คือ QR ของโหมด ${scannedMachine.endsWith("-DC") ? "Daily" : "Dew Point"}`;
+        errorMsg = `⛔ ผิดจุด! นี่คือ QR ของโหมด ${scannedMachine.endsWith("-DP") ? "Dew Point" : "Daily"}`;
       }
 
       setStatus({
