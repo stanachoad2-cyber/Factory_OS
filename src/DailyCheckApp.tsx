@@ -3355,7 +3355,7 @@ function ScanPage({
 
   return (
     // ✅ Main Container
-    <div className="h-full flex flex-col bg-[#0F172A] text-slate-200 overflow-y-auto custom-scrollbar relative">
+    <div className="h-full flex flex-col bg-[#0F172A] text-slate-200 relative overflow-hidden">
       {/* ✅ WRAPPER FOR STICKY HEADERS */}
       <div className="sticky top-0 z-30 flex flex-col">
         {/* ✅ 1. NEW STICKY HEADER DESIGN (ชื่อเครื่องอยู่บนสุด) */}
@@ -3440,11 +3440,12 @@ function ScanPage({
         )}
       </div>
 
-      {/* --- Body Content --- */}
-      <div className="flex-1 p-4 flex flex-col items-center w-full">
-        {/* Toast Status */}
-        {status && (
-          <div className="fixed top-20 left-0 right-0 flex justify-center z-[80] pointer-events-none px-4">
+      {/* --- พื้นที่เนื้อหาหลักแบบเลื่อนได้ (Scrollable Content Area) --- */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+        <div className="p-4 flex flex-col items-center w-full min-h-full">
+          {/* Toast Status - เปลี่ยนเป็น absolute เพื่อให้อยู่กึ่งกลางพื้นที่เนื้อหา */}
+          {status && (
+            <div className="absolute top-4 left-0 right-0 flex justify-center z-[80] pointer-events-none px-4">
             <div
               className={`px-6 py-3 rounded-2xl shadow-2xl font-bold animate-in slide-in-from-top-2 border flex items-center gap-2 backdrop-blur-md ${status.type === "success"
                 ? "bg-green-600/90 text-white border-green-500"
@@ -3769,36 +3770,37 @@ function ScanPage({
                 </div>
               </div>
 
-              {/* ✅ ปุ่มบันทึกทั้งหมด (Save All) - แบบ Compact */}
-              {Object.keys(pendingLogs).length > 0 && (
-                <div className="fixed bottom-8 left-0 right-0 z-50 flex justify-center px-6 animate-in slide-in-from-bottom-10 duration-500">
-                  <button
-                    onClick={handleSaveAll}
-                    disabled={isSavingAll}
-                    className="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl font-black uppercase tracking-[.2em] shadow-[0_15px_30px_rgba(37,99,235,0.3)] flex items-center justify-center gap-3 active:scale-95 transition-all border border-blue-400/20 overflow-hidden"
-                  >
-                    {isSavingAll ? (
-                      <>
-                        <Loader2 className="animate-spin" size={18} />
-                        <span className="text-xs">Saving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save size={18} />
-                        <span className="text-xs">บันทึกข้อมูล ({Object.keys(pendingLogs).length})</span>
-                      </>
-                    )}
-                    
-                    {/* Shimmer Effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-                  </button>
-                </div>
-              )}
             </div>
           )
         )}
-
+        </div>
       </div>
+
+      {/* ✅ ปุ่มบันทึกทั้งหมด (Save All) - เปลี่ยนเป็น absolute เพื่อให้อยู่กึ่งกลางพื้นที่เนื้อหา */}
+      {Object.keys(pendingLogs).length > 0 && (
+        <div className="absolute bottom-8 left-0 right-0 z-50 flex justify-center px-6 animate-in slide-in-from-bottom-10 duration-500">
+          <button
+            onClick={handleSaveAll}
+            disabled={isSavingAll}
+            className="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl font-black uppercase tracking-[.2em] shadow-[0_15px_30px_rgba(37,99,235,0.3)] flex items-center justify-center gap-3 active:scale-95 transition-all border border-blue-400/20 overflow-hidden"
+          >
+            {isSavingAll ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                <span className="text-xs">Saving...</span>
+              </>
+            ) : (
+              <>
+                <Save size={18} />
+                <span className="text-xs">บันทึกข้อมูล ({Object.keys(pendingLogs).length})</span>
+              </>
+            )}
+            
+            {/* Shimmer Effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+          </button>
+        </div>
+      )}
 
       {/* --- Wrapper สำหรับ Modals --- */}
       <div className="text-gray-900">
