@@ -3128,10 +3128,10 @@ function ScanPage({
   }, [machine.id, workingDate, workingShift]);
 
   const handleProcess = (code: string) => {
-    let scannedMachine = code;
-    const separatorIndex = code.indexOf(":");
+    let scannedMachine = code.trim();
+    const separatorIndex = scannedMachine.indexOf(":");
     if (separatorIndex !== -1) {
-      scannedMachine = code.substring(0, separatorIndex).trim();
+      scannedMachine = scannedMachine.substring(0, separatorIndex).trim();
     }
 
     const modeSuffix = (machine.systemMode || "DAILY") === "DEW_POINT" ? "-DP" : "";
@@ -3146,17 +3146,20 @@ function ScanPage({
       setShowCam(false);
       setTimeout(() => setStatus(null), 3000);
     } else {
-      let errorMsg = `⛔ ผิดเครื่อง! QR นี้คือ "${scannedMachine}"`;
-
-      // ถ้าชื่อเครื่องตรง แต่โหมดไม่ตรง (โกงสแกนข้ามจุด)
-      if (scannedMachine.startsWith(machine.name) && scannedMachine !== expectedWithMode) {
-        errorMsg = `⛔ ผิดจุด! นี่คือ QR ของโหมด ${scannedMachine.endsWith("-DP") ? "Dew Point" : "Daily"}`;
+      // เช็คว่าเป็นเครื่องเดียวกันแต่ผิดโหมดหรือไม่
+      const scannedBaseName = scannedMachine.replace("-DP", "");
+      if (scannedBaseName === machine.name) {
+        const isDewQR = scannedMachine.endsWith("-DP");
+        setStatus({
+          type: "error",
+          msg: `⛔ ผิดจุด! นี่คือ QR ของโหมด ${isDewQR ? "Dew Point" : "Daily"} (${scannedMachine})`,
+        });
+      } else {
+        setStatus({
+          type: "error",
+          msg: `⛔ ผิดเครื่อง! QR นี้คือ "${scannedMachine}" (ต้องการ "${expectedWithMode}")`,
+        });
       }
-
-      setStatus({
-        type: "error",
-        msg: errorMsg,
-      });
       setShowCam(false);
       setTimeout(() => setStatus(null), 3000);
     }
