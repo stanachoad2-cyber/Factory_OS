@@ -171,7 +171,15 @@ export default function MobileApp({ currentUser, onLogout }: any) {
   const goBack = () => setActiveApp("MENU");
 
   return (
-    <div className="h-[100dvh] w-full bg-[#0F172A] font-sans overflow-hidden flex flex-col">
+    <div
+      className="h-[100dvh] w-full bg-[#0F172A] font-sans overflow-hidden flex flex-col"
+      style={{
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        paddingLeft: "env(safe-area-inset-left, 0px)",
+        paddingRight: "env(safe-area-inset-right, 0px)",
+      }}
+    >
       {activeApp === "MENU" && (
         <MobileMenu
           currentUser={currentUser}
