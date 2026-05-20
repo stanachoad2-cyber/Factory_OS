@@ -5019,7 +5019,7 @@ function InspectView({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {isExpanded && (
+                  {isExpanded && !isHistoryMode && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -5084,16 +5084,18 @@ function InspectView({
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuickNA([m]);
-                              }}
-                              disabled={isLoading}
-                              className="bg-slate-800 border border-slate-700 text-slate-500 hover:text-amber-500 p-2 rounded-lg disabled:opacity-50"
-                            >
-                              <FileX size={16} />
-                            </button>
+                            {!isHistoryMode && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleQuickNA([m]);
+                                }}
+                                disabled={isLoading}
+                                className="bg-slate-800 border border-slate-700 text-slate-500 hover:text-amber-500 p-2 rounded-lg disabled:opacity-50"
+                              >
+                                <FileX size={16} />
+                              </button>
+                            )}
                             <div className={`bg-slate-800 border border-slate-700 p-2 rounded-lg ${isComplete ? "text-green-500 border-green-500/30" : "text-slate-400 group-hover:bg-blue-600 group-hover:text-white"}`}>
                               {isComplete ? <CheckCircle2 size={16} /> : <Plus size={16} />}
                             </div>
