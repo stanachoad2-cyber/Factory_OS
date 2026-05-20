@@ -96,6 +96,94 @@ const checkPerm = (user: any, allowedRoles: string[]) => {
   return allowedRoles.includes(user?.role);
 };
 
+// ✅ New: ConfirmPasswordModal for Daily Check (matches theme of Maintenance App)
+function ConfirmPasswordModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  userPass,
+  message,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  userPass: string;
+  message: string;
+}) {
+  const [pass, setPass] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setPass("");
+      setError("");
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    if (pass === userPass) {
+      onConfirm();
+      setPass("");
+      setError("");
+      onClose();
+    } else {
+      setError("รหัสผ่านไม่ถูกต้อง!");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-[#1F1F23] w-full max-w-xs p-6 rounded-2xl border border-slate-700 shadow-2xl">
+        <div className="text-center mb-4">
+          <div className="w-10 h-10 bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+            <Key size={20} />
+          </div>
+          <h3 className="text-base font-bold text-white">ยืนยันรหัสผ่าน</h3>
+          <p className="text-xs text-slate-400 mt-1 whitespace-pre-line">
+            {message}
+          </p>
+        </div>
+
+        <input
+          type="password"
+          autoFocus
+          value={pass}
+          onChange={(e) => {
+            setPass(e.target.value);
+            setError("");
+          }}
+          onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+          className={`w-full bg-[#0F1115] border ${error ? "border-red-500" : "border-slate-700 focus:border-blue-500"
+            } rounded-lg px-3 py-2 text-center text-white text-sm outline-none transition-all mb-4 placeholder-slate-600`}
+          placeholder="Password"
+        />
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setPass("");
+              setError("");
+              onClose();
+            }}
+            className="flex-1 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-xs transition-colors"
+          >
+            ยกเลิก
+          </button>
+
+          <button
+            onClick={handleConfirm}
+            className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 font-bold text-xs shadow-lg shadow-blue-900/20 transition-colors"
+          >
+            ยืนยัน
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const MONTH_OPTIONS = [
   { label: "January", value: 1 },
   { label: "February", value: 2 },
@@ -1305,10 +1393,22 @@ function DeleteSelectionModal({
           } else if (selectedFields.length > 0) {
             // อัปเดตลบเฉพาะบางฟิลด์
             const updateObj: any = {};
-            if (selectedIds.includes(`${log.id}__set_point`)) updateObj.set_point = deleteField();
-            if (selectedIds.includes(`${log.id}__actual`)) updateObj.actual = deleteField();
-            if (selectedIds.includes(`${log.id}__dew_point`)) updateObj.dew_point_val = deleteField();
-            if (selectedIds.includes(`${log.id}__remark`)) updateObj.problem_detail = deleteField();
+            if (selectedIds.includes(`${log.id}__set_point`)) {
+              updateObj.set_point = deleteField();
+              updateObj["extraFields.set_point"] = deleteField();
+            }
+            if (selectedIds.includes(`${log.id}__actual`)) {
+              updateObj.actual = deleteField();
+              updateObj["extraFields.actual"] = deleteField();
+            }
+            if (selectedIds.includes(`${log.id}__dew_point`)) {
+              updateObj.dew_point_val = deleteField();
+              updateObj["extraFields.dew_point_val"] = deleteField();
+            }
+            if (selectedIds.includes(`${log.id}__remark`)) {
+              updateObj.problem_detail = deleteField();
+              updateObj["extraFields.problem_detail"] = deleteField();
+            }
 
             if (Object.keys(updateObj).length > 0) {
               batch.update(doc(db, "logs", log.id), updateObj);
@@ -3053,6 +3153,11 @@ function ScanPage({
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [showCam, setShowCam] = useState(false);
   const [showMasterSheet, setShowMasterSheet] = useState(false);
+  const [deleteConfirmAction, setDeleteConfirmAction] = useState<{
+    type: "field" | "logs";
+    fieldKey?: string;
+    displayName?: string;
+  } | null>(null);
 
 
   const [inspectingItem, setInspectingItem] = useState<{
@@ -3126,19 +3231,25 @@ function ScanPage({
 
   // ✅ New: Delete Individual Field Function for History Mode (Updated for Debug/Stability)
   // ✅ New: Delete Individual Field Function for History Mode (Updated for Duplicate-Safety)
-  const handleDeleteField = async (fieldKey: string, displayName: string) => {
-    alert(`DEBUG: เริ่มลบ ${displayName}`); // 1
+  // ✅ New: Delete Individual Field Function for History Mode (Triggered after Password Confirm)
+  const handleDeleteField = (fieldKey: string, displayName: string) => {
+    // 1. เช็คสิทธิ์การลบก่อน
+    if (!checkPerm(user, ["super_admin", "admin"]) && !user?.allowedActions?.includes("daily_delete")) {
+      alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
+      return;
+    }
+    // 2. ตั้งค่าเพื่อเปิด Modal ยืนยันรหัสผ่าน
+    setDeleteConfirmAction({ type: "field", fieldKey, displayName });
+  };
+
+  const executeFieldDeletion = async (fieldKey: string, displayName: string) => {
     // หา Log ทั้งหมดที่ตรงกัน (ป้องกันกรณีมีข้อมูลซ้ำซ้อนในระบบ)
     const matchingLogs = logs.filter(l => l.checklist_item === dpItemName);
-    
-    alert(`DEBUG: พบข้อมูลที่ตรงกัน ${matchingLogs.length} รายการ`); // 2
 
     if (matchingLogs.length === 0) {
       alert("❌ ไม่พบข้อมูลที่จะลบในฐานข้อมูล");
       return;
     }
-
-    if (!window.confirm(`⚠️ ยืนยันการลบข้อมูล "${displayName}"?`)) return;
 
     try {
       const batch = writeBatch(db);
@@ -3146,21 +3257,27 @@ function ScanPage({
       matchingLogs.forEach(log => {
         const logRef = doc(db, "logs", log.id);
         if (fieldKey === "result") {
-          batch.update(logRef, { result: deleteField() });
-        } else if (fieldKey === "remark") {
-          batch.update(logRef, { remark: "" });
+          // หากลบสถานะเครื่องจักร ให้ลบเอกสาร Log นี้ออกไปทั้งหมดเลย เพื่อให้เครื่องกลับเป็นสถานะ "ยังไม่ได้ตรวจ"
+          batch.delete(logRef);
+        } else if (fieldKey === "problem_detail") {
+          batch.update(logRef, { problem_detail: deleteField() });
         } else {
-          batch.update(logRef, { [`extraFields.${fieldKey}`]: deleteField() });
+          batch.update(logRef, {
+            [fieldKey]: deleteField(),
+            [`extraFields.${fieldKey}`]: deleteField()
+          });
         }
       });
 
       await batch.commit();
-      alert(`✅ ลบ "${displayName}" สำเร็จแล้ว`);
+      setStatus({ type: "success", msg: `✅ ลบ "${displayName}" สำเร็จแล้ว` });
+      setTimeout(() => setStatus(null), 2000);
     } catch (err: any) {
       console.error("Delete field error:", err);
       alert(`❌ ไม่สามารถลบได้: ${err.message}`);
     }
   };
+
   // ✅ New: Pending Delete Logic for Normal Daily Check History
   const togglePendingDelete = (logId: string) => {
     setPendingDeletes((prev) => {
@@ -3171,15 +3288,25 @@ function ScanPage({
     });
   };
 
-  const handleConfirmDeletes = async () => {
+  const handleConfirmDeletes = () => {
     if (pendingDeletes.size === 0) return;
-    if (!window.confirm(`⚠️ ยืนยันการลบข้อมูลที่เลือกทั้งหมด ${pendingDeletes.size} รายการ?`)) return;
+    // 1. เช็คสิทธิ์การลบก่อน
+    if (!checkPerm(user, ["super_admin", "admin"]) && !user?.allowedActions?.includes("daily_delete")) {
+      alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
+      return;
+    }
+    // 2. ตั้งค่าเพื่อเปิด Modal ยืนยันรหัสผ่าน
+    setDeleteConfirmAction({ type: "logs" });
+  };
+
+  const executeBatchLogsDeletion = async () => {
     setIsSavingAll(true);
     try {
       const batch = writeBatch(db);
       pendingDeletes.forEach(id => batch.delete(doc(db, "logs", id)));
       await batch.commit();
-      alert("✅ ลบข้อมูลที่เลือกสำเร็จ");
+      setStatus({ type: "success", msg: "✅ ลบข้อมูลที่เลือกสำเร็จ" });
+      setTimeout(() => setStatus(null), 2000);
       setPendingDeletes(new Set());
     } catch (err: any) {
       console.error("Delete logs error:", err);
@@ -3233,6 +3360,12 @@ function ScanPage({
     createTicket?: boolean
   ) => {
     if (createTicket && result === "ABNORMAL") {
+      if (isDewPoint) {
+        if (!dpSetPoint.trim() || !dpActual.trim() || !dpDewPoint.trim()) {
+          alert("⚠️ กรุณากรอกข้อมูลให้ครบทุกช่อง (Set point, Actual, Dew point) ก่อนทำการแจ้งซ่อมครับ");
+          return;
+        }
+      }
       setTicketModalData({ result, detail: detail || "" });
     } else {
       // ✅ ถ้าเป็น Dew Point ให้เซ็ตค่าลง State ของ Dew Point โดยตรง
@@ -3296,6 +3429,18 @@ function ScanPage({
     if (!targetItemDetail) {
       console.error("Target item detail not found", { inspectingItem, isDewPoint });
       return;
+    }
+
+    // ตรวจสอบความถูกต้องของข้อมูลสำหรับ Dew Point (ต้องกรอกครบทุกช่องหากผลลัพธ์ไม่ใช่ NA)
+    if (isDewPoint && result !== "NA") {
+      const sp = extraFields?.set_point || dpSetPoint;
+      const ac = extraFields?.actual || dpActual;
+      const dw = extraFields?.dew_point_val || dpDewPoint;
+
+      if (!sp || !sp.trim() || !ac || !ac.trim() || !dw || !dw.trim()) {
+        alert("⚠️ กรุณากรอกข้อมูลให้ครบทุกช่อง (Set point, Actual, Dew point) ก่อนทำการบันทึกครับ");
+        return;
+      }
     }
 
     try {
@@ -3644,9 +3789,9 @@ function ScanPage({
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && isDpSaved && (
+                        {isHistoryMode && isDpSaved && dpSetPoint && dpSetPoint.trim() && (
                           <button
-                            onClick={() => handleDeleteField("setPoint", "Set point")}
+                            onClick={() => handleDeleteField("set_point", "Set point")}
                             className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
                             title="ลบข้อมูล"
                           >
@@ -3674,7 +3819,7 @@ function ScanPage({
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && isDpSaved && (
+                        {isHistoryMode && isDpSaved && dpActual && dpActual.trim() && (
                           <button
                             onClick={() => handleDeleteField("actual", "Actual")}
                             className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
@@ -3704,9 +3849,9 @@ function ScanPage({
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && isDpSaved && (
+                        {isHistoryMode && isDpSaved && dpDewPoint && dpDewPoint.trim() && (
                           <button
-                            onClick={() => handleDeleteField("dewPointValue", "Dew Point Value")}
+                            onClick={() => handleDeleteField("dew_point_val", "Dew Point Value")}
                             className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
                             title="ลบข้อมูล"
                           >
@@ -3744,7 +3889,7 @@ function ScanPage({
                         )}
                       </button>
 
-                      {isHistoryMode && isDpSaved && (
+                      {isHistoryMode && isDpSaved && dpStatus && (
                         <button
                           onClick={() => handleDeleteField("result", "สถานะเครื่องจักร")}
                           className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
@@ -3771,9 +3916,9 @@ function ScanPage({
                           : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                           }`}
                       />
-                      {isHistoryMode && isDpSaved && (
+                      {isHistoryMode && isDpSaved && dpRemark && dpRemark.trim() && (
                         <button
-                          onClick={() => handleDeleteField("remark", "Remark")}
+                          onClick={() => handleDeleteField("problem_detail", "Remark")}
                           className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
                           title="ลบข้อมูล"
                         >
@@ -3787,7 +3932,7 @@ function ScanPage({
                     (() => {
                       const isFormIncomplete =
                         !dpStatus ||
-                        ((dpStatus === "NORMAL" || dpStatus === "ABNORMAL") && (!dpSetPoint || !dpActual || !dpDewPoint));
+                        ((dpStatus === "NORMAL" || dpStatus === "ABNORMAL") && (!dpSetPoint.trim() || !dpActual.trim() || !dpDewPoint.trim()));
 
                       if (isFormIncomplete) return null;
 
@@ -4028,6 +4173,25 @@ function ScanPage({
                 material_name: machine.material || "-"
               } : undefined;
               executeSave(ticketModalData.result, data.issueItem, true, data, extraFields);
+            }}
+          />
+        )}
+        {deleteConfirmAction && (
+          <ConfirmPasswordModal
+            isOpen={!!deleteConfirmAction}
+            onClose={() => setDeleteConfirmAction(null)}
+            userPass={user.pass}
+            message={
+              deleteConfirmAction.type === "field"
+                ? `ยืนยันการลบข้อมูล "${deleteConfirmAction.displayName}"?`
+                : `ยืนยันการลบรายการตรวจที่เลือกทั้งหมด ${pendingDeletes.size} รายการ?`
+            }
+            onConfirm={() => {
+              if (deleteConfirmAction.type === "field" && deleteConfirmAction.fieldKey && deleteConfirmAction.displayName) {
+                executeFieldDeletion(deleteConfirmAction.fieldKey, deleteConfirmAction.displayName);
+              } else if (deleteConfirmAction.type === "logs") {
+                executeBatchLogsDeletion();
+              }
             }}
           />
         )}
