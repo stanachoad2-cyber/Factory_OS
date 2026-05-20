@@ -185,14 +185,17 @@ export default function MobileApp({ currentUser, onLogout }: any) {
           currentUser={currentUser}
           activeTab="inspect"
           onExit={goBack}
+          isMobile={true}
         />
       )}
 
       {activeApp === "DAILY_HISTORY" && (
         <DailyCheckModule
           currentUser={currentUser}
-          activeTab="data"
+          activeTab="inspect"
           onExit={goBack}
+          isHistoryMode={true}
+          isMobile={true}
         />
       )}
 

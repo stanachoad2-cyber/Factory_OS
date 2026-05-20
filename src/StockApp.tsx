@@ -3,11 +3,11 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
 import imageCompression from "browser-image-compression";
 import * as XLSX from "xlsx-js-style";
-import { ArrowLeft } from "lucide-react"; // ✅ 1. เพิ่ม import
+import { ArrowLeft } from "lucide-react";
 import {
   collection,
   doc,
-  onSnapshot, // ✅ ตัวนี้ที่ขาดไปครับ
+  onSnapshot,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -15,7 +15,7 @@ import {
   query,
   where,
   writeBatch,
-  getDocs, // เผื่อไว้สำหรับบางฟังก์ชัน
+  getDocs,
   Timestamp,
   increment,
   setDoc,
@@ -83,10 +83,7 @@ const getOptimizedUrl = (url: any) => {
   return url.replace("/upload/", "/upload/w_300,q_auto,f_auto/");
 };
 
-// ✅ Helper Check Permission
-// ✅ Helper Check Permission (แก้ไขให้รองรับ super_admin)
 const checkPerm = (user: any, allowedRoles: string[]) => {
-  // อนุญาตทันทีถ้าเป็น Bank, Admin หรือ super_admin
   if (
     user?.username === "Bank" ||
     user?.role === "Admin" ||

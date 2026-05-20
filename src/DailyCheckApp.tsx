@@ -1609,13 +1609,7 @@ function ResultSelectionModal({
                 <X className="text-red-600 mb-2" size={32} />
                 <span className="font-bold text-red-700">ผิดปกติ</span>
               </button>
-              <button
-                onClick={() => handleSelect("FILTER")}
-                className="flex flex-col items-center justify-center p-4 bg-blue-50 border-2 border-blue-200 rounded-xl hover:bg-blue-100 transition-colors"
-              >
-                <Filter className="text-blue-600 mb-2" size={32} />
-                <span className="font-bold text-blue-700">เป่ากรอง</span>
-              </button>
+              <div />
               <button
                 onClick={() => handleSelect("NA")}
                 className="flex flex-col items-center justify-center p-4 bg-gray-100 border-2 border-gray-300 rounded-xl hover:bg-gray-200 transition-colors"
@@ -3042,6 +3036,7 @@ function ScanPage({
   workingShift,
   onDateChange,
   onShiftChange,
+  isHistoryMode,
 }: {
   machine: Machine;
   user: User;
@@ -3050,9 +3045,11 @@ function ScanPage({
   workingShift: string;
   onDateChange: (d: string) => void;
   onShiftChange: (s: string) => void;
+  isHistoryMode?: boolean;
 }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [pendingLogs, setPendingLogs] = useState<Record<string, { result: ResultType, detail?: string, isTicket?: boolean, ticketData?: any }>>({});
+  const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [showCam, setShowCam] = useState(false);
   const [showMasterSheet, setShowMasterSheet] = useState(false);
@@ -3087,7 +3084,7 @@ function ScanPage({
   // ✅ Check if already saved for Dew Point
   const dpItemName = isDewPoint ? (machine.checklist[0]?.detail || "Dew Point Check") : null;
   const savedDpLog = isDewPoint ? logs.find(l => l.checklist_item === dpItemName) : null;
-  const isDpSaved = !!savedDpLog;
+  const isDpSaved = !!savedDpLog && !!savedDpLog.result;
 
   // ✅ Sync saved data to state if exists
   useEffect(() => {
@@ -3126,6 +3123,71 @@ function ScanPage({
     );
     return () => unsub();
   }, [machine.id, workingDate, workingShift]);
+
+  // ✅ New: Delete Individual Field Function for History Mode (Updated for Debug/Stability)
+  // ✅ New: Delete Individual Field Function for History Mode (Updated for Duplicate-Safety)
+  const handleDeleteField = async (fieldKey: string, displayName: string) => {
+    alert(`DEBUG: เริ่มลบ ${displayName}`); // 1
+    // หา Log ทั้งหมดที่ตรงกัน (ป้องกันกรณีมีข้อมูลซ้ำซ้อนในระบบ)
+    const matchingLogs = logs.filter(l => l.checklist_item === dpItemName);
+    
+    alert(`DEBUG: พบข้อมูลที่ตรงกัน ${matchingLogs.length} รายการ`); // 2
+
+    if (matchingLogs.length === 0) {
+      alert("❌ ไม่พบข้อมูลที่จะลบในฐานข้อมูล");
+      return;
+    }
+
+    if (!window.confirm(`⚠️ ยืนยันการลบข้อมูล "${displayName}"?`)) return;
+
+    try {
+      const batch = writeBatch(db);
+      
+      matchingLogs.forEach(log => {
+        const logRef = doc(db, "logs", log.id);
+        if (fieldKey === "result") {
+          batch.update(logRef, { result: deleteField() });
+        } else if (fieldKey === "remark") {
+          batch.update(logRef, { remark: "" });
+        } else {
+          batch.update(logRef, { [`extraFields.${fieldKey}`]: deleteField() });
+        }
+      });
+
+      await batch.commit();
+      alert(`✅ ลบ "${displayName}" สำเร็จแล้ว`);
+    } catch (err: any) {
+      console.error("Delete field error:", err);
+      alert(`❌ ไม่สามารถลบได้: ${err.message}`);
+    }
+  };
+  // ✅ New: Pending Delete Logic for Normal Daily Check History
+  const togglePendingDelete = (logId: string) => {
+    setPendingDeletes((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(logId)) newSet.delete(logId);
+      else newSet.add(logId);
+      return newSet;
+    });
+  };
+
+  const handleConfirmDeletes = async () => {
+    if (pendingDeletes.size === 0) return;
+    if (!window.confirm(`⚠️ ยืนยันการลบข้อมูลที่เลือกทั้งหมด ${pendingDeletes.size} รายการ?`)) return;
+    setIsSavingAll(true);
+    try {
+      const batch = writeBatch(db);
+      pendingDeletes.forEach(id => batch.delete(doc(db, "logs", id)));
+      await batch.commit();
+      alert("✅ ลบข้อมูลที่เลือกสำเร็จ");
+      setPendingDeletes(new Set());
+    } catch (err: any) {
+      console.error("Delete logs error:", err);
+      alert(`❌ ไม่สามารถลบได้: ${err.message}`);
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
 
   const handleProcess = (code: string) => {
     let scannedMachine = code.trim();
@@ -3173,6 +3235,14 @@ function ScanPage({
     if (createTicket && result === "ABNORMAL") {
       setTicketModalData({ result, detail: detail || "" });
     } else {
+      // ✅ ถ้าเป็น Dew Point ให้เซ็ตค่าลง State ของ Dew Point โดยตรง
+      if (isDewPoint) {
+        setDpStatus(result);
+        if (detail) setDpRemark(detail);
+        setInspectingItem(null);
+        return;
+      }
+
       // ✅ แทนที่จะบันทึกทันที ให้เก็บเข้า Pending
       if (!inspectingItem) return;
       setPendingLogs(prev => ({
@@ -3340,7 +3410,14 @@ function ScanPage({
       };
 
       if (detail) newLog.problem_detail = detail;
-      await addDoc(collection(db, "logs"), newLog);
+      
+      // ✅ 3. บันทึกลงฐานข้อมูล (แยกการจัดการ ID สำหรับ Dew Point เพื่อป้องกันซ้ำ)
+      if (isDewPoint) {
+        const docId = `log_DP_${machine.id}_${workingDate}_${workingShift}_${targetItemDetail}`.replace(/\s+/g, "_");
+        await setDoc(doc(db, "logs", docId), newLog);
+      } else {
+        await addDoc(collection(db, "logs"), newLog);
+      }
 
       // จบการทำงาน ล้างค่าหน้าจอ
       setTicketModalData(null);
@@ -3446,333 +3523,419 @@ function ScanPage({
           {/* Toast Status - เปลี่ยนเป็น absolute เพื่อให้อยู่กึ่งกลางพื้นที่เนื้อหา */}
           {status && (
             <div className="absolute top-4 left-0 right-0 flex justify-center z-[80] pointer-events-none px-4">
-            <div
-              className={`px-6 py-3 rounded-2xl shadow-2xl font-bold animate-in slide-in-from-top-2 border flex items-center gap-2 backdrop-blur-md ${status.type === "success"
-                ? "bg-green-600/90 text-white border-green-500"
-                : "bg-red-600/90 text-white border-red-500"
-                }`}
-            >
-              {status.type === "success" ? (
-                <CheckCircle size={20} />
-              ) : (
-                <AlertCircle size={20} />
-              )}
-              {status.msg}
-            </div>
-          </div>
-        )}
-
-        {/* --- LUXURY MINIMALIST SCAN INTERFACE (SQUIRCLE VERSION) --- */}
-        {!isVerified && (
-          <div className="flex-1 flex flex-col items-center justify-center w-full relative min-h-[400px]">
-            {/* Background Ambient Glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-blue-600/5 rounded-full blur-[120px] pointer-events-none"></div>
-
-            <div className="relative group cursor-pointer" onClick={() => setShowCam(true)}>
-              {/* Outer Subtle Pulse (Squircle Shape) */}
-              <div className="absolute inset-[-25px] border border-white/5 rounded-[70px] animate-[ping_4s_infinite] opacity-10"></div>
-
-              {/* Central Squircle Glass Button */}
-              <button
-                className="relative w-64 h-64 rounded-[70px] bg-slate-900/40 backdrop-blur-3xl border border-white/10 flex flex-col items-center justify-center gap-6 shadow-[0_30px_70px_rgba(0,0,0,0.7)] active:scale-95 transition-all duration-700 overflow-hidden group-hover:border-blue-500/30"
+              <div
+                className={`px-6 py-3 rounded-2xl shadow-2xl font-bold animate-in slide-in-from-top-2 border flex items-center gap-2 backdrop-blur-md ${status.type === "success"
+                  ? "bg-green-600/90 text-white border-green-500"
+                  : "bg-red-600/90 text-white border-red-500"
+                  }`}
               >
-                {/* Internal Refraction Effect */}
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-500/5 via-transparent to-white/5 pointer-events-none"></div>
-
-                <div className="relative p-7 bg-white/5 rounded-3xl border border-white/10 shadow-inner group-hover:bg-blue-500/10 group-hover:scale-110 transition-all duration-700">
-                  <QrCode size={60} className="text-blue-400 group-hover:text-blue-300 transition-colors" />
-                </div>
-
-                <div className="text-center z-10">
-                  <span className="text-[11px] font-black text-blue-500/80 uppercase tracking-[0.5em] block mb-1 group-hover:text-blue-400 transition-colors">
-                    Unlock
-                  </span>
-                  <div className="h-[2px] w-8 bg-blue-500/20 mx-auto rounded-full group-hover:w-16 group-hover:bg-blue-500/50 transition-all duration-700"></div>
-                </div>
-
-                {/* Simulated Laser Line */}
-                <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-blue-400/50 to-transparent top-0 -translate-y-full group-hover:animate-[scan_3s_infinite] pointer-events-none"></div>
-              </button>
+                {status.type === "success" ? (
+                  <CheckCircle size={20} />
+                ) : (
+                  <AlertCircle size={20} />
+                )}
+                {status.msg}
+              </div>
             </div>
+          )}
 
-            <div className="mt-20 text-center space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-1000">
-              <h2 className="text-3xl font-extralight text-white tracking-[.2em]">
-                SCAN QR
-              </h2>
-              <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.6em] opacity-50">
-                Machine Security Interface
-              </p>
-            </div>
-          </div>
-        )}
+          {/* --- LUXURY MINIMALIST SCAN INTERFACE (SQUIRCLE VERSION) --- */}
+          {!isVerified && (
+            <div className="flex-1 flex flex-col items-center justify-center w-full relative min-h-[400px]">
+              {/* Background Ambient Glow */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-blue-600/5 rounded-full blur-[120px] pointer-events-none"></div>
 
+              <div className="relative group cursor-pointer" onClick={() => setShowCam(true)}>
+                {/* Outer Subtle Pulse (Squircle Shape) */}
+                <div className="absolute inset-[-25px] border border-white/5 rounded-[70px] animate-[ping_4s_infinite] opacity-10"></div>
 
-        {/* ปุ่ม Master Sheet (แสดงเฉพาะโหมด Daily และต้อง Unlocked แล้วเท่านั้น) */}
-        {!isDewPoint && isVerified && (
-          <button
-            onClick={() => setShowMasterSheet(true)}
-            className="w-full max-w-4xl bg-[#1E293B] border border-slate-700 text-slate-300 py-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm mb-4 hover:bg-[#253045] hover:text-white text-sm transition-all active:scale-95"
-          >
-            <FileText size={16} className="text-blue-400" /> ดูใบมาตรฐาน (Master Sheet)
-          </button>
-        )}
+                {/* Central Squircle Glass Button */}
+                <button
+                  className="relative w-64 h-64 rounded-[70px] bg-slate-900/40 backdrop-blur-3xl border border-white/10 flex flex-col items-center justify-center gap-6 shadow-[0_30px_70px_rgba(0,0,0,0.7)] active:scale-95 transition-all duration-700 overflow-hidden group-hover:border-blue-500/30"
+                >
+                  {/* Internal Refraction Effect */}
+                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-500/5 via-transparent to-white/5 pointer-events-none"></div>
 
-        {/* ส่วนเนื้อหาหลัก (แสดงเมื่อ Unlocked แล้ว) */}
-        {isVerified && (
-          isDewPoint ? (
-            // ✅ DEW POINT FORM
-            <div className="w-full max-w-lg bg-[#1E293B] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-              {/* ... (Dew Point form remains the same) */}
-              <div className="bg-blue-600/10 p-4 border-b border-blue-500/20 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-blue-400 font-bold text-base">
-                  <Droplet size={20} /> บันทึกค่า Dew Point
-                </div>
-                <div className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-black uppercase">
-                  Measurement
-                </div>
+                  <div className="relative p-7 bg-white/5 rounded-3xl border border-white/10 shadow-inner group-hover:bg-blue-500/10 group-hover:scale-110 transition-all duration-700">
+                    <QrCode size={60} className="text-blue-400 group-hover:text-blue-300 transition-colors" />
+                  </div>
+
+                  <div className="text-center z-10">
+                    <span className="text-[11px] font-black text-blue-500/80 uppercase tracking-[0.5em] block mb-1 group-hover:text-blue-400 transition-colors">
+                      Unlock
+                    </span>
+                    <div className="h-[2px] w-8 bg-blue-500/20 mx-auto rounded-full group-hover:w-16 group-hover:bg-blue-500/50 transition-all duration-700"></div>
+                  </div>
+
+                  {/* Simulated Laser Line */}
+                  <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-blue-400/50 to-transparent top-0 -translate-y-full group-hover:animate-[scan_3s_infinite] pointer-events-none"></div>
+                </button>
               </div>
 
-              <div className="p-6 space-y-5">
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 mb-2">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                      Material System {isDpSaved && "(Saved Value)"}
+              <div className="mt-20 text-center space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+                <h2 className="text-3xl font-extralight text-white tracking-[.2em]">
+                  SCAN QR
+                </h2>
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.6em] opacity-50">
+                  Machine Security Interface
+                </p>
+              </div>
+            </div>
+          )}
+
+
+          {/* ปุ่ม Master Sheet (แสดงเฉพาะโหมด Daily และต้อง Unlocked แล้วเท่านั้น) */}
+          {!isDewPoint && isVerified && !isHistoryMode && (
+            <button
+              onClick={() => setShowMasterSheet(true)}
+              className="w-full max-w-4xl bg-[#1E293B] border border-slate-700 text-slate-300 py-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm mb-4 hover:bg-[#253045] hover:text-white text-sm transition-all active:scale-95"
+            >
+              <FileText size={16} className="text-blue-400" /> ดูใบมาตรฐาน (Master Sheet)
+            </button>
+          )}
+
+          {/* ส่วนเนื้อหาหลัก (แสดงเมื่อ Unlocked แล้ว) */}
+          {isVerified && (
+            isDewPoint ? (
+              // ✅ DEW POINT FORM
+              <div className="w-full max-w-lg bg-[#1E293B] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                {/* ... (Dew Point form remains the same) */}
+                <div className="bg-blue-600/10 p-4 border-b border-blue-500/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-blue-400 font-bold text-base">
+                    <Droplet size={20} /> บันทึกค่า Dew Point
+                  </div>
+                  <div className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-black uppercase">
+                    Measurement
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-5">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 mb-2">
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                        Material System {isDpSaved && "(Saved Value)"}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
+                        <span className="text-sm font-bold text-blue-400">
+                          {isDpSaved
+                            ? (savedDpLog?.material_name || "ไม่ระบุ")
+                            : (machine.material || "ไม่ระบุ (กรุณาตั้งค่าเครื่องจักร)")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                        1. Set point
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="..."
+                          disabled={isDpSaved || isHistoryMode}
+                          value={dpSetPoint}
+                          onChange={(e) => setDpSetPoint(e.target.value)}
+                          className={`flex-1 border rounded-xl px-4 py-3 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
+                            ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
+                            : dpStatus === "NA"
+                              ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
+                              : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
+                            }`}
+                        />
+                        {isHistoryMode && isDpSaved && (
+                          <button
+                            onClick={() => handleDeleteField("setPoint", "Set point")}
+                            className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
+                            title="ลบข้อมูล"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                        2. Actual
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="..."
+                          disabled={isDpSaved || isHistoryMode}
+                          value={dpActual}
+                          onChange={(e) => setDpActual(e.target.value)}
+                          className={`flex-1 border rounded-xl px-4 py-3 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
+                            ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
+                            : dpStatus === "NA"
+                              ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
+                              : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
+                            }`}
+                        />
+                        {isHistoryMode && isDpSaved && (
+                          <button
+                            onClick={() => handleDeleteField("actual", "Actual")}
+                            className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
+                            title="ลบข้อมูล"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                        3. Dew Point Value
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="..."
+                          disabled={isDpSaved || isHistoryMode}
+                          value={dpDewPoint}
+                          onChange={(e) => setDpDewPoint(e.target.value)}
+                          className={`flex-1 border rounded-xl px-4 py-3 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
+                            ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
+                            : dpStatus === "NA"
+                              ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
+                              : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
+                            }`}
+                        />
+                        {isHistoryMode && isDpSaved && (
+                          <button
+                            onClick={() => handleDeleteField("dewPointValue", "Dew Point Value")}
+                            className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
+                            title="ลบข้อมูล"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      4. สถานะเครื่องจักร
                     </label>
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
-                      <span className="text-sm font-bold text-blue-400">
-                        {isDpSaved
-                          ? (savedDpLog?.material_name || "ไม่ระบุ")
-                          : (machine.material || "ไม่ระบุ (กรุณาตั้งค่าเครื่องจักร)")}
-                      </span>
+                      <button
+                        disabled={isDpSaved || isHistoryMode}
+                        onClick={() => setInspectingItem({
+                          detail: machine.checklist[0]?.detail || "Dew Point Check",
+                          method: "ตรวจสอบค่า Dew Point และบันทึกสถานะ"
+                        })}
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all border border-slate-700 relative overflow-hidden group ${dpStatus
+                          ? "bg-slate-900 border-blue-500/50 shadow-md"
+                          : "bg-slate-800/50 border-slate-700 hover:border-slate-500 shadow-inner"
+                          } ${isDpSaved ? "cursor-default" : "active:scale-95"}`}
+                      >
+                        {dpStatus ? (
+                          <span className={`text-sm font-bold relative z-10 ${getResultDisplay(dpStatus).color}`}>
+                            {getResultDisplay(dpStatus).symbol}
+                          </span>
+                        ) : (
+                          <div className="relative z-10 text-slate-500 group-hover:text-slate-300 transition-colors">
+                            <Pencil size={14} />
+                          </div>
+                        )}
+                      </button>
+
+                      {isHistoryMode && isDpSaved && (
+                        <button
+                          onClick={() => handleDeleteField("result", "สถานะเครื่องจักร")}
+                          className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                          title="ลบข้อมูล"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5">
-                      1. Set point
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      5. Remark (หมายเหตุ)
                     </label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="..."
-                      disabled={isDpSaved}
-                      value={dpSetPoint}
-                      onChange={(e) => setDpSetPoint(e.target.value)}
-                      className={`w-full border rounded-xl px-4 py-3 text-white font-bold text-base outline-none shadow-inner transition-all ${isDpSaved
-                        ? "bg-slate-800/50 border-slate-700 text-slate-500 cursor-not-allowed opacity-60"
-                        : dpStatus === "NA"
-                          ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
+                    <div className="flex items-center gap-2">
+                      <textarea
+                        placeholder="..."
+                        disabled={isDpSaved || isHistoryMode}
+                        value={dpRemark}
+                        onChange={(e) => setDpRemark(e.target.value)}
+                        className={`flex-1 border rounded-xl px-4 py-3 text-white text-base outline-none shadow-inner transition-all h-[50px] resize-none ${isDpSaved
+                          ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
                           : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
-                        }`}
-                    />
+                          }`}
+                      />
+                      {isHistoryMode && isDpSaved && (
+                        <button
+                          onClick={() => handleDeleteField("remark", "Remark")}
+                          className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
+                          title="ลบข้อมูล"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5">
-                      2. Actual
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="..."
-                      disabled={isDpSaved}
-                      value={dpActual}
-                      onChange={(e) => setDpActual(e.target.value)}
-                      className={`w-full border rounded-xl px-4 py-3 text-white font-bold text-base outline-none shadow-inner transition-all ${isDpSaved
-                        ? "bg-slate-800/50 border-slate-700 text-slate-500 cursor-not-allowed opacity-60"
-                        : dpStatus === "NA"
-                          ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
-                          : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
-                        }`}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5">
-                      3. Dew Point Value
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="..."
-                      disabled={isDpSaved}
-                      value={dpDewPoint}
-                      onChange={(e) => setDpDewPoint(e.target.value)}
-                      className={`w-full border rounded-xl px-4 py-3 text-white font-bold text-base outline-none shadow-inner transition-all ${isDpSaved
-                        ? "bg-slate-800/50 border-slate-700 text-slate-500 cursor-not-allowed opacity-60"
-                        : dpStatus === "NA"
-                          ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
-                          : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
-                        }`}
-                    />
-                  </div>
+
+                  {!isDpSaved && !isHistoryMode && (
+                    (() => {
+                      const isFormIncomplete =
+                        !dpStatus ||
+                        ((dpStatus === "NORMAL" || dpStatus === "ABNORMAL") && (!dpSetPoint || !dpActual || !dpDewPoint));
+
+                      if (isFormIncomplete) return null;
+
+                      return (
+                        <button
+                          onClick={async () => {
+                            let extraFields = undefined;
+                            let finalRemark = dpRemark;
+
+                            if (dpStatus === "NORMAL" || dpStatus === "ABNORMAL") {
+                              extraFields = {
+                                set_point: dpSetPoint,
+                                actual: dpActual,
+                                dew_point_val: dpDewPoint,
+                                material_name: machine.material || "-"
+                              };
+                            } else if (dpStatus === "NA") {
+                              finalRemark = "";
+                            }
+
+                            setIsSavingDewPoint(true);
+                            await executeSave(dpStatus, finalRemark, false, null, extraFields);
+                            setIsSavingDewPoint(false);
+                          }}
+                          disabled={isSavingDewPoint}
+                          className="w-full py-4 rounded-xl font-black text-base uppercase tracking-widest shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-500 shadow-blue-900/40 animate-in fade-in slide-in-from-top-2 duration-300"
+                        >
+                          {isSavingDewPoint ? (
+                            <>
+                              <Loader2 className="animate-spin" />
+                              <span>กำลังบันทึก...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Save />
+                              <span>บันทึกผลการตรวจ</span>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })()
+                  )}
                 </div>
-
-                <div className="pt-2">
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2.5">
-                    4. สถานะเครื่องจักร
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: "NORMAL" as ResultType, label: "ปกติ", color: "bg-green-600", icon: CheckCircle },
-                      { id: "ABNORMAL" as ResultType, label: "ผิดปกติ", color: "bg-red-600", icon: AlertCircle },
-                      { id: "NA" as ResultType, label: "ไม่ใช้งาน", color: "bg-slate-600", icon: MinusCircle },
-                    ].map((btn) => (
-                      <button
-                        key={btn.id}
-                        disabled={isDpSaved}
-                        onClick={() => setDpStatus(btn.id)}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${dpStatus === btn.id
-                          ? `${btn.color} border-white shadow-lg scale-105`
-                          : "bg-slate-800 border-slate-700 text-slate-400 opacity-60 hover:opacity-100"
-                          } ${isDpSaved ? "cursor-not-allowed grayscale" : ""}`}
-                      >
-                        <btn.icon size={20} />
-                        <span className="text-[10px] font-bold uppercase">{btn.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5">
-                    5. Remark (หมายเหตุ)
-                  </label>
-                  <textarea
-                    placeholder="..."
-                    disabled={isDpSaved}
-                    value={dpRemark}
-                    onChange={(e) => setDpRemark(e.target.value)}
-                    className={`w-full border rounded-xl px-4 py-3 text-white text-base outline-none shadow-inner transition-all min-h-[80px] ${isDpSaved
-                      ? "bg-slate-800/50 border-slate-700 text-slate-500 cursor-not-allowed opacity-60"
-                      : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
-                      }`}
-                  />
-                </div>
-
-                {!isDpSaved && (
-                  (() => {
-                    const isFormIncomplete =
-                      !dpStatus ||
-                      ((dpStatus === "NORMAL" || dpStatus === "ABNORMAL") && (!dpSetPoint || !dpActual || !dpDewPoint));
-
-                    if (isFormIncomplete) return null;
-
-                    return (
-                      <button
-                        onClick={async () => {
-                          let extraFields = undefined;
-                          let finalRemark = dpRemark;
-
-                          if (dpStatus === "NORMAL" || dpStatus === "ABNORMAL") {
-                            extraFields = {
-                              set_point: dpSetPoint,
-                              actual: dpActual,
-                              dew_point_val: dpDewPoint,
-                              material_name: machine.material || "-"
-                            };
-                          } else if (dpStatus === "NA") {
-                            finalRemark = "";
-                          }
-
-                          setIsSavingDewPoint(true);
-                          await executeSave(dpStatus, finalRemark, false, null, extraFields);
-                          setIsSavingDewPoint(false);
-                        }}
-                        disabled={isSavingDewPoint}
-                        className="w-full py-4 rounded-xl font-black text-base uppercase tracking-widest shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-500 shadow-blue-900/40 animate-in fade-in slide-in-from-top-2 duration-300"
-                      >
-                        {isSavingDewPoint ? (
-                          <>
-                            <Loader2 className="animate-spin" />
-                            <span>กำลังบันทึก...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Save />
-                            <span>บันทึกผลการตรวจ</span>
-                          </>
-                        )}
-                      </button>
-                    );
-                  })()
-                )}
               </div>
-            </div>
-          ) : (
-            <div className="w-full max-w-4xl space-y-4 pb-24">
-              <div className="bg-[#1E293B] rounded-xl border border-slate-700 shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-500">
-                <div className="bg-green-500/10 p-3 text-[10px] text-green-400 font-black uppercase tracking-widest border-b border-green-500/20 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle size={14} /> Ready to Check
+            ) : (
+              <div className="w-full max-w-4xl space-y-4 pb-24">
+                <div className="bg-[#1E293B] rounded-xl border border-slate-700 shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-500">
+                  <div className="bg-green-500/10 p-3 text-[10px] text-green-400 font-black uppercase tracking-widest border-b border-green-500/20 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={14} /> Ready to Check
+                    </div>
+                    <span className="opacity-60">Daily Checklist</span>
                   </div>
-                  <span className="opacity-60">Daily Checklist</span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left text-slate-300">
-                    <thead className="text-[10px] text-slate-500 font-black uppercase tracking-widest bg-[#0F172A]/50 border-b border-slate-800">
-                      <tr>
-                        <th className="p-4 text-center w-16">Status</th>
-                        <th className="p-4">Item Detail</th>
-                        <th className="p-4 hidden md:table-cell">Method</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/50">
-                      {machine.checklist.map((item, idx) => {
-                        const savedLog = logs.find((l) => l.checklist_item === item.detail);
-                        const pendingLog = pendingLogs[item.detail];
-                        
-                        // ลำดับความสำคัญ: บันทึกแล้ว > กำลังรอส่ง > ยังไม่ได้ทำ
-                        const statusDisplay = savedLog 
-                          ? getResultDisplay(savedLog.result) 
-                          : pendingLog 
-                            ? getResultDisplay(pendingLog.result)
-                            : null;
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left text-slate-300">
+                      <thead className="text-[10px] text-slate-500 font-black uppercase tracking-widest bg-[#0F172A]/50 border-b border-slate-800">
+                        <tr>
+                          <th className="p-4 text-center w-16">Status</th>
+                          <th className="p-4">Item Detail</th>
+                          <th className="p-4 hidden md:table-cell">Method</th>
+                          {isHistoryMode && <th className="p-4 text-center w-20">Action</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {machine.checklist.map((item, idx) => {
+                          const savedLog = logs.find((l) => l.checklist_item === item.detail);
+                          const pendingLog = pendingLogs[item.detail];
 
-                        const isPending = !!pendingLog && !savedLog;
+                          // ลำดับความสำคัญ: บันทึกแล้ว > กำลังรอส่ง > ยังไม่ได้ทำ
+                          const statusDisplay = savedLog
+                            ? getResultDisplay(savedLog.result)
+                            : pendingLog
+                              ? getResultDisplay(pendingLog.result)
+                              : null;
 
-                        return (
-                          <tr
-                            key={idx}
-                            onClick={() => !savedLog && setInspectingItem(item)}
-                            className={`transition-all duration-200 ${
-                              savedLog ? "bg-slate-900/40 opacity-60 cursor-not-allowed" : "bg-[#1E293B] hover:bg-[#253045] cursor-pointer active:scale-[0.99]"
-                            }`}
-                          >
-                            <td className="p-4 text-center relative">
-                              {statusDisplay ? (
-                                <div className="flex flex-col items-center">
-                                  <span className={`text-xl font-bold ${statusDisplay.color} ${isPending ? "animate-pulse" : ""}`}>
-                                    {statusDisplay.symbol}
-                                  </span>
-                                  {isPending && (
-                                    <span className="text-[8px] font-black uppercase text-blue-400 tracking-tighter absolute -bottom-1">Pending</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="w-9 h-9 rounded-xl bg-slate-800/50 border border-slate-700 mx-auto flex items-center justify-center text-slate-500 shadow-inner group-hover:border-slate-500 transition-colors">
-                                  <Pencil size={14} />
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-4">
-                               <div className="font-medium text-slate-200 whitespace-pre-wrap leading-relaxed">
+                          const isPending = !!pendingLog && !savedLog;
+
+                          return (
+                            <tr
+                              key={idx}
+                              onClick={() => {
+                                if (!isHistoryMode && !savedLog) {
+                                  setInspectingItem(item);
+                                }
+                              }}
+                              className={`transition-all duration-200 ${
+                                savedLog || isHistoryMode 
+                                  ? "bg-slate-900/40 opacity-60 cursor-not-allowed" 
+                                  : "bg-[#1E293B] hover:bg-[#253045] cursor-pointer active:scale-[0.99]"
+                              }`}
+                            >
+                              <td className="p-4 text-center relative">
+                                {statusDisplay ? (
+                                  <div className="flex flex-col items-center">
+                                    <span className={`text-xl font-bold ${statusDisplay.color} ${isPending ? "animate-pulse" : ""}`}>
+                                      {statusDisplay.symbol}
+                                    </span>
+                                    {isPending && (
+                                      <span className="text-[8px] font-black uppercase text-blue-400 tracking-tighter absolute -bottom-1">Pending</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="w-9 h-9 rounded-xl bg-slate-800/50 border border-slate-700 mx-auto flex items-center justify-center text-slate-500 shadow-inner group-hover:border-slate-500 transition-colors">
+                                    <Pencil size={14} />
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-4">
+                                <div className="font-medium text-slate-200 whitespace-pre-wrap leading-relaxed">
                                   {item.detail}
-                               </div>
-                            </td>
-                            <td className="p-4 hidden md:table-cell whitespace-pre-wrap text-slate-500 leading-relaxed text-[11px]">
-                              {item.method}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                                </div>
+                              </td>
+                              <td className="p-4 hidden md:table-cell whitespace-pre-wrap text-slate-500 leading-relaxed text-[11px]">
+                                {item.method}
+                              </td>
+                              {isHistoryMode && (
+                                <td className="p-4 text-center">
+                                  {savedLog ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        togglePendingDelete(savedLog.id);
+                                      }}
+                                      className={`p-2.5 rounded-xl transition-all active:scale-95 ${
+                                        pendingDeletes.has(savedLog.id) 
+                                          ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20" 
+                                          : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                                      }`}
+                                      title={pendingDeletes.has(savedLog.id) ? "ยกเลิกการลบ" : "เลือกเพื่อลบ"}
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-700/50">-</span>
+                                  )}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
 
-            </div>
-          )
-        )}
+              </div>
+            )
+          )}
         </div>
       </div>
 
@@ -3795,7 +3958,33 @@ function ScanPage({
                 <span className="text-xs">บันทึกข้อมูล ({Object.keys(pendingLogs).length})</span>
               </>
             )}
-            
+
+            {/* Shimmer Effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+          </button>
+        </div>
+      )}
+
+      {/* ✅ ปุ่มยืนยันการลบ (Confirm Deletes) สำหรับ History Mode */}
+      {isHistoryMode && pendingDeletes.size > 0 && (
+        <div className="absolute bottom-8 left-0 right-0 z-50 flex justify-center px-6 animate-in slide-in-from-bottom-10 duration-500">
+          <button
+            onClick={handleConfirmDeletes}
+            disabled={isSavingAll}
+            className="group relative px-8 py-4 bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-2xl font-black uppercase tracking-[.2em] shadow-[0_15px_30px_rgba(225,29,72,0.3)] flex items-center justify-center gap-3 active:scale-95 transition-all border border-red-400/20 overflow-hidden"
+          >
+            {isSavingAll ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                <span className="text-xs">Deleting...</span>
+              </>
+            ) : (
+              <>
+                <Trash2 size={18} />
+                <span className="text-xs">ยืนยันการลบ ({pendingDeletes.size})</span>
+              </>
+            )}
+
             {/* Shimmer Effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
           </button>
@@ -3831,9 +4020,15 @@ function ScanPage({
             initialDetail={ticketModalData.detail}
             user={user}
             onClose={() => setTicketModalData(null)}
-            onConfirm={(data) =>
-              executeSave(ticketModalData.result, data.issueItem, true, data)
-            }
+            onConfirm={(data) => {
+              const extraFields = isDewPoint ? {
+                set_point: dpSetPoint,
+                actual: dpActual,
+                dew_point_val: dpDewPoint,
+                material_name: machine.material || "-"
+              } : undefined;
+              executeSave(ticketModalData.result, data.issueItem, true, data, extraFields);
+            }}
           />
         )}
       </div>
@@ -4483,6 +4678,8 @@ function InspectView({
   onShowMachines,
   workingDate,
   workingShift,
+  machineStatus,
+  isHistoryMode,
 }: {
   machines: Machine[];
   user: User;
@@ -4491,6 +4688,8 @@ function InspectView({
   onShowMachines: () => void;
   workingDate: string;
   workingShift: string;
+  machineStatus?: Record<string, { count: number, isComplete: boolean, isAbnormal: boolean }>;
+  isHistoryMode?: boolean;
 }) {
   const [expandedLines, setExpandedLines] = useState<string[]>([]);
 
@@ -4680,39 +4879,64 @@ function InspectView({
               {isExpanded && (
                 <div className="pl-2 pr-2 pb-2">
                   <div className="grid gap-2 grid-cols-1 md:grid-cols-2">
-                    {machinesInLine.map((m: Machine) => (
-                      <div
-                        key={m.id}
-                        onClick={() => !isLoading && onSelect(m)}
-                        className="relative bg-[#1E293B] p-3 rounded-r-xl rounded-l-md shadow-lg border border-slate-700 border-l-4 border-l-blue-500 hover:border-blue-400 transition-all text-left flex justify-between items-center group cursor-pointer"
-                      >
-                        <div className="flex flex-col">
-                          <div className="font-bold text-base text-white group-hover:text-blue-300 transition-colors">
-                            {m.name}
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                            <ClipboardCheck size={12} /> {m.checklist.length}{" "}
-                            จุดตรวจ
-                          </div>
-                        </div>
+                    {machinesInLine.map((m: Machine) => {
+                      const stats = machineStatus?.[m.id];
+                      const isComplete = stats?.isComplete;
+                      const isAbnormal = stats?.isAbnormal;
+                      const hasData = (stats?.count || 0) > 0;
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleQuickNA([m]);
-                            }}
-                            disabled={isLoading}
-                            className="bg-slate-800 border border-slate-700 text-slate-500 hover:text-amber-500 p-2 rounded-lg disabled:opacity-50"
-                          >
-                            <FileX size={16} />
-                          </button>
-                          <div className="bg-slate-800 border border-slate-700 text-slate-400 p-2 rounded-lg group-hover:bg-blue-600 group-hover:text-white">
-                            <Plus size={16} />
+                      // เลือกสีขอบตามสถานะ
+                      let borderColor = "border-l-blue-500";
+                      if (hasData) {
+                        if (isAbnormal) borderColor = "border-l-red-500";
+                        else if (isComplete) borderColor = "border-l-green-500";
+                        else borderColor = "border-l-amber-500";
+                      }
+
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => !isLoading && onSelect(m)}
+                          className={`relative bg-[#1E293B] p-3 rounded-r-xl rounded-l-md shadow-lg border border-slate-700 border-l-4 ${borderColor} hover:border-blue-400 transition-all text-left flex justify-between items-center group cursor-pointer ${isComplete ? "bg-slate-800/40" : ""}`}
+                        >
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <div className="font-bold text-base text-white group-hover:text-blue-300 transition-colors">
+                                {m.name}
+                              </div>
+                              {hasData && (
+                                <div className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${isAbnormal ? "bg-red-500 text-white" :
+                                  isComplete ? "bg-green-600 text-white" :
+                                    "bg-amber-500 text-slate-900"
+                                  }`}>
+                                  {isAbnormal ? "Abnormal" : isComplete ? "Checked" : "Draft"}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                              <ClipboardCheck size={12} /> {stats?.count || 0} / {m.checklist.length}{" "}
+                              จุดตรวจ
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuickNA([m]);
+                              }}
+                              disabled={isLoading}
+                              className="bg-slate-800 border border-slate-700 text-slate-500 hover:text-amber-500 p-2 rounded-lg disabled:opacity-50"
+                            >
+                              <FileX size={16} />
+                            </button>
+                            <div className={`bg-slate-800 border border-slate-700 p-2 rounded-lg ${isComplete ? "text-green-500 border-green-500/30" : "text-slate-400 group-hover:bg-blue-600 group-hover:text-white"}`}>
+                              {isComplete ? <CheckCircle2 size={16} /> : <Plus size={16} />}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -5154,25 +5378,47 @@ function DashboardView({
 
       const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
 
-      // 2. กำหนด Headers (เพิ่ม Ticket_ID, Repair_Problem, Repair_Action)
-      const headers = [
-        "Date",
-        "Year",
-        "Month",
-        "Shift",
-        "Machine_ID",
-        "Machine_Name",
-        "Line",
-        "Material",
-        "Time",
-        "Check_Item",
-        "Result",
-        "Problem_Detail",
-        "Inspector",
-        "Ticket_ID",
-        "Repair_Problem", // <-- สาเหตุที่ช่างพบ (Cause)
-        "Repair_Action", // <-- การแก้ไข (Correction)
-      ];
+      // Check if this is Dew Point mode
+      const isDewPoint = machines.length > 0 && machines[0].systemMode === "DEW_POINT";
+
+      // 2. กำหนด Headers
+      const headers = isDewPoint
+        ? [
+            "Date",
+            "Year",
+            "Month",
+            "Shift",
+            "Machine_Name",
+            "Line",
+            "Material",
+            "Set point",
+            "Actual",
+            "Dew point",
+            "Time",
+            "Result",
+            "Remark",
+            "Problem_Detail",
+            "Inspector",
+            "Repair_Problem",
+            "Repair_Action",
+          ]
+        : [
+            "Date",
+            "Year",
+            "Month",
+            "Shift",
+            "Machine_ID",
+            "Machine_Name",
+            "Line",
+            "Time",
+            "Check_Item",
+            "Result",
+            "Problem_Detail",
+            "Inspector",
+            "Ticket_ID",
+            "Repair_Problem",
+            "Repair_Action",
+          ];
 
       const rows: string[] = [];
 
@@ -5191,7 +5437,10 @@ function DashboardView({
               selectedMachineId === "All" || m.id === selectedMachineId;
 
             if (matchP && matchM) {
-              const checklist = m.checklist || [];
+              const isDp = m.systemMode === "DEW_POINT";
+              const checklist = m.checklist && m.checklist.length > 0
+                ? m.checklist
+                : isDp ? [{ detail: "Dew Point Check" }] : [];
               checklist.forEach((item) => {
                 const log = allLogs.find(
                   (l) =>
@@ -5204,6 +5453,7 @@ function DashboardView({
                 let ticketId = "-";
                 let repairProblem = "-"; // เริ่มต้นด้วยค่าว่าง
                 let repairAction = "-";
+                let ticketIssueDetail = "-"; // รายละเอียดปัญหาจากใบแจ้งซ่อม
 
                 // 3. LOGIC เชื่อมข้อมูลด้วย ID (Hard Link)
                 if (log && log.linked_ticket_id) {
@@ -5212,6 +5462,7 @@ function DashboardView({
                   );
                   if (matchTicket) {
                     ticketId = matchTicket.id;
+                    ticketIssueDetail = (matchTicket as any).issue_detail || "-";
 
                     // ดึงสาเหตุ (Cause) และ การแก้ไข (Correction) จากฝั่งช่าง
                     if ((matchTicket as any).close_data) {
@@ -5232,26 +5483,45 @@ function DashboardView({
                 }
 
                 // 4. สร้างแถวข้อมูล (Row)
-                const row = [
-                  dateStr,
-                  selectedYear,
-                  selectedMonth,
-                  shift === "D" ? "Day" : "Night",
-                  m.id,
-                  `"${m.name}"`,
-                  `"${m.process || "General"}"`,
-                  `"${log?.material_name || "-"}"`,
-                  log ? formatTime(log.timestamp) : "-",
-                  `"${item.detail}"`,
-                  log ? log.result : "MISSING",
-                  log
-                    ? `"${(log.problem_detail || "-").replace(/,/g, " ")}"`
-                    : "-",
-                  log ? log.inspector : "-",
-                  ticketId,
-                  `"${(repairProblem || "-").replace(/,/g, " ")}"`, // สาเหตุจากช่าง
-                  `"${(repairAction || "-").replace(/,/g, " ")}"`, // การแก้ไข
-                ];
+                const row = isDewPoint
+                  ? [
+                      dateStr,
+                      selectedYear,
+                      `"${MONTH_OPTIONS[selectedMonth - 1]?.label || selectedMonth}"`,
+                      shift === "D" ? "Day" : "Night",
+                      `"${m.name}"`,
+                      `"${m.process || "General"}"`,
+                      `"${log?.material_name || "-"}"`,
+                      log?.set_point !== undefined ? `"${log.set_point}"` : "-",
+                      log?.actual !== undefined ? `"${log.actual}"` : "-",
+                      log?.dew_point_val !== undefined ? `"${log.dew_point_val}"` : "-",
+                      log ? formatTime(log.timestamp) : "-",
+                      log ? log.result : "MISSING",
+                      log ? `"${(log.problem_detail || "-").replace(/,/g, " ")}"` : "-", // Remark จากหน้าตรวจเช็ค
+                      `"${ticketIssueDetail.replace(/,/g, " ")}"`, // Problem_Detail จากใบแจ้งซ่อมช่าง
+                      log ? log.inspector : "-",
+                      `"${(repairProblem || "-").replace(/,/g, " ")}"`,
+                      `"${(repairAction || "-").replace(/,/g, " ")}"`,
+                    ]
+                  : [
+                      dateStr,
+                      selectedYear,
+                      selectedMonth,
+                      shift === "D" ? "Day" : "Night",
+                      m.id,
+                      `"${m.name}"`,
+                      `"${m.process || "General"}"`,
+                      log ? formatTime(log.timestamp) : "-",
+                      `"${item.detail}"`,
+                      log ? log.result : "MISSING",
+                      log
+                        ? `"${(log.problem_detail || "-").replace(/,/g, " ")}"`
+                        : "-",
+                      log ? log.inspector : "-",
+                      ticketId,
+                      `"${(repairProblem || "-").replace(/,/g, " ")}"`,
+                      `"${(repairAction || "-").replace(/,/g, " ")}"`,
+                    ];
                 rows.push(row.join(","));
               });
             }
@@ -6499,9 +6769,12 @@ function MachineSettingsView({
   );
 }
 
-export function DailyCheckModule({ currentUser, activeTab, onExit }: any) {
+export function DailyCheckModule({ currentUser, activeTab, onExit, isHistoryMode }: any) {
   const [machines, setMachines] = useState<any[]>([]);
   const [selectedMachine, setSelectedMachine] = useState<any | null>(null);
+
+  // ✅ New state to track today's completion status per machine
+  const [machineStatus, setMachineStatus] = useState<Record<string, { count: number, isComplete: boolean, isAbnormal: boolean }>>({});
 
   // ✅ 1. State สำหรับจัดการวันที่และกะ (ใช้อันเดียวกันทั้ง Module)
   const [workingDate, setWorkingDate] = useState(getThaiDate());
@@ -6544,6 +6817,43 @@ export function DailyCheckModule({ currentUser, activeTab, onExit }: any) {
   // Reset selected machine when switching tabs
   useEffect(() => setSelectedMachine(null), [activeTab]);
 
+  // ✅ Fetch log status for all machines (Today/Shift)
+  useEffect(() => {
+    // We always fetch it now to show progress even in inspect mode, 
+    // but we can optimize it to only fetch if needed.
+    const q = query(
+      collection(db, "logs"),
+      where("date", "==", workingDate),
+      where("shift", "==", workingShift)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const stats: Record<string, { count: number, isComplete: boolean, isAbnormal: boolean }> = {};
+
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        const mid = data.mid;
+        if (!stats[mid]) {
+          stats[mid] = { count: 0, isComplete: false, isAbnormal: false };
+        }
+        stats[mid].count += 1;
+        if (data.result === "ABNORMAL") stats[mid].isAbnormal = true;
+      });
+
+      // Determine completeness
+      machines.forEach(m => {
+        if (stats[m.id]) {
+          const checklistCount = m.checklist?.length || 1;
+          stats[m.id].isComplete = stats[m.id].count >= checklistCount;
+        }
+      });
+
+      setMachineStatus(stats);
+    });
+
+    return () => unsub();
+  }, [workingDate, workingShift, machines]);
+
   // เช็คสิทธิ์การเข้าถึงหน้าตั้งค่า
   const canAccessSettings =
     currentUser?.username === "Bank" ||
@@ -6567,6 +6877,7 @@ export function DailyCheckModule({ currentUser, activeTab, onExit }: any) {
           workingShift={workingShift}
           onDateChange={setWorkingDate}
           onShiftChange={setWorkingShift}
+          isHistoryMode={isHistoryMode}
         />
       </div>
     );
@@ -6592,7 +6903,7 @@ export function DailyCheckModule({ currentUser, activeTab, onExit }: any) {
                 {currentMode.label}
               </h1>
               <span className="text-[10px] text-slate-400">
-                {activeTab === "inspect" && "ตรวจสอบเครื่องจักร"}
+                {activeTab === "inspect" && (isHistoryMode ? "ประวัติการตรวจสอบ" : "ตรวจสอบเครื่องจักร")}
                 {activeTab === "data" && "ประวัติการตรวจสอบ"}
                 {activeTab === "dashboard" && "สรุปรายงาน (PDF)"}
                 {activeTab === "settings" && "ตั้งค่าระบบ"}
@@ -6677,6 +6988,8 @@ export function DailyCheckModule({ currentUser, activeTab, onExit }: any) {
             // ✅ ส่งค่าวันที่/กะ ลงไปให้ปุ่ม Quick NA ใช้งาน
             workingDate={workingDate}
             workingShift={workingShift}
+            machineStatus={machineStatus}
+            isHistoryMode={isHistoryMode}
           />
         )}
 

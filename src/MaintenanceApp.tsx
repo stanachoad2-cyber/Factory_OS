@@ -122,9 +122,8 @@ function ConfirmActionModal({
             setError("");
           }}
           onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
-          className={`w-full bg-[#0F1115] border ${
-            error ? "border-red-500" : "border-slate-700 focus:border-blue-500"
-          } rounded-lg px-3 py-2 text-center text-white text-sm outline-none transition-all mb-4 placeholder-slate-600`}
+          className={`w-full bg-[#0F1115] border ${error ? "border-red-500" : "border-slate-700 focus:border-blue-500"
+            } rounded-lg px-3 py-2 text-center text-white text-sm outline-none transition-all mb-4 placeholder-slate-600`}
           placeholder="Password"
         />
 
@@ -203,7 +202,7 @@ export default function MaintenanceSettingsContent({
   const [guardMessage, setGuardMessage] = useState("");
   const [pendingAction, setPendingAction] = useState<
     () => Promise<void> | void
-  >(() => {});
+  >(() => { });
 
   const tabs = [
     { id: "departments", label: "จัดการแผนก", icon: Users },
@@ -362,11 +361,10 @@ export default function MaintenanceSettingsContent({
             {showNoteOption && (
               <button
                 onClick={() => setRequireNote(!requireNote)}
-                className={`h-[34px] px-3 rounded-lg flex items-center gap-1.5 border transition-all ${
-                  requireNote
+                className={`h-[34px] px-3 rounded-lg flex items-center gap-1.5 border transition-all ${requireNote
                     ? "bg-orange-500/10 border-orange-500 text-orange-400"
                     : "bg-[#0B1121] border-slate-700 text-slate-500 hover:text-slate-300"
-                }`}
+                  }`}
                 title="บังคับให้ใส่หมายเหตุเมื่อเลือกรายการนี้"
               >
                 {requireNote ? <CheckSquare size={16} /> : <Square size={16} />}
@@ -409,9 +407,8 @@ export default function MaintenanceSettingsContent({
                       No.
                     </th>
                     <th
-                      className={`px-4 py-2 border-b border-slate-800 ${
-                        activeTab === "departments" ? "w-[67%]" : "w-[82%]"
-                      }`}
+                      className={`px-4 py-2 border-b border-slate-800 ${activeTab === "departments" ? "w-[67%]" : "w-[82%]"
+                        }`}
                     >
                       Name
                     </th>
@@ -654,9 +651,8 @@ const SearchableSelect = ({
         <div className="absolute right-0 top-0 h-full w-10 flex items-center justify-center cursor-pointer pointer-events-none">
           <ChevronDown
             size={16}
-            className={`text-slate-500 transition-transform ${
-              isOpen ? "rotate-180" : ""
-            }`}
+            className={`text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""
+              }`}
           />
         </div>
       </div>
@@ -891,11 +887,11 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
     }
 
     // --- 6. การแก้ไขและอะไหล่ (แก้ไขให้ตัดบรรทัดจบที่ X98) ---
-    
+
     // 1. จัดการข้อมูล "การแก้ไข" (Correction)
     const correctionText = (cd.correction || ticket.solution || "").toString();
     // หั่นข้อความที่ความกว้าง 83mm (เริ่ม X15 + 83 = จบที่ X98 พอดี)
-    const correctionLines = doc.splitTextToSize(correctionText, 83); 
+    const correctionLines = doc.splitTextToSize(correctionText, 83);
 
     // 2. วนลูปพิมพ์ข้อความการแก้ไข (บรรทัดแรกเริ่มที่ Y158)
     correctionLines.forEach((line: string, i: number) => {
@@ -1077,9 +1073,8 @@ function ConfirmPasswordModal({
             setError("");
           }}
           onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
-          className={`w-full bg-[#0F1115] border ${
-            error ? "border-red-500" : "border-slate-700 focus:border-blue-500"
-          } rounded-lg px-3 py-2 text-center text-white text-sm outline-none transition-all mb-4 placeholder-slate-600`}
+          className={`w-full bg-[#0F1115] border ${error ? "border-red-500" : "border-slate-700 focus:border-blue-500"
+            } rounded-lg px-3 py-2 text-center text-white text-sm outline-none transition-all mb-4 placeholder-slate-600`}
           placeholder="Password"
         />
 
@@ -1546,11 +1541,10 @@ function TicketFormView({ ticket }: { ticket: any }) {
       <div className="flex gap-4 mb-3 items-center z-50">
         <button
           onClick={() => setTestMode(!testMode)}
-          className={`px-4 py-2 rounded-lg text-xs font-bold shadow-lg transition-all flex items-center gap-2 ${
-            testMode
+          className={`px-4 py-2 rounded-lg text-xs font-bold shadow-lg transition-all flex items-center gap-2 ${testMode
               ? "bg-red-600 text-white hover:bg-red-700 shadow-red-500/50"
               : "bg-white text-slate-700 hover:bg-slate-100"
-          }`}
+            }`}
         >
           {testMode ? <Settings size={16} /> : <Eye size={16} />}
           {testMode ? "HIDE TEST DOTS" : "TEST POSITIONS (แสดงจุดแดง)"}
@@ -1631,8 +1625,8 @@ function TicketFormView({ ticket }: { ticket: any }) {
             {isT
               ? "เทสอื่นๆ"
               : job.includes("อื่นๆ")
-              ? job.split("(")[1]?.replace(")", "")
-              : ""}
+                ? job.split("(")[1]?.replace(")", "")
+                : ""}
           </TextOverlay>
 
           {/* --- LOCATION --- */}
@@ -1656,8 +1650,8 @@ function TicketFormView({ ticket }: { ticket: any }) {
             {isT
               ? "เทสอื่นๆ S01"
               : factory === "SAL01" && area.includes("อื่นๆ")
-              ? area.split("(")[1]?.replace(")", "")
-              : ""}
+                ? area.split("(")[1]?.replace(")", "")
+                : ""}
           </TextOverlay>
           {[78, 82.5, 87.5, 92.5].map((y, i) => (
             <CheckOverlay
@@ -1677,8 +1671,8 @@ function TicketFormView({ ticket }: { ticket: any }) {
             {isT
               ? "เทสอื่นๆ S02"
               : factory === "SAL02" && area.includes("อื่นๆ")
-              ? area.split("(")[1]?.replace(")", "")
-              : ""}
+                ? area.split("(")[1]?.replace(")", "")
+                : ""}
           </TextOverlay>
 
           {/* --- PROBLEM & CAUSE --- */}
@@ -1713,36 +1707,36 @@ function TicketFormView({ ticket }: { ticket: any }) {
             {isT
               ? "น็อตยึดเฟืองคลายตัว"
               : ticket.cause_category_other ||
-                ticket.close_data?.cause_note ||
-                ""}
+              ticket.close_data?.cause_note ||
+              ""}
           </TextOverlay>
 
-{/* --- 6. แยกเฉพาะหัวข้อ "การแก้ไข" ให้อิสระจากแม่พิมพ์หลัก --- */}
-<div
-  style={{
-    position: "absolute",
-    // ✅ กำหนดพิกัด X เริ่มต้นที่ 15mm
-    left: "15mm", 
-    // ✅ กำหนดพิกัด Y ตายตัวที่บรรทัดแรกเริ่ม (ต้องปรับตัวเลขนี้ให้ตรงเส้นบรรทัด)
-    top: "154.5mm", 
-    // ✅ กำหนดความกว้างสิ้นสุดที่ X98 (98-15 = 83mm)
-    width: "83mm", 
-    // ✅ สไตล์ตัวอักษรBlue, Size 14pt (เท่าเดิม)
-    fontSize: "14pt",
-    fontFamily: myFont, // ใช้ตัวแปร Font เดิม
-    color: "blue",
-    fontWeight: "normal",
-    // ✅ หัวใจสำคัญ: จัดการงานหลายบรรทัด
-    whiteSpace: "pre-wrap",  // แสดงผลขึ้นบรรทัดใหม่จากข้อมูลดิบ
-    wordBreak: "break-word", // บังคับตัดคำภาษาไทยตรงขอบ width เป๊ะๆ
-    lineHeight: "5.3mm",     // ✅ กำหนดระยะห่างบรรทัดให้ตรงกับเส้นประในฟอร์ม
-    zIndex: 10,
-    pointerEvents: "none",
-  }}
->
-  {/* ตัวข้อมูลการแก้ไข */}
-  {isT ? "การแก้ไขเทส" : ticket.close_data?.correction || ""}
-</div>
+          {/* --- 6. แยกเฉพาะหัวข้อ "การแก้ไข" ให้อิสระจากแม่พิมพ์หลัก --- */}
+          <div
+            style={{
+              position: "absolute",
+              // ✅ กำหนดพิกัด X เริ่มต้นที่ 15mm
+              left: "15mm",
+              // ✅ กำหนดพิกัด Y ตายตัวที่บรรทัดแรกเริ่ม (ต้องปรับตัวเลขนี้ให้ตรงเส้นบรรทัด)
+              top: "154.5mm",
+              // ✅ กำหนดความกว้างสิ้นสุดที่ X98 (98-15 = 83mm)
+              width: "83mm",
+              // ✅ สไตล์ตัวอักษรBlue, Size 14pt (เท่าเดิม)
+              fontSize: "14pt",
+              fontFamily: myFont, // ใช้ตัวแปร Font เดิม
+              color: "blue",
+              fontWeight: "normal",
+              // ✅ หัวใจสำคัญ: จัดการงานหลายบรรทัด
+              whiteSpace: "pre-wrap",  // แสดงผลขึ้นบรรทัดใหม่จากข้อมูลดิบ
+              wordBreak: "break-word", // บังคับตัดคำภาษาไทยตรงขอบ width เป๊ะๆ
+              lineHeight: "5.3mm",     // ✅ กำหนดระยะห่างบรรทัดให้ตรงกับเส้นประในฟอร์ม
+              zIndex: 10,
+              pointerEvents: "none",
+            }}
+          >
+            {/* ตัวข้อมูลการแก้ไข */}
+            {isT ? "การแก้ไขเทส" : ticket.close_data?.correction || ""}
+          </div>
           {Array.from({ length: 8 }).map((_, i) => {
             const p = ticket.close_data?.spare_parts?.[i];
             return (
@@ -1879,7 +1873,7 @@ function CloseJobModal({
   const [resultOptions, setResultOptions] = useState<any[]>([]);
   const [isDelayed, setIsDelayed] = useState(false);
   const [showGuard, setShowGuard] = useState(false);
-  const [pendingAction, setPendingAction] = useState<() => void>(() => {});
+  const [pendingAction, setPendingAction] = useState<() => void>(() => { });
 
   const isTimeInvalid =
     startTime &&
@@ -2269,10 +2263,10 @@ function CloseJobModal({
             {submitting
               ? "Saving..."
               : isTimeInvalid
-              ? "เวลาไม่ถูกต้อง"
-              : ticket.close_data
-              ? "Confirm Edit"
-              : "Confirm & Save"}
+                ? "เวลาไม่ถูกต้อง"
+                : ticket.close_data
+                  ? "Confirm Edit"
+                  : "Confirm & Save"}
           </button>
         </div>
       </div>
@@ -2479,17 +2473,15 @@ function TicketDetailModal({
     isHighlight = false,
   }: any) => (
     <div
-      className={`flex flex-col justify-center ${
-        full ? "col-span-2" : "col-span-1"
-      } min-h-[40px] px-3 py-1.5 rounded-xl bg-[#0F172A]/50 border border-slate-700/30`}
+      className={`flex flex-col justify-center ${full ? "col-span-2" : "col-span-1"
+        } min-h-[40px] px-3 py-1.5 rounded-xl bg-[#0F172A]/50 border border-slate-700/30`}
     >
       <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
         {label}
       </span>
       <span
-        className={`text-xs font-medium leading-tight ${
-          isHighlight ? "text-blue-300" : "text-slate-200"
-        }`}
+        className={`text-xs font-medium leading-tight ${isHighlight ? "text-blue-300" : "text-slate-200"
+          }`}
       >
         {value || "-"}
       </span>
@@ -2499,9 +2491,8 @@ function TicketDetailModal({
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div
-        className={`bg-[#1E293B] w-full ${
-          isFormView ? "max-w-4xl h-[90vh]" : "max-w-[420px]"
-        } rounded-[2rem] shadow-2xl border border-slate-700 flex flex-col overflow-hidden`}
+        className={`bg-[#1E293B] w-full ${isFormView ? "max-w-4xl h-[90vh]" : "max-w-[420px]"
+          } rounded-[2rem] shadow-2xl border border-slate-700 flex flex-col overflow-hidden`}
       >
         <div className="px-4 py-3 flex justify-between items-center bg-[#151C2C] border-b border-slate-700/50 shrink-0 h-12">
           <div className="flex items-center gap-2">
@@ -2592,8 +2583,8 @@ function TicketDetailModal({
                       value={
                         displayData.close_data.spare_parts?.length
                           ? displayData.close_data.spare_parts
-                              .map((p: any) => `${p.name} (x${p.qty})`)
-                              .join(", ")
+                            .map((p: any) => `${p.name} (x${p.qty})`)
+                            .join(", ")
                           : "-"
                       }
                     />
@@ -2753,7 +2744,7 @@ function CreateTicketModal({
 
   const [creating, setCreating] = useState(false);
   const [showGuard, setShowGuard] = useState(false);
-  const [pendingAction, setPendingAction] = useState<() => void>(() => {});
+  const [pendingAction, setPendingAction] = useState<() => void>(() => { });
 
   const [deptOptions, setDeptOptions] = useState<any[]>([]);
   const [jobOptions, setJobOptions] = useState<any[]>([]);
@@ -3035,9 +3026,8 @@ function CreateTicketModal({
 
           // Telegram Notification (เหมือนเดิม)
           try {
-            const msg = `🚨 <b>เครื่อง:</b> ${machineName}\n⚠️ <b>อาการ:</b> ${issueItem}\n🏢 <b>แผนก:</b> ${department}\n📍 <b>พื้นที่:</b> ${finalArea}\n👤 <b>ผู้แจ้ง:</b> ${
-              user.fullname || user.username
-            }`;
+            const msg = `🚨 <b>เครื่อง:</b> ${machineName}\n⚠️ <b>อาการ:</b> ${issueItem}\n🏢 <b>แผนก:</b> ${department}\n📍 <b>พื้นที่:</b> ${finalArea}\n👤 <b>ผู้แจ้ง:</b> ${user.fullname || user.username
+              }`;
             await fetch(
               `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
               {
@@ -3050,7 +3040,7 @@ function CreateTicketModal({
                 }),
               }
             );
-          } catch (err) {}
+          } catch (err) { }
         }
         onClose();
       } catch (e) {
@@ -3181,11 +3171,10 @@ function CreateTicketModal({
                       setArea("");
                       setAreaNote("");
                     }}
-                    className={`px-3 rounded-md text-[10px] font-bold transition-all ${
-                      factory === f
+                    className={`px-3 rounded-md text-[10px] font-bold transition-all ${factory === f
                         ? "bg-slate-700 text-white shadow-sm"
                         : "text-slate-500 hover:text-slate-300"
-                    }`}
+                      }`}
                   >
                     {f}
                   </button>
@@ -3407,7 +3396,7 @@ function SettingsModal({
   const [guardMessage, setGuardMessage] = useState("");
   const [pendingAction, setPendingAction] = useState<
     () => Promise<void> | void
-  >(() => {});
+  >(() => { });
 
   // ✅ อัปเดต Map ชื่อ Doc ให้รองรับ assets
   const getDocId = () => {
@@ -3510,11 +3499,10 @@ function SettingsModal({
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded whitespace-nowrap transition-all ${
-                activeTab === t.id
+              className={`px-3 py-1.5 text-xs font-bold rounded whitespace-nowrap transition-all ${activeTab === t.id
                   ? "bg-[#0F1115] text-blue-400 shadow"
                   : "text-gray-400 hover:bg-gray-700"
-              }`}
+                }`}
             >
               {t.label}
             </button>
@@ -3524,9 +3512,8 @@ function SettingsModal({
           <div className="flex-1 space-y-2">
             <input
               className="w-full bg-[#0F1115] border border-gray-700 rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
-              placeholder={`ชื่อ${
-                tabs.find((t) => t.id === activeTab)?.label
-              }...`}
+              placeholder={`ชื่อ${tabs.find((t) => t.id === activeTab)?.label
+                }...`}
               value={newItem}
               onChange={(e) => setNewItem(e.target.value)}
             />
@@ -3620,7 +3607,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
     useState<MaintenanceTicket | null>(null);
   const [showPasswordGuard, setShowPasswordGuard] = useState(false);
   const [guardMessage, setGuardMessage] = useState("");
-  const [pendingAction, setPendingAction] = useState<() => void>(() => {});
+  const [pendingAction, setPendingAction] = useState<() => void>(() => { });
   const [showCreate, setShowCreate] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -3808,8 +3795,8 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
           if (prKeyIndex === -1) {
             console.error(
               "❌ ไม่พบคอลัมน์ 'PR_No' ในไฟล์ Google Sheets (หัวข้อที่มีคือ: " +
-                gsHeaders.join(",") +
-                ")"
+              gsHeaders.join(",") +
+              ")"
             );
           } else {
             // 2. เก็บข้อมูลทุกแถวลง Map
@@ -4017,11 +4004,10 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
                       setSelectedIds(new Set(filteredTickets.map((t) => t.id)));
                   }
                 }}
-                className={`px-4 h-10 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
-                  isSelectionMode
+                className={`px-4 h-10 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${isSelectionMode
                     ? "bg-slate-700 border-blue-500 text-blue-400"
                     : "bg-[#0F172A] text-slate-400 border-slate-700 hover:text-white hover:border-slate-500"
-                }`}
+                  }`}
               >
                 <CheckSquare size={14} />{" "}
                 {isSelectionMode ? "เลือกทั้งหมด" : "เลือก"}
