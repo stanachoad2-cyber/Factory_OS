@@ -3837,7 +3837,7 @@ function ScanPage({
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
-                          inputMode="decimal"
+                          inputMode="text"
                           placeholder="..."
                           disabled={isDpSaved || isHistoryMode}
                           value={dpDewPoint}
