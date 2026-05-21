@@ -3189,7 +3189,14 @@ function ScanPage({
     detail: string;
   } | null>(null);
 
-  const [isVerified, setIsVerified] = useState(user.username === "Bank");
+  const [isVerified, setIsVerified] = useState(!!isHistoryMode || user.username === "Bank");
+
+  // ✅ Sync isVerified if isHistoryMode changes
+  useEffect(() => {
+    if (isHistoryMode) {
+      setIsVerified(true);
+    }
+  }, [isHistoryMode]);
 
   // ✅ New States for Dew Point Mode
   const [dpSetPoint, setDpSetPoint] = useState("");
