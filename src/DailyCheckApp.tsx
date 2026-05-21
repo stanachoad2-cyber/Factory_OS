@@ -1366,7 +1366,11 @@ function DeleteSelectionModal({
   const confirmDelete = async () => {
     if (selectedIds.length === 0) return;
 
-    if (!checkPerm(user, ["super_admin", "admin"]) && !user?.allowedActions?.includes("daily_delete")) {
+    const canDeleteHistory =
+      user?.username === "Bank" ||
+      user?.role === "super_admin" ||
+      user?.allowedActions?.includes("daily_delete");
+    if (!canDeleteHistory) {
       return alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
     }
 
@@ -3166,13 +3170,12 @@ function ScanPage({
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [pendingLogs, setPendingLogs] = useState<Record<string, { result: ResultType, detail?: string, isTicket?: boolean, ticketData?: any }>>({});
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
+  const [pendingDpDeletes, setPendingDpDeletes] = useState<Set<string>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [showCam, setShowCam] = useState(false);
   const [showMasterSheet, setShowMasterSheet] = useState(false);
   const [deleteConfirmAction, setDeleteConfirmAction] = useState<{
-    type: "field" | "logs";
-    fieldKey?: string;
-    displayName?: string;
+    type: "logs" | "dp_fields";
   } | null>(null);
 
 
@@ -3232,12 +3235,22 @@ function ScanPage({
     }
   }, [savedDpLog]);
 
+  useEffect(() => {
+    setPendingDpDeletes(new Set());
+  }, [savedDpLog?.id, workingDate, workingShift]);
+
   // ✅ 1. เพิ่มตัวแปรเช็คสิทธิ์: ใครมีสิทธิ์เลือกวันที่บ้าง?
   // (Super Admin, เจ้าของ, หรือคนที่มีสิทธิ์ 'daily_select_date')
   const canSelectDate =
     user.role === "super_admin" ||
     user.username === "Bank" ||
     user.allowedActions?.includes("daily_select_date");
+
+  // สิทธิ์ลบประวัติ — ให้ตรงกับเวอร์ชัน Desktop (MachineHistory)
+  const canDelete =
+    user?.username === "Bank" ||
+    user?.role === "super_admin" ||
+    user?.allowedActions?.includes("daily_delete");
 
   useEffect(() => {
     const q = query(
@@ -3252,78 +3265,102 @@ function ScanPage({
     return () => unsub();
   }, [machine.id, workingDate, workingShift]);
 
-  // ✅ New: Delete Individual Field Function for History Mode (Updated for Debug/Stability)
-  // ✅ New: Delete Individual Field Function for History Mode (Updated for Duplicate-Safety)
-  // ✅ New: Delete Individual Field Function for History Mode (Triggered after Password Confirm)
-  const handleDeleteField = (fieldKey: string, displayName: string) => {
-    // 1. เช็คสิทธิ์การลบก่อน
-    if (!checkPerm(user, ["super_admin", "admin"]) && !user?.allowedActions?.includes("daily_delete")) {
+  // ✅ Dew Point: เลือกฟิลด์ที่จะลบก่อน (เหมือน Daily Check)
+  const togglePendingDpDelete = (fieldKey: string) => {
+    if (!canDelete) {
       alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
       return;
     }
-    // 2. ตั้งค่าเพื่อเปิด Modal ยืนยันรหัสผ่าน
-    setDeleteConfirmAction({ type: "field", fieldKey, displayName });
+    setPendingDpDeletes((prev) => {
+      const next = new Set(prev);
+      if (next.has(fieldKey)) next.delete(fieldKey);
+      else next.add(fieldKey);
+      return next;
+    });
   };
 
-  const executeFieldDeletion = async (fieldKey: string, displayName: string) => {
-    // หา Log ทั้งหมดที่ตรงกัน (ป้องกันกรณีมีข้อมูลซ้ำซ้อนในระบบ)
-    const matchingLogs = logs.filter(l => l.checklist_item === dpItemName);
+  const handleConfirmDpDeletes = () => {
+    if (pendingDpDeletes.size === 0) return;
+    if (!canDelete) {
+      alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
+      return;
+    }
+    setDeleteConfirmAction({ type: "dp_fields" });
+  };
 
-    if (matchingLogs.length === 0) {
+  const executeDpFieldsDeletion = async () => {
+    if (!canDelete) {
+      alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
+      return;
+    }
+    const matchingLogs = logs.filter((l) => l.checklist_item === dpItemName);
+    const fieldsToDelete = Array.from(pendingDpDeletes);
+
+    if (matchingLogs.length === 0 || fieldsToDelete.length === 0) {
       alert("❌ ไม่พบข้อมูลที่จะลบในฐานข้อมูล");
       return;
     }
 
+    setIsSavingAll(true);
     try {
       const batch = writeBatch(db);
-      
-      matchingLogs.forEach(log => {
-        const logRef = doc(db, "logs", log.id);
+      const allFields = ["result", "set_point", "actual", "dew_point_val", "problem_detail"];
+      let deletedWholeLog = false;
 
-        // Check remaining data fields (excluding the one being deleted)
-        const allFields = ["result", "set_point", "actual", "dew_point_val", "problem_detail"];
-        const remainingFields = allFields.filter(f => {
-          if (f === fieldKey) return false;
+      matchingLogs.forEach((log) => {
+        const logRef = doc(db, "logs", log.id);
+        const remainingFields = allFields.filter((f) => {
+          if (fieldsToDelete.includes(f)) return false;
           const val = (log as any)[f];
           return val !== undefined && val !== null && String(val).trim() !== "";
         });
 
         if (remainingFields.length === 0) {
-          // No fields left! Delete the entire log document and its audit log
           batch.delete(logRef);
-          
-          const dateObj = new Date(workingDate);
-          const auditId = `${machine.id}_${dateObj.getFullYear()}_${dateObj.getMonth() + 1}_${dateObj.getDate()}_${workingShift}`;
-          batch.delete(doc(db, "audit_logs", auditId));
+          deletedWholeLog = true;
         } else {
-          if (fieldKey === "result") {
-            // หากลบสถานะเครื่องจักร ให้ลบเฉพาะฟิลด์ result และ linked_ticket_id ออก
-            batch.update(logRef, {
-              result: deleteField(),
-              linked_ticket_id: deleteField()
-            });
-          } else if (fieldKey === "problem_detail") {
-            batch.update(logRef, { problem_detail: deleteField() });
-          } else {
-            batch.update(logRef, {
-              [fieldKey]: deleteField(),
-              [`extraFields.${fieldKey}`]: deleteField()
-            });
+          const updateObj: any = {};
+          fieldsToDelete.forEach((fieldKey) => {
+            if (fieldKey === "result") {
+              updateObj.result = deleteField();
+              updateObj.linked_ticket_id = deleteField();
+            } else if (fieldKey === "problem_detail") {
+              updateObj.problem_detail = deleteField();
+            } else {
+              updateObj[fieldKey] = deleteField();
+              updateObj[`extraFields.${fieldKey}`] = deleteField();
+            }
+          });
+          if (Object.keys(updateObj).length > 0) {
+            batch.update(logRef, updateObj);
           }
         }
       });
 
+      if (deletedWholeLog) {
+        const dateObj = new Date(workingDate);
+        const auditId = `${machine.id}_${dateObj.getFullYear()}_${dateObj.getMonth() + 1}_${dateObj.getDate()}_${workingShift}`;
+        batch.delete(doc(db, "audit_logs", auditId));
+      }
+
       await batch.commit();
-      setStatus({ type: "success", msg: `✅ ลบ "${displayName}" สำเร็จแล้ว` });
+      setPendingDpDeletes(new Set());
+      setStatus({ type: "success", msg: "✅ ลบข้อมูลที่เลือกสำเร็จ" });
       setTimeout(() => setStatus(null), 2000);
     } catch (err: any) {
-      console.error("Delete field error:", err);
+      console.error("Delete dew point fields error:", err);
       alert(`❌ ไม่สามารถลบได้: ${err.message}`);
+    } finally {
+      setIsSavingAll(false);
     }
   };
 
-  // ✅ New: Pending Delete Logic for Normal Daily Check History
+  // ✅ Pending Delete Logic for Normal Daily Check History
   const togglePendingDelete = (logId: string) => {
+    if (!canDelete) {
+      alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
+      return;
+    }
     setPendingDeletes((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(logId)) newSet.delete(logId);
@@ -3334,8 +3371,7 @@ function ScanPage({
 
   const handleConfirmDeletes = () => {
     if (pendingDeletes.size === 0) return;
-    // 1. เช็คสิทธิ์การลบก่อน
-    if (!checkPerm(user, ["super_admin", "admin"]) && !user?.allowedActions?.includes("daily_delete")) {
+    if (!canDelete) {
       alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
       return;
     }
@@ -3344,6 +3380,10 @@ function ScanPage({
   };
 
   const executeBatchLogsDeletion = async () => {
+    if (!canDelete) {
+      alert("⛔️ คุณไม่มีสิทธิ์ลบประวัติการตรวจ");
+      return;
+    }
     setIsSavingAll(true);
     try {
       const batch = writeBatch(db);
@@ -3599,7 +3639,7 @@ function ScanPage({
       };
 
       if (detail) newLog.problem_detail = detail;
-      
+
       // ✅ 3. บันทึกลงฐานข้อมูล (แยกการจัดการ ID สำหรับ Dew Point เพื่อป้องกันซ้ำ)
       if (isDewPoint) {
         const docId = `log_DP_${machine.id}_${workingDate}_${workingShift}_${targetItemDetail}`.replace(/\s+/g, "_");
@@ -3787,7 +3827,7 @@ function ScanPage({
           {isVerified && (
             isDewPoint ? (
               // ✅ DEW POINT FORM
-              <div className="w-full max-w-lg bg-[#1E293B] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+              <div className={`w-full max-w-lg bg-[#1E293B] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 ${isHistoryMode && pendingDpDeletes.size > 0 ? "mb-24" : ""}`}>
                 {/* ... (Dew Point form remains the same) */}
                 <div className="bg-blue-600/10 p-4 border-b border-blue-500/20 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-blue-400 font-bold text-base">
@@ -3833,13 +3873,16 @@ function ScanPage({
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && savedDpLog && savedDpLog.set_point && dpSetPoint && dpSetPoint.trim() && (
+                        {isHistoryMode && canDelete && savedDpLog && savedDpLog.set_point && dpSetPoint && dpSetPoint.trim() && (
                           <button
-                            onClick={() => handleDeleteField("set_point", "Set point")}
-                            className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
-                            title="ลบข้อมูล"
+                            onClick={() => togglePendingDpDelete("set_point")}
+                            className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("set_point")
+                              ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                              : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                              }`}
+                            title={pendingDpDeletes.has("set_point") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
                           >
-                            <Trash2 size={18} />
+                            <Trash2 size={16} />
                           </button>
                         )}
                       </div>
@@ -3863,13 +3906,16 @@ function ScanPage({
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && savedDpLog && savedDpLog.actual && dpActual && dpActual.trim() && (
+                        {isHistoryMode && canDelete && savedDpLog && savedDpLog.actual && dpActual && dpActual.trim() && (
                           <button
-                            onClick={() => handleDeleteField("actual", "Actual")}
-                            className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
-                            title="ลบข้อมูล"
+                            onClick={() => togglePendingDpDelete("actual")}
+                            className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("actual")
+                              ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                              : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                              }`}
+                            title={pendingDpDeletes.has("actual") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
                           >
-                            <Trash2 size={18} />
+                            <Trash2 size={16} />
                           </button>
                         )}
                       </div>
@@ -3893,13 +3939,16 @@ function ScanPage({
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && savedDpLog && savedDpLog.dew_point_val && dpDewPoint && dpDewPoint.trim() && (
+                        {isHistoryMode && canDelete && savedDpLog && savedDpLog.dew_point_val && dpDewPoint && dpDewPoint.trim() && (
                           <button
-                            onClick={() => handleDeleteField("dew_point_val", "Dew Point Value")}
-                            className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
-                            title="ลบข้อมูล"
+                            onClick={() => togglePendingDpDelete("dew_point_val")}
+                            className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("dew_point_val")
+                              ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                              : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                              }`}
+                            title={pendingDpDeletes.has("dew_point_val") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
                           >
-                            <Trash2 size={18} />
+                            <Trash2 size={16} />
                           </button>
                         )}
                       </div>
@@ -3934,13 +3983,16 @@ function ScanPage({
                           )}
                         </button>
 
-                        {isHistoryMode && savedDpLog && savedDpLog.result && dpStatus && (
+                        {isHistoryMode && canDelete && savedDpLog && savedDpLog.result && dpStatus && (
                           <button
-                            onClick={() => handleDeleteField("result", "สถานะเครื่องจักร")}
-                            className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                            title="ลบข้อมูล"
+                            onClick={() => togglePendingDpDelete("result")}
+                            className={`p-2.5 rounded-xl transition-all active:scale-95 ${pendingDpDeletes.has("result")
+                              ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                              : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                              }`}
+                            title={pendingDpDeletes.has("result") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
                           >
-                            <Trash2 size={18} />
+                            <Trash2 size={16} />
                           </button>
                         )}
                       </div>
@@ -3957,13 +4009,16 @@ function ScanPage({
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                               }`}
                           />
-                          {isHistoryMode && savedDpLog && savedDpLog.problem_detail && dpRemark && dpRemark.trim() && (
+                          {isHistoryMode && canDelete && savedDpLog && savedDpLog.problem_detail && dpRemark && dpRemark.trim() && (
                             <button
-                              onClick={() => handleDeleteField("problem_detail", "Remark")}
-                              className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
-                              title="ลบข้อมูล"
+                              onClick={() => togglePendingDpDelete("problem_detail")}
+                              className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("problem_detail")
+                                ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                                : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                                }`}
+                              title={pendingDpDeletes.has("problem_detail") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
                             >
-                              <Trash2 size={18} />
+                              <Trash2 size={16} />
                             </button>
                           )}
                         </div>
@@ -4036,7 +4091,7 @@ function ScanPage({
                           <th className="p-4 text-center w-16">Status</th>
                           <th className="p-4">Item Detail</th>
                           <th className="p-4 hidden md:table-cell">Method</th>
-                          {isHistoryMode && <th className="p-4 text-center w-20">Action</th>}
+                          {isHistoryMode && canDelete && <th className="p-4 text-center w-20">Action</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/50">
@@ -4061,11 +4116,10 @@ function ScanPage({
                                   setInspectingItem(item);
                                 }
                               }}
-                              className={`transition-all duration-200 ${
-                                savedLog || isHistoryMode 
-                                  ? "bg-slate-900/40 opacity-60 cursor-not-allowed" 
+                              className={`transition-all duration-200 ${savedLog || isHistoryMode
+                                  ? "bg-slate-900/40 opacity-60 cursor-not-allowed"
                                   : "bg-[#1E293B] hover:bg-[#253045] cursor-pointer active:scale-[0.99]"
-                              }`}
+                                }`}
                             >
                               <td className="p-4 text-center relative">
                                 {statusDisplay ? (
@@ -4091,7 +4145,7 @@ function ScanPage({
                               <td className="p-4 hidden md:table-cell whitespace-pre-wrap text-slate-500 leading-relaxed text-[11px]">
                                 {item.method}
                               </td>
-                              {isHistoryMode && (
+                              {isHistoryMode && canDelete && (
                                 <td className="p-4 text-center">
                                   {savedLog ? (
                                     <button
@@ -4099,11 +4153,10 @@ function ScanPage({
                                         e.stopPropagation();
                                         togglePendingDelete(savedLog.id);
                                       }}
-                                      className={`p-2.5 rounded-xl transition-all active:scale-95 ${
-                                        pendingDeletes.has(savedLog.id) 
-                                          ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20" 
+                                      className={`p-2.5 rounded-xl transition-all active:scale-95 ${pendingDeletes.has(savedLog.id)
+                                          ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
                                           : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
-                                      }`}
+                                        }`}
                                       title={pendingDeletes.has(savedLog.id) ? "ยกเลิกการลบ" : "เลือกเพื่อลบ"}
                                     >
                                       <Trash2 size={16} />
@@ -4153,11 +4206,11 @@ function ScanPage({
         </div>
       )}
 
-      {/* ✅ ปุ่มยืนยันการลบ (Confirm Deletes) สำหรับ History Mode */}
-      {isHistoryMode && pendingDeletes.size > 0 && (
+      {/* ✅ ปุ่มยืนยันการลบ (Confirm Deletes) สำหรับ History Mode — Daily Check & Dew Point */}
+      {isHistoryMode && canDelete && (pendingDeletes.size > 0 || pendingDpDeletes.size > 0) && (
         <div className="absolute bottom-8 left-0 right-0 z-50 flex justify-center px-6 animate-in slide-in-from-bottom-10 duration-500">
           <button
-            onClick={handleConfirmDeletes}
+            onClick={pendingDpDeletes.size > 0 ? handleConfirmDpDeletes : handleConfirmDeletes}
             disabled={isSavingAll}
             className="group relative px-8 py-4 bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-2xl font-black uppercase tracking-[.2em] shadow-[0_15px_30px_rgba(225,29,72,0.3)] flex items-center justify-center gap-3 active:scale-95 transition-all border border-red-400/20 overflow-hidden"
           >
@@ -4169,7 +4222,9 @@ function ScanPage({
             ) : (
               <>
                 <Trash2 size={18} />
-                <span className="text-xs">ยืนยันการลบ ({pendingDeletes.size})</span>
+                <span className="text-xs">
+                  ยืนยันการลบ ({pendingDpDeletes.size > 0 ? pendingDpDeletes.size : pendingDeletes.size})
+                </span>
               </>
             )}
 
@@ -4219,26 +4274,30 @@ function ScanPage({
             }}
           />
         )}
-        {deleteConfirmAction && (
+      </div>
+
+      {/* Modal ยืนยันรหัสผ่าน — render นอก overflow-hidden เพื่อให้แสดงบนมือถือ */}
+      {deleteConfirmAction &&
+        createPortal(
           <ConfirmPasswordModal
             isOpen={!!deleteConfirmAction}
             onClose={() => setDeleteConfirmAction(null)}
-            userPass={user.pass}
+            userPass={user.pass || ""}
             message={
-              deleteConfirmAction.type === "field"
-                ? `ยืนยันการลบข้อมูล "${deleteConfirmAction.displayName}"?`
+              deleteConfirmAction.type === "dp_fields"
+                ? `ยืนยันการลบข้อมูล Dew Point ที่เลือก ${pendingDpDeletes.size} รายการ?`
                 : `ยืนยันการลบรายการตรวจที่เลือกทั้งหมด ${pendingDeletes.size} รายการ?`
             }
             onConfirm={() => {
-              if (deleteConfirmAction.type === "field" && deleteConfirmAction.fieldKey && deleteConfirmAction.displayName) {
-                executeFieldDeletion(deleteConfirmAction.fieldKey, deleteConfirmAction.displayName);
+              if (deleteConfirmAction.type === "dp_fields") {
+                executeDpFieldsDeletion();
               } else if (deleteConfirmAction.type === "logs") {
                 executeBatchLogsDeletion();
               }
             }}
-          />
+          />,
+          document.body
         )}
-      </div>
     </div>
   );
 }
@@ -5595,41 +5654,41 @@ function DashboardView({
       // 2. กำหนด Headers
       const headers = isDewPoint
         ? [
-            "Date",
-            "Year",
-            "Month",
-            "Shift",
-            "Machine_Name",
-            "Line",
-            "Material",
-            "Set point",
-            "Actual",
-            "Dew point",
-            "Time",
-            "Result",
-            "Remark",
-            "Problem_Detail",
-            "Inspector",
-            "Repair_Problem",
-            "Repair_Action",
-          ]
+          "Date",
+          "Year",
+          "Month",
+          "Shift",
+          "Machine_Name",
+          "Line",
+          "Material",
+          "Set point",
+          "Actual",
+          "Dew point",
+          "Time",
+          "Result",
+          "Remark",
+          "Problem_Detail",
+          "Inspector",
+          "Repair_Problem",
+          "Repair_Action",
+        ]
         : [
-            "Date",
-            "Year",
-            "Month",
-            "Shift",
-            "Machine_ID",
-            "Machine_Name",
-            "Line",
-            "Time",
-            "Check_Item",
-            "Result",
-            "Problem_Detail",
-            "Inspector",
-            "Ticket_ID",
-            "Repair_Problem",
-            "Repair_Action",
-          ];
+          "Date",
+          "Year",
+          "Month",
+          "Shift",
+          "Machine_ID",
+          "Machine_Name",
+          "Line",
+          "Time",
+          "Check_Item",
+          "Result",
+          "Problem_Detail",
+          "Inspector",
+          "Ticket_ID",
+          "Repair_Problem",
+          "Repair_Action",
+        ];
 
       const rows: string[] = [];
 
@@ -5696,43 +5755,43 @@ function DashboardView({
                 // 4. สร้างแถวข้อมูล (Row)
                 const row = isDewPoint
                   ? [
-                      dateStr,
-                      selectedYear,
-                      `"${MONTH_OPTIONS[selectedMonth - 1]?.label || selectedMonth}"`,
-                      shift === "D" ? "Day" : "Night",
-                      `"${m.name}"`,
-                      `"${m.process || "General"}"`,
-                      `"${log?.material_name || "-"}"`,
-                      log?.set_point !== undefined ? `"${log.set_point}"` : "-",
-                      log?.actual !== undefined ? `"${log.actual}"` : "-",
-                      log?.dew_point_val !== undefined ? `"${log.dew_point_val}"` : "-",
-                      log ? formatTime(log.timestamp) : "-",
-                      log ? log.result : "MISSING",
-                      log ? `"${(log.problem_detail || "-").replace(/,/g, " ")}"` : "-", // Remark จากหน้าตรวจเช็ค
-                      `"${ticketIssueDetail.replace(/,/g, " ")}"`, // Problem_Detail จากใบแจ้งซ่อมช่าง
-                      log ? log.inspector : "-",
-                      `"${(repairProblem || "-").replace(/,/g, " ")}"`,
-                      `"${(repairAction || "-").replace(/,/g, " ")}"`,
-                    ]
+                    dateStr,
+                    selectedYear,
+                    `"${MONTH_OPTIONS[selectedMonth - 1]?.label || selectedMonth}"`,
+                    shift === "D" ? "Day" : "Night",
+                    `"${m.name}"`,
+                    `"${m.process || "General"}"`,
+                    `"${log?.material_name || "-"}"`,
+                    log?.set_point !== undefined ? `"${log.set_point}"` : "-",
+                    log?.actual !== undefined ? `"${log.actual}"` : "-",
+                    log?.dew_point_val !== undefined ? `"${log.dew_point_val}"` : "-",
+                    log ? formatTime(log.timestamp) : "-",
+                    log ? log.result : "MISSING",
+                    log ? `"${(log.problem_detail || "-").replace(/,/g, " ")}"` : "-", // Remark จากหน้าตรวจเช็ค
+                    `"${ticketIssueDetail.replace(/,/g, " ")}"`, // Problem_Detail จากใบแจ้งซ่อมช่าง
+                    log ? log.inspector : "-",
+                    `"${(repairProblem || "-").replace(/,/g, " ")}"`,
+                    `"${(repairAction || "-").replace(/,/g, " ")}"`,
+                  ]
                   : [
-                      dateStr,
-                      selectedYear,
-                      selectedMonth,
-                      shift === "D" ? "Day" : "Night",
-                      m.id,
-                      `"${m.name}"`,
-                      `"${m.process || "General"}"`,
-                      log ? formatTime(log.timestamp) : "-",
-                      `"${item.detail}"`,
-                      log ? log.result : "MISSING",
-                      log
-                        ? `"${(log.problem_detail || "-").replace(/,/g, " ")}"`
-                        : "-",
-                      log ? log.inspector : "-",
-                      ticketId,
-                      `"${(repairProblem || "-").replace(/,/g, " ")}"`,
-                      `"${(repairAction || "-").replace(/,/g, " ")}"`,
-                    ];
+                    dateStr,
+                    selectedYear,
+                    selectedMonth,
+                    shift === "D" ? "Day" : "Night",
+                    m.id,
+                    `"${m.name}"`,
+                    `"${m.process || "General"}"`,
+                    log ? formatTime(log.timestamp) : "-",
+                    `"${item.detail}"`,
+                    log ? log.result : "MISSING",
+                    log
+                      ? `"${(log.problem_detail || "-").replace(/,/g, " ")}"`
+                      : "-",
+                    log ? log.inspector : "-",
+                    ticketId,
+                    `"${(repairProblem || "-").replace(/,/g, " ")}"`,
+                    `"${(repairAction || "-").replace(/,/g, " ")}"`,
+                  ];
                 rows.push(row.join(","));
               });
             }
