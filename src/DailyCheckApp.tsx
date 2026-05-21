@@ -96,6 +96,15 @@ const checkPerm = (user: any, allowedRoles: string[]) => {
   return allowedRoles.includes(user?.role);
 };
 
+// ✅ Helper to check if a Dew Point log has any actual check data left
+const hasDpData = (log: any) => {
+  if (!log) return false;
+  const fields = ["result", "set_point", "actual", "dew_point_val", "problem_detail"];
+  return fields.some(
+    (f) => log[f] !== undefined && log[f] !== null && String(log[f]).trim() !== ""
+  );
+};
+
 // ✅ New: ConfirmPasswordModal for Daily Check (matches theme of Maintenance App)
 function ConfirmPasswordModal({
   isOpen,
@@ -565,7 +574,7 @@ const getResultDisplay = (result: ResultType) => {
     case "NA":
       return { symbol: "-", color: "text-slate-400", text: "ไม่ใช้งาน" };
     default:
-      return { symbol: "?", color: "text-slate-600", text: "-" };
+      return { symbol: "", color: "text-slate-600", text: "ไม่มีข้อมูล" };
   }
 };
 
@@ -1337,7 +1346,9 @@ function DeleteSelectionModal({
       if (log.problem_detail)
         items.push({ id: `${log.id}__remark`, label: "Remark", val: log.problem_detail, color: "text-amber-400" });
 
-      items.push({ id: `${log.id}__result`, label: "สถานะเครื่อง (Machine Status)", val: getResultDisplay(log.result).text, color: getResultDisplay(log.result).color });
+      if (log.result !== undefined && log.result !== null) {
+        items.push({ id: `${log.id}__result`, label: "สถานะเครื่อง (Machine Status)", val: getResultDisplay(log.result).text, color: getResultDisplay(log.result).color });
+      }
     });
     return items;
   }, [targetLogs, isDp]);
@@ -1386,13 +1397,17 @@ function DeleteSelectionModal({
 
           const selectedFields = fields.filter(f => selectedIds.includes(f));
 
-          if (selectedFields.length === fields.length || selectedIds.includes(`${log.id}__result`)) {
-            // ลบทั้งก้อน (ถ้าเลือกสถานะเครื่อง หรือเลือกครบทุกช่องที่มี)
+          if (selectedFields.length === fields.length) {
+            // ลบทั้งก้อน (ถ้าเลือกครบทุกช่องที่มี)
             batch.delete(doc(db, "logs", log.id));
             logDeletions.add(log.id);
           } else if (selectedFields.length > 0) {
             // อัปเดตลบเฉพาะบางฟิลด์
             const updateObj: any = {};
+            if (selectedIds.includes(`${log.id}__result`)) {
+              updateObj.result = deleteField();
+              updateObj.linked_ticket_id = deleteField();
+            }
             if (selectedIds.includes(`${log.id}__set_point`)) {
               updateObj.set_point = deleteField();
               updateObj["extraFields.set_point"] = deleteField();
@@ -3193,11 +3208,11 @@ function ScanPage({
 
   // ✅ Sync saved data to state if exists
   useEffect(() => {
-    if (isDpSaved && savedDpLog) {
+    if (savedDpLog) {
       setDpSetPoint(savedDpLog.set_point || "");
       setDpActual(savedDpLog.actual || "");
       setDpDewPoint(savedDpLog.dew_point_val || "");
-      setDpStatus(savedDpLog.result);
+      setDpStatus(savedDpLog.result || null);
       setDpRemark(savedDpLog.problem_detail || "");
     } else {
       // 🔄 Clear inputs if no log exists for this date/shift
@@ -3207,7 +3222,7 @@ function ScanPage({
       setDpStatus(null);
       setDpRemark("");
     }
-  }, [isDpSaved, savedDpLog]);
+  }, [savedDpLog]);
 
   // ✅ 1. เพิ่มตัวแปรเช็คสิทธิ์: ใครมีสิทธิ์เลือกวันที่บ้าง?
   // (Super Admin, เจ้าของ, หรือคนที่มีสิทธิ์ 'daily_select_date')
@@ -3256,16 +3271,37 @@ function ScanPage({
       
       matchingLogs.forEach(log => {
         const logRef = doc(db, "logs", log.id);
-        if (fieldKey === "result") {
-          // หากลบสถานะเครื่องจักร ให้ลบเอกสาร Log นี้ออกไปทั้งหมดเลย เพื่อให้เครื่องกลับเป็นสถานะ "ยังไม่ได้ตรวจ"
+
+        // Check remaining data fields (excluding the one being deleted)
+        const allFields = ["result", "set_point", "actual", "dew_point_val", "problem_detail"];
+        const remainingFields = allFields.filter(f => {
+          if (f === fieldKey) return false;
+          const val = (log as any)[f];
+          return val !== undefined && val !== null && String(val).trim() !== "";
+        });
+
+        if (remainingFields.length === 0) {
+          // No fields left! Delete the entire log document and its audit log
           batch.delete(logRef);
-        } else if (fieldKey === "problem_detail") {
-          batch.update(logRef, { problem_detail: deleteField() });
+          
+          const dateObj = new Date(workingDate);
+          const auditId = `${machine.id}_${dateObj.getFullYear()}_${dateObj.getMonth() + 1}_${dateObj.getDate()}_${workingShift}`;
+          batch.delete(doc(db, "audit_logs", auditId));
         } else {
-          batch.update(logRef, {
-            [fieldKey]: deleteField(),
-            [`extraFields.${fieldKey}`]: deleteField()
-          });
+          if (fieldKey === "result") {
+            // หากลบสถานะเครื่องจักร ให้ลบเฉพาะฟิลด์ result และ linked_ticket_id ออก
+            batch.update(logRef, {
+              result: deleteField(),
+              linked_ticket_id: deleteField()
+            });
+          } else if (fieldKey === "problem_detail") {
+            batch.update(logRef, { problem_detail: deleteField() });
+          } else {
+            batch.update(logRef, {
+              [fieldKey]: deleteField(),
+              [`extraFields.${fieldKey}`]: deleteField()
+            });
+          }
         }
       });
 
@@ -3449,7 +3485,7 @@ function ScanPage({
         (l) => l.checklist_item === targetItemDetail
       );
 
-      if (existingLog) {
+      if (existingLog && (!isDewPoint || existingLog.result)) {
         // ถ้าเจอข้อมูลเก่า ให้แจ้งเตือนและหยุดฟังก์ชันทันที (ไม่บันทึก Ticket และไม่บันทึก Log)
         alert(
           `⚠️ รายการ "${targetItemDetail}" ถูกบันทึกไปแล้ว\nหากต้องการบันทึกใหม่ กรุณาไปลบข้อมูลเดิมในหน้าประวัติก่อนครับ`
@@ -3758,12 +3794,12 @@ function ScanPage({
                   <div className="grid grid-cols-1 gap-4">
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 mb-2">
                       <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                        Material System {isDpSaved && "(Saved Value)"}
+                        Material System {savedDpLog && "(Saved Value)"}
                       </label>
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
                         <span className="text-sm font-bold text-blue-400">
-                          {isDpSaved
+                          {savedDpLog
                             ? (savedDpLog?.material_name || "ไม่ระบุ")
                             : (machine.material || "ไม่ระบุ (กรุณาตั้งค่าเครื่องจักร)")}
                         </span>
@@ -3782,14 +3818,14 @@ function ScanPage({
                           disabled={isDpSaved || isHistoryMode}
                           value={dpSetPoint}
                           onChange={(e) => setDpSetPoint(e.target.value)}
-                          className={`flex-1 border rounded-xl px-4 py-3 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
+                          className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
                             ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
                             : dpStatus === "NA"
                               ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && isDpSaved && dpSetPoint && dpSetPoint.trim() && (
+                        {isHistoryMode && savedDpLog && savedDpLog.set_point && dpSetPoint && dpSetPoint.trim() && (
                           <button
                             onClick={() => handleDeleteField("set_point", "Set point")}
                             className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
@@ -3812,14 +3848,14 @@ function ScanPage({
                           disabled={isDpSaved || isHistoryMode}
                           value={dpActual}
                           onChange={(e) => setDpActual(e.target.value)}
-                          className={`flex-1 border rounded-xl px-4 py-3 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
+                          className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
                             ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
                             : dpStatus === "NA"
                               ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && isDpSaved && dpActual && dpActual.trim() && (
+                        {isHistoryMode && savedDpLog && savedDpLog.actual && dpActual && dpActual.trim() && (
                           <button
                             onClick={() => handleDeleteField("actual", "Actual")}
                             className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
@@ -3842,14 +3878,14 @@ function ScanPage({
                           disabled={isDpSaved || isHistoryMode}
                           value={dpDewPoint}
                           onChange={(e) => setDpDewPoint(e.target.value)}
-                          className={`flex-1 border rounded-xl px-4 py-3 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
+                          className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
                             ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
                             : dpStatus === "NA"
                               ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
                               : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                             }`}
                         />
-                        {isHistoryMode && isDpSaved && dpDewPoint && dpDewPoint.trim() && (
+                        {isHistoryMode && savedDpLog && savedDpLog.dew_point_val && dpDewPoint && dpDewPoint.trim() && (
                           <button
                             onClick={() => handleDeleteField("dew_point_val", "Dew Point Value")}
                             className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
@@ -3862,69 +3898,68 @@ function ScanPage({
                     </div>
                   </div>
 
-                  <div className="flex flex-col">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      4. สถานะเครื่องจักร
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        disabled={isDpSaved || isHistoryMode}
-                        onClick={() => setInspectingItem({
-                          detail: machine.checklist[0]?.detail || "Dew Point Check",
-                          method: "ตรวจสอบค่า Dew Point และบันทึกสถานะ"
-                        })}
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all border border-slate-700 relative overflow-hidden group ${dpStatus
-                          ? "bg-slate-900 border-blue-500/50 shadow-md"
-                          : "bg-slate-800/50 border-slate-700 hover:border-slate-500 shadow-inner"
-                          } ${isDpSaved ? "cursor-default" : "active:scale-95"}`}
-                      >
-                        {dpStatus ? (
-                          <span className={`text-sm font-bold relative z-10 ${getResultDisplay(dpStatus).color}`}>
-                            {getResultDisplay(dpStatus).symbol}
-                          </span>
-                        ) : (
-                          <div className="relative z-10 text-slate-500 group-hover:text-slate-300 transition-colors">
-                            <Pencil size={14} />
-                          </div>
-                        )}
-                      </button>
-
-                      {isHistoryMode && isDpSaved && dpStatus && (
-                        <button
-                          onClick={() => handleDeleteField("result", "สถานะเครื่องจักร")}
-                          className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                          title="ลบข้อมูล"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      5. Remark (หมายเหตุ)
+                      4. Machine Status
                     </label>
-                    <div className="flex items-center gap-2">
-                      <textarea
-                        placeholder="..."
-                        disabled={isDpSaved || isHistoryMode}
-                        value={dpRemark}
-                        onChange={(e) => setDpRemark(e.target.value)}
-                        className={`flex-1 border rounded-xl px-4 py-3 text-white text-base outline-none shadow-inner transition-all h-[50px] resize-none ${isDpSaved
-                          ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
-                          : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
-                          }`}
-                      />
-                      {isHistoryMode && isDpSaved && dpRemark && dpRemark.trim() && (
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
-                          onClick={() => handleDeleteField("problem_detail", "Remark")}
-                          className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
-                          title="ลบข้อมูล"
+                          disabled={isDpSaved || isHistoryMode}
+                          onClick={() => setInspectingItem({
+                            detail: machine.checklist[0]?.detail || "Dew Point Check",
+                            method: "ตรวจสอบค่า Dew Point และบันทึกสถานะ"
+                          })}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border border-slate-700 relative overflow-hidden group ${dpStatus
+                            ? "bg-slate-900 border-blue-500/50 shadow-md"
+                            : "bg-slate-800/50 border-slate-700 hover:border-slate-500 shadow-inner"
+                            } ${isDpSaved ? "cursor-default" : "active:scale-95"}`}
                         >
-                          <Trash2 size={18} />
+                          {dpStatus ? (
+                            <span className={`text-sm font-bold relative z-10 ${getResultDisplay(dpStatus).color}`}>
+                              {getResultDisplay(dpStatus).symbol}
+                            </span>
+                          ) : (
+                            <div className="relative z-10 text-slate-500 group-hover:text-slate-300 transition-colors">
+                              <Pencil size={14} />
+                            </div>
+                          )}
                         </button>
-                      )}
+
+                        {isHistoryMode && savedDpLog && savedDpLog.result && dpStatus && (
+                          <button
+                            onClick={() => handleDeleteField("result", "สถานะเครื่องจักร")}
+                            className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                            title="ลบข้อมูล"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <textarea
+                            placeholder="Remark"
+                            disabled={isDpSaved || isHistoryMode}
+                            value={dpRemark}
+                            onChange={(e) => setDpRemark(e.target.value)}
+                            className={`flex-1 border rounded-xl px-3 py-2 text-white text-base outline-none shadow-inner transition-all h-10 resize-none overflow-hidden ${isDpSaved
+                              ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
+                              : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
+                              }`}
+                          />
+                          {isHistoryMode && savedDpLog && savedDpLog.problem_detail && dpRemark && dpRemark.trim() && (
+                            <button
+                              onClick={() => handleDeleteField("problem_detail", "Remark")}
+                              className="p-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
+                              title="ลบข้อมูล"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -4265,7 +4300,9 @@ const MachineHistory = React.memo(function MachineHistory({
     const foundLog = (logs || []).find(
       (l) => l.mid === machine.id && l.date === dateStr && l.shift === shift
     );
-    return foundLog ? foundLog.inspector : "";
+    if (!foundLog) return "";
+    if (isDewPointMode && !hasDpData(foundLog)) return "";
+    return foundLog.inspector;
   };
 
   const handleOpenDelete = (d: number, shift: string) => {
@@ -4413,10 +4450,10 @@ const MachineHistory = React.memo(function MachineHistory({
                     return (
                       <React.Fragment key={d}>
                         <td className="border-r border-slate-200 p-0 text-center align-middle h-7 text-[9px] text-slate-500 font-bold">
-                          {lD ? (lD.result === "NA" ? "-" : (lD.material_name || "")) : ""}
+                          {lD && hasDpData(lD) ? (lD.result === "NA" ? "-" : (lD.material_name || "")) : ""}
                         </td>
                         <td className="border-r border-slate-300 p-0 text-center align-middle h-7 text-[9px] text-slate-500 font-bold bg-slate-50/50">
-                          {lN ? (lN.result === "NA" ? "-" : (lN.material_name || "")) : ""}
+                          {lN && hasDpData(lN) ? (lN.result === "NA" ? "-" : (lN.material_name || "")) : ""}
                         </td>
                       </React.Fragment>
                     );
@@ -4431,10 +4468,10 @@ const MachineHistory = React.memo(function MachineHistory({
                     return (
                       <React.Fragment key={d}>
                         <td className="border-r border-slate-200 p-0 text-center align-middle h-7 text-[9px] text-blue-600 font-bold">
-                          {lD ? (lD.result === "NA" ? "-" : (lD.set_point || "")) : ""}
+                          {lD && hasDpData(lD) ? (lD.result === "NA" ? "-" : (lD.set_point || "")) : ""}
                         </td>
                         <td className="border-r border-slate-300 p-0 text-center align-middle h-7 text-[9px] text-blue-600 font-bold bg-slate-50/50">
-                          {lN ? (lN.result === "NA" ? "-" : (lN.set_point || "")) : ""}
+                          {lN && hasDpData(lN) ? (lN.result === "NA" ? "-" : (lN.set_point || "")) : ""}
                         </td>
                       </React.Fragment>
                     );
@@ -4449,10 +4486,10 @@ const MachineHistory = React.memo(function MachineHistory({
                     return (
                       <React.Fragment key={d}>
                         <td className="border-r border-slate-200 p-0 text-center align-middle h-7 text-[9px] text-emerald-600 font-bold">
-                          {lD ? (lD.result === "NA" ? "-" : (lD.actual || "")) : ""}
+                          {lD && hasDpData(lD) ? (lD.result === "NA" ? "-" : (lD.actual || "")) : ""}
                         </td>
                         <td className="border-r border-slate-300 p-0 text-center align-middle h-7 text-[9px] text-emerald-600 font-bold bg-slate-50/50">
-                          {lN ? (lN.result === "NA" ? "-" : (lN.actual || "")) : ""}
+                          {lN && hasDpData(lN) ? (lN.result === "NA" ? "-" : (lN.actual || "")) : ""}
                         </td>
                       </React.Fragment>
                     );
@@ -4467,10 +4504,10 @@ const MachineHistory = React.memo(function MachineHistory({
                     return (
                       <React.Fragment key={d}>
                         <td className="border-r border-slate-200 p-0 text-center align-middle h-7 text-[9px] text-cyan-600 font-bold">
-                          {lD ? (lD.result === "NA" ? "-" : (lD.dew_point_val || "")) : ""}
+                          {lD && hasDpData(lD) ? (lD.result === "NA" ? "-" : (lD.dew_point_val || "")) : ""}
                         </td>
                         <td className="border-r border-slate-300 p-0 text-center align-middle h-7 text-[9px] text-cyan-600 font-bold bg-slate-50/50">
-                          {lN ? (lN.result === "NA" ? "-" : (lN.dew_point_val || "")) : ""}
+                          {lN && hasDpData(lN) ? (lN.result === "NA" ? "-" : (lN.dew_point_val || "")) : ""}
                         </td>
                       </React.Fragment>
                     );
@@ -4485,10 +4522,10 @@ const MachineHistory = React.memo(function MachineHistory({
                     return (
                       <React.Fragment key={d}>
                         <td className="border-r border-slate-200 p-0 text-center align-middle h-7">
-                          {lD && <CellContent res={getResultDisplay(lD.result)} log={lD} hideTooltip={true} />}
+                          {lD && hasDpData(lD) && <CellContent res={getResultDisplay(lD.result)} log={lD} hideTooltip={true} />}
                         </td>
                         <td className="border-r border-slate-300 p-0 text-center align-middle h-7 bg-slate-50/50">
-                          {lN && <CellContent res={getResultDisplay(lN.result)} log={lN} hideTooltip={true} />}
+                          {lN && hasDpData(lN) && <CellContent res={getResultDisplay(lN.result)} log={lN} hideTooltip={true} />}
                         </td>
                       </React.Fragment>
                     );
@@ -4503,7 +4540,7 @@ const MachineHistory = React.memo(function MachineHistory({
                     return (
                       <React.Fragment key={d}>
                         <td className="border-r border-slate-200 p-0 text-center align-middle h-7">
-                          {lD ? (
+                          {lD && hasDpData(lD) ? (
                             lD.result === "NA" ? (
                               <span className="text-slate-400 text-[10px] font-bold">-</span>
                             ) : lD.problem_detail ? (
@@ -4517,7 +4554,7 @@ const MachineHistory = React.memo(function MachineHistory({
                           ) : null}
                         </td>
                         <td className="border-r border-slate-300 p-0 text-center align-middle h-7 bg-slate-50/50">
-                          {lN ? (
+                          {lN && hasDpData(lN) ? (
                             lN.result === "NA" ? (
                               <span className="text-slate-400 text-[10px] font-bold">-</span>
                             ) : lN.problem_detail ? (
@@ -4543,10 +4580,10 @@ const MachineHistory = React.memo(function MachineHistory({
                     return (
                       <React.Fragment key={d}>
                         <td className="border-r border-slate-200 p-0 text-center align-middle h-7 text-[9px] text-slate-500 font-bold">
-                          {lD && lD.result !== "NA" ? formatTime(lD.timestamp) : ""}
+                          {lD && hasDpData(lD) && lD.result !== "NA" ? formatTime(lD.timestamp) : ""}
                         </td>
                         <td className="border-r border-slate-300 p-0 text-center align-middle h-7 text-[9px] text-slate-500 font-bold bg-slate-50/50">
-                          {lN && lN.result !== "NA" ? formatTime(lN.timestamp) : ""}
+                          {lN && hasDpData(lN) && lN.result !== "NA" ? formatTime(lN.timestamp) : ""}
                         </td>
                       </React.Fragment>
                     );
