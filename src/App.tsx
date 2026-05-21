@@ -55,6 +55,7 @@ import {
   StockAnalyticsSidebar,
 } from "./StockApp";
 import SettingsPage from "./SettingsPage";
+import AccessDeniedView from "./AccessDeniedView";
 
 // เพิ่มก้อนนี้เข้าไปที่ต้นไฟล์ครับ
 interface User {
@@ -1703,22 +1704,7 @@ export default function FactoryOS_SuperApp() {
     currentApp === APPS.INVENTORY && stockTab === "analytics";
   const isSettingsMode = isMaintenanceSettings || isStockSettings;
 
-  const AccessDeniedView = ({ title, permission }: any) => (
-    <div className="flex flex-col items-center justify-center h-full w-full bg-[#0F172A] text-slate-400">
-      <div className="flex flex-col items-center animate-in zoom-in-95">
-        <Lock size={64} className="mb-4 opacity-20 text-slate-500" />
-        <h2 className="text-xl font-bold text-slate-500 mb-2 uppercase tracking-widest">
-          ACCESS DENIED
-        </h2>
-        <p className="text-xs text-slate-600">
-          คุณไม่มีสิทธิ์เข้าถึงหน้าตั้งค่านี
-        </p>
-        <span className="text-[10px] text-slate-700 mt-2 font-mono">
-          (Need '{permission}' permission)
-        </span>
-      </div>
-    </div>
-  );
+
 
   if (!user) return <LoginView onLogin={handleLogin} />;
   if (isMobile) return <MobileApp currentUser={user} onLogout={handleLogout} />;
@@ -1867,7 +1853,7 @@ export default function FactoryOS_SuperApp() {
                 />
               ) : (
                 <AccessDeniedView
-                  title="User Management"
+                  message="คุณไม่มีสิทธิ์เข้าถึงหน้าจัดการผู้ใช้งาน"
                   permission="main_manage_users"
                 />
               ))}
@@ -1881,7 +1867,7 @@ export default function FactoryOS_SuperApp() {
                 />
               ) : (
                 <AccessDeniedView
-                  title="Maintenance Settings"
+                  message="คุณไม่มีสิทธิ์เข้าถึงหน้าตั้งค่าระบบซ่อมบำรุง"
                   permission="mt_settings"
                 />
               ))}

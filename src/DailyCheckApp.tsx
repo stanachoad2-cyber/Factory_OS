@@ -28,6 +28,7 @@ import {
 } from "firebase/firestore";
 
 import imageCompression from "browser-image-compression";
+import AccessDeniedView from "./AccessDeniedView";
 
 import {
   QrCode,
@@ -7222,20 +7223,10 @@ export function DailyCheckModule({ currentUser, activeTab, onExit, isHistoryMode
               initialMode={systemMode}
             />
           ) : (
-            <div className="flex flex-col items-center justify-center h-[60vh] w-full text-slate-400">
-              <div className="flex flex-col items-center p-8 border border-slate-700/50 rounded-2xl bg-[#1E293B]/50 shadow-xl">
-                <Lock size={64} className="mb-6 opacity-20 text-slate-500" />
-                <h2 className="text-xl font-bold text-slate-500 mb-2 uppercase tracking-widest">
-                  ACCESS DENIED
-                </h2>
-                <p className="text-xs text-slate-600 mb-4">
-                  คุณไม่มีสิทธิ์เข้าถึงหน้าตั้งค่านี
-                </p>
-                <span className="text-[10px] text-slate-500 font-mono bg-black/20 px-2 py-1 rounded">
-                  (Need 'daily_settings' permission)
-                </span>
-              </div>
-            </div>
+            <AccessDeniedView
+              message="คุณไม่มีสิทธิ์เข้าถึงหน้าตั้งค่า"
+              permission="daily_settings"
+            />
           ))}
       </div>
 

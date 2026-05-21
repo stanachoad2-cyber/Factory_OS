@@ -22,6 +22,7 @@ import {
   arrayUnion,
   getDoc,
 } from "firebase/firestore";
+import AccessDeniedView from "./AccessDeniedView";
 
 import {
   LayoutDashboard,
@@ -5409,7 +5410,10 @@ export function StockModule({
               onReturnItem={handleReturnItem}
             />
           ) : (
-            <AccessDeniedMessage message="ไม่มีสิทธิ์เข้าถึงหน้าเบิก/คืน" />
+            <AccessDeniedView
+              message="ไม่มีสิทธิ์เข้าถึงหน้าเบิก/คืน"
+              permission="stock_operate"
+            />
           ))}
 
         {/* หน้า 3: Management (จัดการสต็อก) */}
@@ -5436,7 +5440,10 @@ export function StockModule({
               />
             )
           ) : (
-            <AccessDeniedMessage message="ไม่มีสิทธิ์จัดการสต็อก" />
+            <AccessDeniedView
+              message="ไม่มีสิทธิ์จัดการสต็อก"
+              permission="stock_manage"
+            />
           ))}
 
         {/* หน้า 4: Analytics (รายงาน) */}
@@ -5471,7 +5478,10 @@ export function StockModule({
               onDeleteDepartment={handleDeleteDepartment}
             />
           ) : (
-            <AccessDeniedMessage message="ไม่มีสิทธิ์เข้าถึงการตั้งค่า" />
+            <AccessDeniedView
+              message="ไม่มีสิทธิ์เข้าถึงการตั้งค่า"
+              permission="stock_settings"
+            />
           ))}
       </div>
 
