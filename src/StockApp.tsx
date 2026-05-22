@@ -651,6 +651,7 @@ const OverviewPage = ({ items }: any) => {
 };
 
 const ProductCardMobile = ({ item, onAddToCart, currentUser }: any) => {
+  const [showDetail, setShowDetail] = useState(false);
   const minStock = item.minStock || 0;
   const isLowStock =
     item.quantity > 0 && minStock > 0 && item.quantity <= minStock;
@@ -661,50 +662,122 @@ const ProductCardMobile = ({ item, onAddToCart, currentUser }: any) => {
     currentUser?.allowedActions?.includes("stock_operate");
 
   return (
-    <div className="flex md:hidden items-center gap-3 p-2 bg-[#1E293B] border border-gray-800 rounded-xl active:scale-[0.98] transition-transform">
-      <div className="w-16 h-16 shrink-0 bg-gray-800 rounded-lg overflow-hidden relative border border-slate-700/50">
-        <img
-          src={getOptimizedUrl(item.image) || "https://via.placeholder.com/150"}
-          className="w-full h-full object-cover"
-          alt=""
-        />
-        {isOutOfStock && (
-          <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-[8px] font-bold text-red-400">
-            OUT
-          </div>
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <h3 className="text-sm font-bold text-white truncate leading-tight mb-0.5">
-          {item.name}
-        </h3>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 px-1 rounded">
-            {item.sku}
-          </span>
-          <span
-            className={`text-[10px] font-bold ${isOutOfStock
-              ? "text-red-500"
-              : isLowStock
-                ? "text-yellow-500"
-                : "text-emerald-400"
-              }`}
-          >
-            คงเหลือ: {item.quantity}
-          </span>
-        </div>
-      </div>
-      <button
-        onClick={() => onAddToCart(item)}
-        disabled={isOutOfStock || !canOperate}
-        className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${!isOutOfStock && canOperate
-          ? "bg-blue-600 text-white shadow-lg"
-          : "bg-gray-800 text-gray-600"
-          }`}
+    <>
+      <div 
+        onClick={() => setShowDetail(true)}
+        className="flex md:hidden items-center gap-3 p-2 bg-[#1E293B] border border-gray-800 rounded-xl active:scale-[0.98] transition-transform cursor-pointer"
       >
-        <Plus size={20} strokeWidth={3} />
-      </button>
-    </div>
+        <div className="w-16 h-16 shrink-0 bg-gray-800 rounded-lg overflow-hidden relative border border-slate-700/50">
+          <img
+            src={getOptimizedUrl(item.image) || "https://via.placeholder.com/150"}
+            className="w-full h-full object-cover"
+            alt=""
+          />
+          {isOutOfStock && (
+            <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-[8px] font-bold text-red-400">
+              OUT
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-white truncate leading-tight mb-0.5">
+            {item.name}
+          </h3>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 px-1 rounded">
+              {item.sku}
+            </span>
+            <span
+              className={`text-[10px] font-bold ${isOutOfStock
+                ? "text-red-500"
+                : isLowStock
+                  ? "text-yellow-500"
+                  : "text-emerald-400"
+                }`}
+            >
+              คงเหลือ: {item.quantity}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToCart(item);
+          }}
+          disabled={isOutOfStock || !canOperate}
+          className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${!isOutOfStock && canOperate
+            ? "bg-blue-600 text-white shadow-lg"
+            : "bg-gray-800 text-gray-600"
+            }`}
+        >
+          <Plus size={20} strokeWidth={3} />
+        </button>
+      </div>
+
+      {/* Modal ดูชื่อเต็มและรายละเอียด */}
+      {showDetail && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setShowDetail(false)}
+        >
+          <div 
+            className="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="relative aspect-square w-full bg-gray-800">
+              <img
+                src={getOptimizedUrl(item.image) || "https://via.placeholder.com/400"}
+                className="w-full h-full object-cover"
+                alt=""
+              />
+              <button 
+                onClick={() => setShowDetail(false)}
+                className="absolute top-3 right-3 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-md transition-all shadow-lg border border-white/10"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4">
+              <h3 className="text-sm font-bold text-white leading-snug mb-3">
+                {item.name}
+              </h3>
+              
+              <div className="flex flex-wrap gap-2 mb-4">
+                <div className="bg-[#0F172A] px-2.5 py-1.5 rounded-lg border border-gray-800 flex items-center gap-2 flex-1 min-w-[45%]">
+                  <Tag size={12} className="text-gray-500 shrink-0" />
+                  <span className="text-[11px] font-mono text-blue-400 truncate">{item.sku || "-"}</span>
+                </div>
+                <div className="bg-[#0F172A] px-2.5 py-1.5 rounded-lg border border-gray-800 flex items-center gap-2 flex-1 min-w-[45%]">
+                  <Box size={12} className="text-gray-500 shrink-0" />
+                  <span className={`text-[11px] font-bold ${isOutOfStock ? "text-red-500" : isLowStock ? "text-yellow-500" : "text-emerald-400"}`}>
+                    คงเหลือ {item.quantity} ชิ้น
+                  </span>
+                </div>
+                <div className="bg-[#0F172A] px-2.5 py-1.5 rounded-lg border border-gray-800 flex items-center gap-2 w-full">
+                  <Layers size={12} className="text-gray-500 shrink-0" />
+                  <span className="text-[11px] font-bold text-slate-300 truncate">{item.department || "Common"}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowDetail(false);
+                  onAddToCart(item);
+                }}
+                disabled={isOutOfStock || !canOperate}
+                className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                  !isOutOfStock && canOperate
+                    ? "bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20"
+                    : "bg-gray-800 text-gray-600 cursor-not-allowed"
+                }`}
+              >
+                <ShoppingCart size={16} /> เบิกอะไหล่รายการนี้
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
