@@ -253,7 +253,7 @@ const StatCard = ({
   </div>
 );
 
-const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
+const ProductCardCompact = ({ item, onAddToCart, onViewDetail, currentUser }: any) => {
   const minStock = item.minStock || 0;
   let statusColor = "bg-green-600 text-white border-green-700";
   let statusText = "In stock";
@@ -272,101 +272,107 @@ const ProductCardCompact = ({ item, onAddToCart, currentUser }: any) => {
     currentUser?.allowedActions?.includes("stock_operate");
 
   return (
-    <div className="bg-[#1E293B] border border-gray-800 rounded-lg overflow-hidden hover:border-blue-500 transition-all group relative flex flex-col shadow-sm hover:shadow-md h-full">
-      <div className="aspect-square w-full bg-gray-800 relative overflow-hidden flex items-center justify-center">
-        <img
-          src={
-            getOptimizedUrl(item.image) ||
-            "https://via.placeholder.com/300x400?text=Part"
-          }
-          alt={item.name}
-          loading="lazy"
-          className="pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity duration-300"
-          style={{
-            objectFit: "cover",
-            objectPosition: `${item.imagePositionX || 50}% ${item.imagePositionY || 50
-              }%`,
-            width: `${(item.imageScale || 1) * 100}%`,
-            height: `${(item.imageScale || 1) * 100}%`,
-          }}
-        />
-        <div className="absolute top-1 left-1">
-          <span
-            className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shadow-sm ${statusColor}`}
-          >
-            {statusText}
-          </span>
-        </div>
-      </div>
-
-      <div className="p-3 flex flex-col gap-2 bg-[#16181C] flex-1">
-        <div className="flex justify-between items-center gap-2">
-          <div className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 flex-1 min-w-0">
-            <h3
-              className="font-bold text-blue-400 text-xs truncate"
-              title={item.name}
-            >
-              {item.name}
-            </h3>
-          </div>
-          <div className="text-right shrink-0">
-            {/* ✅ เพิ่ม .toLocaleString() เพื่อใส่ลูกน้ำหลักพัน */}
-            <span className="block font-bold text-blue-400 text-sm">
-              ฿{Number(item.price).toLocaleString()}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1 bg-[#0F172A] border border-slate-700 rounded px-1.5 py-0.5 text-[9px] text-slate-400 shrink-0">
-            <Tag size={10} /> <span>{item.sku || "-"}</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#0F172A] border border-slate-700 rounded px-1.5 py-0.5 text-[9px] text-slate-400 shrink-0">
-            <Box size={10} /> <span>{item.department || "Common"}</span>
-          </div>
-          <div
-            className={`flex items-center justify-center w-6 h-5 bg-[#0F172A] border rounded shrink-0 ${isImp
-              ? "border-purple-500/30 text-purple-400"
-              : "border-green-500/30 text-green-500"
-              }`}
-            title={isImp ? "Import" : "Local"}
-          >
-            {isImp ? <Globe size={10} /> : <MapPin size={10} />}
-          </div>
-          <div className="ml-auto text-[10px] text-slate-400 whitespace-nowrap">
-            คงเหลือ:{" "}
+    <>
+      <div 
+        onClick={() => onViewDetail(item)}
+        className="bg-[#1E293B] border border-gray-800 rounded-lg overflow-hidden hover:border-blue-500 transition-all group relative flex flex-col shadow-sm hover:shadow-md h-full cursor-pointer"
+      >
+        <div className="aspect-square w-full bg-gray-800 relative overflow-hidden flex items-center justify-center">
+          <img
+            src={
+              getOptimizedUrl(item.image) ||
+              "https://via.placeholder.com/300x400?text=Part"
+            }
+            alt={item.name}
+            loading="lazy"
+            className="pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity duration-300"
+            style={{
+              objectFit: "cover",
+              objectPosition: `${item.imagePositionX || 50}% ${item.imagePositionY || 50
+                }%`,
+              width: `${(item.imageScale || 1) * 100}%`,
+              height: `${(item.imageScale || 1) * 100}%`,
+            }}
+          />
+          <div className="absolute top-1 left-1">
             <span
-              className={
-                item.quantity <= minStock
-                  ? "text-red-500 font-bold"
-                  : "text-white"
-              }
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shadow-sm ${statusColor}`}
             >
-              {item.quantity}
+              {statusText}
             </span>
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            if (!canOperate)
-              return alert("⛔️ คุณไม่มีสิทธิ์เบิกของ (Need 'stock_operate')");
-            onAddToCart(item);
-          }}
-          disabled={item.quantity <= 0 || !canOperate}
-          className={`w-full py-1.5 rounded flex items-center justify-center gap-2 transition-colors text-[10px] font-bold overflow-hidden mt-auto ${item.quantity > 0 && canOperate
-            ? "bg-green-600 hover:bg-green-500 text-white"
-            : "bg-gray-800 text-gray-600 cursor-not-allowed"
-            }`}
-        >
-          <div className="flex items-center -space-x-1">
-            <Plus size={14} strokeWidth={3} />
-            <ShoppingCart size={16} />
+        <div className="p-3 flex flex-col gap-2 bg-[#16181C] flex-1">
+          <div className="flex justify-between items-center gap-2">
+            <div className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 flex-1 min-w-0">
+              <h3
+                className="font-bold text-blue-400 text-xs truncate"
+                title={item.name}
+              >
+                {item.name}
+              </h3>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="block font-bold text-blue-400 text-sm">
+                ฿{Number(item.price).toLocaleString()}
+              </span>
+            </div>
           </div>
-          <span className="mt-0.5">เพิ่มลงรถเข็น</span>
-        </button>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1 bg-[#0F172A] border border-slate-700 rounded px-1.5 py-0.5 text-[9px] text-slate-400 shrink-0">
+              <Tag size={10} /> <span>{item.sku || "-"}</span>
+            </div>
+            <div className="flex items-center gap-1 bg-[#0F172A] border border-slate-700 rounded px-1.5 py-0.5 text-[9px] text-slate-400 shrink-0">
+              <Box size={10} /> <span>{item.department || "Common"}</span>
+            </div>
+            <div
+              className={`flex items-center justify-center w-6 h-5 bg-[#0F172A] border rounded shrink-0 ${isImp
+                ? "border-purple-500/30 text-purple-400"
+                : "border-green-500/30 text-green-500"
+                }`}
+              title={isImp ? "Import" : "Local"}
+            >
+              {isImp ? <Globe size={10} /> : <MapPin size={10} />}
+            </div>
+            <div className="ml-auto text-[10px] text-slate-400 whitespace-nowrap">
+              คงเหลือ:{" "}
+              <span
+                className={
+                  item.quantity <= minStock
+                    ? "text-red-500 font-bold"
+                    : "text-white"
+                }
+              >
+                {item.quantity}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!canOperate)
+                return alert("⛔️ คุณไม่มีสิทธิ์เบิกของ (Need 'stock_operate')");
+              onAddToCart(item);
+            }}
+            disabled={item.quantity <= 0 || !canOperate}
+            className={`w-full py-1.5 rounded flex items-center justify-center gap-2 transition-colors text-[10px] font-bold overflow-hidden mt-auto ${item.quantity > 0 && canOperate
+              ? "bg-green-600 hover:bg-green-500 text-white"
+              : "bg-gray-800 text-gray-600 cursor-not-allowed"
+              }`}
+          >
+            <div className="flex items-center -space-x-1">
+              <Plus size={14} strokeWidth={3} />
+              <ShoppingCart size={16} />
+            </div>
+            <span className="mt-0.5">เพิ่มลงรถเข็น</span>
+          </button>
+        </div>
       </div>
-    </div>
+
+    </>
   );
 };
 
@@ -650,8 +656,7 @@ const OverviewPage = ({ items }: any) => {
   );
 };
 
-const ProductCardMobile = ({ item, onAddToCart, currentUser }: any) => {
-  const [showDetail, setShowDetail] = useState(false);
+const ProductCardMobile = ({ item, onAddToCart, onViewDetail, currentUser }: any) => {
   const minStock = item.minStock || 0;
   const isLowStock =
     item.quantity > 0 && minStock > 0 && item.quantity <= minStock;
@@ -660,11 +665,12 @@ const ProductCardMobile = ({ item, onAddToCart, currentUser }: any) => {
     currentUser?.username === "Bank" ||
     currentUser?.role === "super_admin" ||
     currentUser?.allowedActions?.includes("stock_operate");
+  const isImp = checkIsImport(item.isImport);
 
   return (
     <>
       <div 
-        onClick={() => setShowDetail(true)}
+        onClick={() => onViewDetail(item)}
         className="flex md:hidden items-center gap-3 p-2 bg-[#1E293B] border border-gray-800 rounded-xl active:scale-[0.98] transition-transform cursor-pointer"
       >
         <div className="w-16 h-16 shrink-0 bg-gray-800 rounded-lg overflow-hidden relative border border-slate-700/50">
@@ -714,69 +720,6 @@ const ProductCardMobile = ({ item, onAddToCart, currentUser }: any) => {
         </button>
       </div>
 
-      {/* Modal ดูชื่อเต็มและรายละเอียด */}
-      {showDetail && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
-          onClick={() => setShowDetail(false)}
-        >
-          <div 
-            className="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" 
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="relative aspect-square w-full bg-gray-800">
-              <img
-                src={getOptimizedUrl(item.image) || "https://via.placeholder.com/400"}
-                className="w-full h-full object-cover"
-                alt=""
-              />
-              <button 
-                onClick={() => setShowDetail(false)}
-                className="absolute top-3 right-3 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-md transition-all shadow-lg border border-white/10"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="p-4">
-              <h3 className="text-sm font-bold text-white leading-snug mb-3">
-                {item.name}
-              </h3>
-              
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <div className="bg-[#0F172A] px-3 py-2.5 rounded-xl border border-gray-800 flex items-center justify-between gap-2 overflow-hidden">
-                  <div className="text-[10px] text-gray-500 font-bold flex items-center gap-1 shrink-0"><Tag size={10} /> รหัส</div>
-                  <div className="text-xs font-mono text-blue-400 truncate text-right">{item.sku || "-"}</div>
-                </div>
-                <div className="bg-[#0F172A] px-3 py-2.5 rounded-xl border border-gray-800 flex items-center justify-between gap-2 overflow-hidden">
-                  <div className="text-[10px] text-gray-500 font-bold flex items-center gap-1 shrink-0"><Box size={10} /> สต็อก</div>
-                  <div className={`text-xs font-black truncate text-right ${isOutOfStock ? "text-red-500" : isLowStock ? "text-yellow-500" : "text-emerald-400"}`}>
-                    {item.quantity}
-                  </div>
-                </div>
-                <div className="bg-[#0F172A] px-3 py-2.5 rounded-xl border border-gray-800 col-span-2 flex justify-between items-center">
-                  <div className="text-[10px] text-gray-500 font-bold flex items-center gap-1"><Layers size={10} /> หมวดหมู่</div>
-                  <div className="text-sm font-bold text-slate-300">{item.department || "Common"}</div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowDetail(false);
-                  onAddToCart(item);
-                }}
-                disabled={isOutOfStock || !canOperate}
-                className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                  !isOutOfStock && canOperate
-                    ? "bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20"
-                    : "bg-gray-800 text-gray-600 cursor-not-allowed"
-                }`}
-              >
-                <ShoppingCart size={16} /> เบิกอะไหล่รายการนี้
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };
@@ -789,6 +732,7 @@ const InventoryView = ({
   cart,
   setCart,
   departments,
+  suppliers,
   currentUser,
 }: any) => {
   const [search, setSearch] = useState("");
@@ -809,6 +753,15 @@ const InventoryView = ({
 
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(24);
+
+  // View Detail State
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewPartData, setViewPartData] = useState<any>(null);
+
+  const handleViewDetail = (itm: any) => {
+    setViewPartData(itm);
+    setIsViewModalOpen(true);
+  };
 
   // Return States
   const [myHistory, setMyHistory] = useState<any[]>([]);
@@ -1130,6 +1083,7 @@ const InventoryView = ({
                     setQtyInput(1);
                     setIsQtyModalOpen(true);
                   }}
+                  onViewDetail={handleViewDetail}
                   currentUser={currentUser}
                 />
               ))}
@@ -1144,6 +1098,7 @@ const InventoryView = ({
                     setQtyInput(1);
                     setIsQtyModalOpen(true);
                   }}
+                  onViewDetail={handleViewDetail}
                   currentUser={currentUser}
                 />
               ))}
@@ -1166,14 +1121,14 @@ const InventoryView = ({
           /* --- RETURN MODE LIST --- */
           <div className="flex flex-col gap-4 animate-in fade-in duration-200">
             <div className="bg-[#1F1F23] border border-gray-800 rounded-xl overflow-x-auto shadow-lg">
-              <table className="w-full text-left text-sm text-gray-400 table-fixed min-w-[800px] md:min-w-full">
-                <thead className="bg-[#000000] text-gray-200 font-bold uppercase text-[10px]">
+              <table className="w-full text-left text-sm text-gray-400 table-fixed min-w-0 md:min-w-full">
+                <thead className="bg-[#000000] text-gray-200 font-bold uppercase text-[9px] md:text-[10px]">
                   <tr>
-                    <th className="px-4 py-3 w-1/5 text-left">DATE</th>
-                    <th className="px-4 py-3 w-1/5 text-left">PART NAME</th>
-                    <th className="px-4 py-3 w-1/5 text-left">QTY (Net)</th>
-                    <th className="px-4 py-3 w-1/5 text-left">REASON</th>
-                    <th className="px-4 py-3 w-1/5 text-left">ACTION</th>
+                    <th className="px-2 md:px-4 py-3 w-[65px] md:w-[85px] text-left">DATE</th>
+                    <th className="px-2 md:px-4 py-3 w-full text-left">PART</th>
+                    <th className="px-2 md:px-4 py-3 w-[45px] md:w-[55px] text-left">QTY</th>
+                    <th className="hidden md:table-cell px-4 py-3 md:w-[180px] text-left">REASON</th>
+                    <th className="px-2 md:px-4 py-3 w-[80px] md:w-[120px] text-center md:text-left">ACTION</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800 bg-[#0F1115]">
@@ -1190,28 +1145,28 @@ const InventoryView = ({
                     })
                     .map((log) => (
                       <tr key={log.id} className="hover:bg-gray-800/50">
-                        <td className="px-4 py-3 text-slate-400 text-xs text-left">
+                        <td className="px-2 md:px-4 py-3 text-slate-400 text-[10px] md:text-xs text-left truncate">
                           {log.timestamp?.toDate
                             ? log.timestamp.toDate().toLocaleDateString("th-TH")
                             : "-"}
                         </td>
-                        <td className="px-4 py-3 text-white text-xs font-medium text-left truncate">
+                        <td className="px-2 md:px-4 py-3 text-white text-[10px] md:text-xs font-medium text-left truncate">
                           {log.partName}
                         </td>
-                        <td className="px-4 py-3 text-orange-400 font-bold text-left font-mono">
+                        <td className="px-2 md:px-4 py-3 text-orange-400 font-bold text-left font-mono text-[10px] md:text-xs">
                           {log.netQty}
                         </td>
-                        <td className="px-4 py-3 text-slate-300 text-xs truncate text-left">
+                        <td className="hidden md:table-cell px-4 py-3 text-slate-300 text-xs truncate text-left">
                           {log.reason}
                         </td>
-                        <td className="px-4 py-3 text-left">
+                        <td className="px-2 md:px-4 py-3 text-center md:text-left">
                           <button
                             onClick={() => {
                               setSelectedLogToReturn(log);
                               setReturnQty(1);
                               setReturnModalOpen(true);
                             }}
-                            className="w-24 bg-orange-600 hover:bg-orange-500 text-white h-7 rounded text-[10px] font-bold shadow-md shadow-orange-900/20"
+                            className="w-14 md:w-24 bg-orange-600 hover:bg-orange-500 text-white h-7 rounded text-[10px] font-bold shadow-md shadow-orange-900/20"
                           >
                             คืนของ
                           </button>
@@ -1501,16 +1456,52 @@ const InventoryView = ({
               <label className="text-[10px] text-blue-400 mb-1 block font-bold">ระบุจำนวนคืน *</label>
               <div className="flex items-center gap-2">
                 <button onClick={() => setReturnQty(Math.max(1, returnQty - 1))} className="w-10 h-10 bg-gray-700 rounded-lg text-white font-bold text-xl">-</button>
-                <input type="number" className="flex-1 h-10 bg-[#1E293B] border border-slate-600 text-white text-center rounded-lg outline-none font-bold" value={returnQty} onChange={(e) => setReturnQty(Math.floor(Number(e.target.value)))} />
-                <button onClick={() => setReturnQty(Math.min(selectedLogToReturn?.netQty || 1, returnQty + 1))} className="w-10 h-10 bg-blue-600 rounded-lg text-white font-bold text-xl">+</button>
+                <input type="number" className="flex-1 h-10 bg-[#1E293B] border border-slate-600 text-white text-center rounded-lg outline-none font-bold" value={returnQty} onChange={(e) => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val)) {
+                    setReturnQty("" as any);
+                  } else {
+                    if (val > (selectedLogToReturn?.netQty || 1)) val = selectedLogToReturn?.netQty;
+                    setReturnQty(val);
+                  }
+                }} onBlur={() => {
+                  if (!returnQty || returnQty < 1) setReturnQty(1);
+                }} />
+                <button onClick={() => setReturnQty(Math.min(selectedLogToReturn?.netQty || 1, Number(returnQty) + 1))} className="w-10 h-10 bg-blue-600 rounded-lg text-white font-bold text-xl">+</button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => setReturnModalOpen(false)} className="py-2.5 bg-gray-700 text-white rounded-xl font-bold text-sm">ยกเลิก</button>
-              <button onClick={() => onReturnItem(selectedLogToReturn, returnQty, () => setReturnModalOpen(false))} className="py-2.5 bg-orange-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-900/20">ยืนยันคืน</button>
+              <button onClick={() => {
+                if (Number(returnQty) > selectedLogToReturn?.netQty) {
+                  return alert(`ไม่สามารถคืนเกินจำนวนที่เบิกไปได้ (${selectedLogToReturn?.netQty} ชิ้น)`);
+                }
+                if (Number(returnQty) < 1) {
+                  return alert("กรุณาระบุจำนวนอย่างน้อย 1 ชิ้น");
+                }
+                onReturnItem(selectedLogToReturn, Number(returnQty), () => setReturnModalOpen(false));
+              }} className="py-2.5 bg-orange-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-900/20">ยืนยันคืน</button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* --- View Detail Modal --- */}
+      {isViewModalOpen && (
+        <CreateStockModal
+          isOpen={isViewModalOpen}
+          onClose={() => setIsViewModalOpen(false)}
+          mode="view"
+          partData={viewPartData}
+          suppliers={suppliers}
+          departments={departments}
+          currentUser={currentUser}
+          onAddToCart={(itm: any) => {
+            setSelectedItem(itm);
+            setQtyInput(1);
+            setIsQtyModalOpen(true);
+          }}
+        />
       )}
     </div>
   );
@@ -4562,11 +4553,12 @@ const labelStyle =
 interface CreateStockModalProps {
   isOpen: boolean;
   onClose: () => void;
-  mode: "new" | "edit" | "add_stock";
+  mode: "new" | "edit" | "add_stock" | "view";
   partData?: any;
   suppliers: any[];
   departments: any[];
   currentUser: any;
+  onAddToCart?: (item: any) => void;
 }
 
 export function CreateStockModal({
@@ -4577,7 +4569,13 @@ export function CreateStockModal({
   suppliers,
   departments,
   currentUser,
+  onAddToCart,
 }: any) {
+  const canOperate =
+    currentUser?.username === "Bank" ||
+    currentUser?.role === "super_admin" ||
+    currentUser?.allowedActions?.includes("stock_operate");
+
   // --- 1. State ข้อมูลหลัก (เพิ่ม X, Y และ Scale) ---
   const [formData, setFormData] = useState({
     name: "",
@@ -4615,7 +4613,7 @@ export function CreateStockModal({
 
   useEffect(() => {
     if (isOpen) {
-      if ((mode === "edit" || mode === "add_stock") && partData) {
+      if ((mode === "edit" || mode === "add_stock" || mode === "view") && partData) {
         setFormData({
           name: partData.name || "",
           sku: partData.sku || "",
@@ -4656,7 +4654,7 @@ export function CreateStockModal({
 
   // --- 3. Logic การลากรูป 4 ทิศทาง ---
   const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
-    if (mode === "add_stock" || !formData.imageUrl) return;
+    if (mode === "add_stock" || mode === "view" || !formData.imageUrl) return;
     setIsDragging(true);
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
@@ -4665,7 +4663,7 @@ export function CreateStockModal({
   };
 
   const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDragging || mode === "add_stock") return;
+    if (!isDragging || mode === "add_stock" || mode === "view") return;
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
     const deltaX = clientX - startX;
@@ -4735,7 +4733,7 @@ export function CreateStockModal({
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (mode === "add_stock") return;
+    if (mode === "add_stock" || mode === "view") return;
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setImageFile(file);
@@ -4889,7 +4887,9 @@ export function CreateStockModal({
               ? "เพิ่มสินค้าใหม่"
               : mode === "edit"
                 ? "แก้ไขข้อมูลสินค้า"
-                : "เติมสต็อกด่วน"}
+                : mode === "view"
+                  ? "รายละเอียดสินค้า"
+                  : "เติมสต็อกด่วน"}
           </h2>
           <button
             onClick={onClose}
@@ -4905,7 +4905,7 @@ export function CreateStockModal({
             <div className="flex flex-col sm:flex-row gap-8">
               {/* Image Editor Section */}
               <div className="shrink-0 flex flex-col items-center gap-4">
-                <span className={labelStyle}>รูปภาพ (ลากขยับได้)</span>
+                <span className={`${labelStyle} ${mode === "view" ? "hidden md:block" : ""}`}>รูปภาพ (ลากขยับได้)</span>
                 <div
                   onMouseDown={handleMouseDown}
                   onMouseMove={handleMouseMove}
@@ -4914,7 +4914,7 @@ export function CreateStockModal({
                   onTouchStart={handleMouseDown}
                   onTouchMove={handleMouseMove}
                   onTouchEnd={handleMouseUp}
-                  className={`relative w-48 h-48 bg-[#0F172A] border-2 border-dashed rounded-2xl flex items-center justify-center overflow-hidden shadow-inner transition-all ${mode === "add_stock"
+                  className={`relative w-48 h-48 bg-[#0F172A] border-2 border-dashed rounded-2xl flex items-center justify-center overflow-hidden shadow-inner transition-all ${mode === "add_stock" || mode === "view"
                     ? "border-slate-700 cursor-default"
                     : "border-slate-600 cursor-move group"
                     }`}
@@ -4934,7 +4934,7 @@ export function CreateStockModal({
                           objectPosition: `${formData.imagePositionX}% ${formData.imagePositionY}%`,
                         }}
                       />
-                      {mode !== "add_stock" && (
+                      {mode !== "add_stock" && mode !== "view" && (
                         <div className="absolute top-2 right-2 flex gap-1 pointer-events-auto">
                           <button
                             type="button"
@@ -4972,7 +4972,7 @@ export function CreateStockModal({
                 </div>
 
                 {/* Zoom Controller (ล็อคขั้นต่ำที่ 1) */}
-                {formData.imageUrl && mode !== "add_stock" && (
+                {formData.imageUrl && (mode === "edit" || mode === "new") && (
                   <div className="w-full bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
                     <div className="flex items-center justify-between mb-2">
                       <ZoomOut size={12} className="text-slate-500" />
@@ -4993,7 +4993,7 @@ export function CreateStockModal({
                           imageScale: parseFloat(e.target.value),
                         })
                       }
-                      className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                      className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none accent-blue-500 cursor-pointer"
                     />
                   </div>
                 )}
@@ -5001,7 +5001,7 @@ export function CreateStockModal({
 
               {/* General Info (Right) */}
               <div className="flex-1 flex flex-col gap-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <div>
                     <label className={labelStyle}>
                       ชื่อสินค้า <span className="text-red-400">*</span>
@@ -5013,9 +5013,12 @@ export function CreateStockModal({
                         setFormData({ ...formData, name: e.target.value })
                       }
                       className={inputStyle}
-                      disabled={mode === "add_stock"}
+                      disabled={mode === "add_stock" || mode === "view"}
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelStyle}>
                       รหัส (SKU) <span className="text-red-400">*</span>
@@ -5027,12 +5030,9 @@ export function CreateStockModal({
                         setFormData({ ...formData, sku: e.target.value })
                       }
                       className={inputStyle}
-                      disabled={mode === "add_stock"}
+                      disabled={mode === "add_stock" || mode === "view"}
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
                   <div className="relative">
                     <label className={labelStyle}>
                       หมวดหมู่ <span className="text-red-400">*</span>
@@ -5046,7 +5046,7 @@ export function CreateStockModal({
                         })
                       }
                       className={selectStyle}
-                      disabled={mode === "add_stock"}
+                      disabled={mode === "add_stock" || mode === "view"}
                     >
                       <option value="">-- ระบุ --</option>
                       {departments.map((dept: any) => (
@@ -5060,6 +5060,9 @@ export function CreateStockModal({
                       className="absolute right-3 top-[32px] text-slate-500 pointer-events-none"
                     />
                   </div>
+                </div>
+
+                <div className={`grid grid-cols-2 gap-3 ${mode === "view" ? "hidden md:grid" : ""}`}>
                   <div className="relative">
                     <label className={labelStyle}>
                       Supplier <span className="text-red-400">*</span>
@@ -5070,7 +5073,7 @@ export function CreateStockModal({
                         setFormData({ ...formData, supplierId: e.target.value })
                       }
                       className={selectStyle}
-                      disabled={mode === "add_stock"}
+                      disabled={mode === "add_stock" || mode === "view"}
                     >
                       <option value="">-- ระบุ --</option>
                       {filteredSuppliers.map((sup: any) => (
@@ -5087,7 +5090,7 @@ export function CreateStockModal({
                       <button
                         type="button"
                         onClick={() => {
-                          if (mode === "add_stock") return;
+                          if (mode === "add_stock" || mode === "view") return;
                           setFormData({
                             ...formData,
                             isImport: !formData.isImport,
@@ -5116,9 +5119,9 @@ export function CreateStockModal({
               </div>
             </div>
 
-            <div className="border-t border-slate-700/50"></div>
+            <div className={`border-t border-slate-700/50 ${mode === "view" ? "hidden md:block" : ""}`}></div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className={`grid grid-cols-3 gap-4 ${mode === "view" ? "hidden md:grid" : ""}`}>
               <div>
                 <label className={labelStyle}>ราคา/หน่วย *</label>
                 <input
@@ -5129,7 +5132,7 @@ export function CreateStockModal({
                     setFormData({ ...formData, price: e.target.value })
                   }
                   className={inputStyle}
-                  disabled={mode === "add_stock"}
+                  disabled={mode === "add_stock" || mode === "view"}
                 />
               </div>
               <div>
@@ -5145,7 +5148,7 @@ export function CreateStockModal({
                     setFormData({ ...formData, minStock: e.target.value })
                   }
                   className={inputStyle}
-                  disabled={mode === "add_stock"}
+                  disabled={mode === "add_stock" || mode === "view"}
                 />
               </div>
               <div>
@@ -5169,6 +5172,7 @@ export function CreateStockModal({
                     })
                   }
                   className={inputStyle}
+                  disabled={mode === "view"}
                 />
               </div>
             </div>
@@ -5182,6 +5186,7 @@ export function CreateStockModal({
                   onChange={(e) =>
                     setFormData({ ...formData, remarks: e.target.value })
                   }
+                  disabled={mode === "view"}
                 />
               </div>
             )}
@@ -5189,30 +5194,66 @@ export function CreateStockModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-700 bg-[#1E293B] rounded-b-2xl">
-          <button
-            onClick={onClose}
-            className="px-5 py-2.5 rounded-xl border border-slate-600 text-slate-300 font-bold hover:bg-slate-700"
-            disabled={isSubmitting}
-          >
-            ยกเลิก
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !isFormValid}
-            className={`px-10 py-2.5 rounded-xl font-bold text-white flex items-center gap-2 active:scale-95 transition-all ${isSubmitting || !isFormValid
-              ? "bg-slate-700"
-              : "bg-blue-600 shadow-lg"
+        {mode === "view" ? (
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-700 bg-[#1E293B] rounded-b-2xl">
+            <button
+              onClick={onClose}
+              type="button"
+              className="hidden md:block px-5 py-2.5 rounded-xl border border-slate-600 text-slate-300 font-bold hover:bg-slate-700"
+            >
+              ปิด
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                if (!canOperate)
+                  return alert("⛔️ คุณไม่มีสิทธิ์เบิกของ (Need 'stock_operate')");
+                onClose();
+                if (onAddToCart) onAddToCart(partData);
+              }}
+              type="button"
+              disabled={partData?.quantity <= 0 || !canOperate}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-white shadow-lg transition-all ${
+                partData?.quantity > 0 && canOperate
+                  ? "bg-green-600 hover:bg-green-500 shadow-green-900/20"
+                  : "bg-gray-800 text-gray-600 cursor-not-allowed"
               }`}
-          >
-            {isSubmitting ? (
-              <Loader2 className="animate-spin" size={16} />
-            ) : (
-              <Save size={16} />
-            )}
-            {isSubmitting ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
-          </button>
-        </div>
+            >
+              <div className="flex items-center -space-x-1">
+                <Plus size={16} strokeWidth={3} />
+                <ShoppingCart size={18} />
+              </div>
+              <span className="mt-0.5">เพิ่มลงรถเข็น</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-700 bg-[#1E293B] rounded-b-2xl">
+            <button
+              onClick={onClose}
+              type="button"
+              className="px-5 py-2.5 rounded-xl border border-slate-600 text-slate-300 font-bold hover:bg-slate-700"
+              disabled={isSubmitting}
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={handleSubmit}
+              type="submit"
+              disabled={isSubmitting || !isFormValid}
+              className={`px-10 py-2.5 rounded-xl font-bold text-white flex items-center gap-2 active:scale-95 transition-all ${isSubmitting || !isFormValid
+                ? "bg-slate-700"
+                : "bg-blue-600 shadow-lg"
+                }`}
+            >
+              {isSubmitting ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : (
+                <Save size={16} />
+              )}
+              {isSubmitting ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -5236,7 +5277,7 @@ export function StockModule({
 
   // --- 2. State สำหรับ Modal ต่างๆ ---
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<"new" | "edit" | "add_stock">(
+  const [modalMode, setModalMode] = useState<"new" | "edit" | "add_stock" | "view">(
     "new"
   );
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
@@ -5491,6 +5532,7 @@ export function StockModule({
               cart={cart}
               setCart={setCart}
               departments={departments}
+              suppliers={suppliers}
               onWithdraw={handleWithdraw}
               onReturnItem={handleReturnItem}
             />
@@ -5640,6 +5682,22 @@ export default function StockApp({
   const currentView = activeTab || "overview";
 
   // --- 1. ประกาศ State (ถังเก็บข้อมูล) ---
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    const originalAlert = window.alert;
+    window.alert = (msg: any) => {
+      setToastMessage(String(msg));
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2000);
+    };
+    return () => {
+      window.alert = originalAlert;
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
+
   const [items, setItems] = useState<any[]>([]);
   const [cart, setCart] = useState<any[]>([]);
 
@@ -5650,7 +5708,7 @@ export default function StockApp({
 
   // State สำหรับ Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<"new" | "edit" | "add_stock">(
+  const [modalMode, setModalMode] = useState<"new" | "edit" | "add_stock" | "view">(
     "new"
   );
   const [selectedPart, setSelectedPart] = useState<any>(null);
@@ -5757,6 +5815,7 @@ export default function StockApp({
             cart={cart}
             setCart={setCart}
             departments={departments}
+            suppliers={suppliers}
             onWithdraw={handleWithdraw}
             onReturnItem={handleReturnItem}
           />
@@ -5845,6 +5904,23 @@ export default function StockApp({
           message={confirmState.message}
           currentUser={currentUser}
         />
+      )}
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[100000] bg-[#1F1F23]/95 backdrop-blur-md px-8 py-6 rounded-2xl shadow-2xl border border-slate-700/50 flex flex-col items-center gap-4 animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
+          {toastMessage.includes("⛔️") || toastMessage.toLowerCase().includes("error") || toastMessage.includes("ไม่สามารถ") || toastMessage.includes("กรุณา") ? (
+            <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center shrink-0">
+              <AlertTriangle size={32} />
+            </div>
+          ) : (
+            <div className="w-16 h-16 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center shrink-0">
+              <CheckCircle size={32} />
+            </div>
+          )}
+          <div className="text-white font-bold text-lg text-center whitespace-pre-line leading-relaxed max-w-sm">
+            {toastMessage.replace("✅", "").replace("⛔️", "").trim()}
+          </div>
+        </div>
       )}
     </div>
   );
