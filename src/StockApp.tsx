@@ -742,20 +742,20 @@ const ProductCardMobile = ({ item, onAddToCart, currentUser }: any) => {
                 {item.name}
               </h3>
               
-              <div className="flex flex-wrap gap-2 mb-4">
-                <div className="bg-[#0F172A] px-2.5 py-1.5 rounded-lg border border-gray-800 flex items-center gap-2 flex-1 min-w-[45%]">
-                  <Tag size={12} className="text-gray-500 shrink-0" />
-                  <span className="text-[11px] font-mono text-blue-400 truncate">{item.sku || "-"}</span>
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="bg-[#0F172A] px-3 py-2.5 rounded-xl border border-gray-800 flex items-center justify-between gap-2 overflow-hidden">
+                  <div className="text-[10px] text-gray-500 font-bold flex items-center gap-1 shrink-0"><Tag size={10} /> รหัส</div>
+                  <div className="text-xs font-mono text-blue-400 truncate text-right">{item.sku || "-"}</div>
                 </div>
-                <div className="bg-[#0F172A] px-2.5 py-1.5 rounded-lg border border-gray-800 flex items-center gap-2 flex-1 min-w-[45%]">
-                  <Box size={12} className="text-gray-500 shrink-0" />
-                  <span className={`text-[11px] font-bold ${isOutOfStock ? "text-red-500" : isLowStock ? "text-yellow-500" : "text-emerald-400"}`}>
-                    คงเหลือ {item.quantity} ชิ้น
-                  </span>
+                <div className="bg-[#0F172A] px-3 py-2.5 rounded-xl border border-gray-800 flex items-center justify-between gap-2 overflow-hidden">
+                  <div className="text-[10px] text-gray-500 font-bold flex items-center gap-1 shrink-0"><Box size={10} /> สต็อก</div>
+                  <div className={`text-xs font-black truncate text-right ${isOutOfStock ? "text-red-500" : isLowStock ? "text-yellow-500" : "text-emerald-400"}`}>
+                    {item.quantity}
+                  </div>
                 </div>
-                <div className="bg-[#0F172A] px-2.5 py-1.5 rounded-lg border border-gray-800 flex items-center gap-2 w-full">
-                  <Layers size={12} className="text-gray-500 shrink-0" />
-                  <span className="text-[11px] font-bold text-slate-300 truncate">{item.department || "Common"}</span>
+                <div className="bg-[#0F172A] px-3 py-2.5 rounded-xl border border-gray-800 col-span-2 flex justify-between items-center">
+                  <div className="text-[10px] text-gray-500 font-bold flex items-center gap-1"><Layers size={10} /> หมวดหมู่</div>
+                  <div className="text-sm font-bold text-slate-300">{item.department || "Common"}</div>
                 </div>
               </div>
 
@@ -971,61 +971,108 @@ const InventoryView = ({
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col bg-[#0F172A] custom-scrollbar relative z-0">
-      <div className="p-4 md:p-6 flex flex-col gap-4 md:gap-6 min-h-full">
-        <div className="flex-none">
-          <div className="inline-flex p-1.5 bg-[#1F1F23] border border-gray-800 rounded-2xl gap-1 shadow-sm">
-            <button
-              onClick={() => setMode("withdraw")}
-              className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === "withdraw"
-                ? "bg-blue-600 text-white shadow-lg"
-                : "text-gray-400 hover:text-white"
-                }`}
-            >
-              เบิกอะไหล่
-            </button>
-            <button
-              onClick={() => setMode("return")}
-              className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === "return"
-                ? "bg-orange-600 text-white shadow-lg"
-                : "text-gray-400 hover:text-white"
-                }`}
-            >
-              คืนอะไหล่
-            </button>
+      
+      {/* 📌 Pinned Header Area (Sticky) */}
+      <div className="sticky top-0 z-30 bg-[#0F172A] flex flex-col border-b border-gray-800 shadow-md">
+        <div className="p-4 md:p-6 pb-3 flex flex-col gap-4">
+          <div className="flex-none">
+            <div className="inline-flex p-1.5 bg-[#1F1F23] border border-gray-800 rounded-2xl gap-1 shadow-sm">
+              <button
+                onClick={() => setMode("withdraw")}
+                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === "withdraw"
+                  ? "bg-blue-600 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+                  }`}
+              >
+                เบิกอะไหล่
+              </button>
+              <button
+                onClick={() => setMode("return")}
+                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === "return"
+                  ? "bg-orange-600 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+                  }`}
+              >
+                คืนอะไหล่
+              </button>
+            </div>
           </div>
-        </div>
 
-        {mode === "withdraw" ? (
-          <>
-            {/* Header Desktop */}
-            <div className="hidden md:flex items-center justify-between gap-4 animate-in fade-in">
-              <div className="flex flex-1 gap-2 max-w-2xl">
+          {mode === "withdraw" ? (
+            <>
+              {/* Header Desktop */}
+              <div className="hidden md:flex items-center justify-between gap-4 animate-in fade-in">
+                <div className="flex flex-1 gap-2 max-w-2xl">
+                  <div className="relative flex-1">
+                    <Search
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                      size={18}
+                    />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาอะไหล่..."
+                      value={search}
+                      onChange={(e: any) => setSearch(e.target.value)}
+                      className="w-full bg-[#1F1F23] border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <select
+                    value={selectedOrigin}
+                    onChange={(e: any) => setSelectedOrigin(e.target.value)}
+                    className="w-40 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none"
+                  >
+                    <option value="all">ทุกแหล่ง</option>
+                    <option value="local">ในประเทศ</option>
+                    <option value="import">นำเข้า</option>
+                  </select>
+                  <select
+                    value={selectedDept}
+                    onChange={(e: any) => setSelectedDept(e.target.value)}
+                    className="w-48 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none"
+                  >
+                    <option value="all">ทุกแผนก</option>
+                    {departments.map((d: any) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="relative pl-2 pb-1">
+                  <button
+                    onClick={() => setIsCartModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl shadow-lg flex items-center justify-center shrink-0"
+                  >
+                    <ShoppingCart size={20} />
+                  </button>
+                  {cart.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-[#0F1115] shadow-sm">
+                      {cart.length}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Header Mobile */}
+              <div className="flex md:hidden items-center gap-2">
                 <div className="relative flex-1">
                   <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-                    size={18}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={16}
                   />
                   <input
                     type="text"
                     placeholder="ค้นหาอะไหล่..."
                     value={search}
-                    onChange={(e: any) => setSearch(e.target.value)}
-                    className="w-full bg-[#1F1F23] border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full h-11 bg-[#1F1F23] border border-gray-700 rounded-xl pl-9 pr-2 text-xs text-white outline-none focus:border-blue-500 transition-all"
                   />
                 </div>
-                <select
-                  value={selectedOrigin}
-                  onChange={(e: any) => setSelectedOrigin(e.target.value)}
-                  className="w-40 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none"
-                >
-                  <option value="all">ทุกแหล่ง</option>
-                  <option value="local">ในประเทศ</option>
-                  <option value="import">นำเข้า</option>
-                </select>
+
                 <select
                   value={selectedDept}
                   onChange={(e: any) => setSelectedDept(e.target.value)}
-                  className="w-48 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none"
+                  className="w-24 h-11 bg-[#1F1F23] border border-gray-800 rounded-xl px-2 text-[10px] font-bold text-slate-300 outline-none focus:border-blue-500 transition-all shrink-0"
                 >
                   <option value="all">ทุกแผนก</option>
                   {departments.map((d: any) => (
@@ -1034,65 +1081,44 @@ const InventoryView = ({
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="relative pl-2 pb-1">
+
                 <button
                   onClick={() => setIsCartModalOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl shadow-lg flex items-center justify-center shrink-0"
+                  className="relative h-11 w-11 shrink-0 bg-blue-600 text-white rounded-xl shadow-lg flex items-center justify-center active:scale-90 transition-transform"
                 >
                   <ShoppingCart size={20} />
+                  {cart.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-[#0F1115]">
+                      {cart.length}
+                    </span>
+                  )}
                 </button>
-                {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-[#0F1115] shadow-sm">
-                    {cart.length}
-                  </span>
-                )}
               </div>
+            </>
+          ) : (
+            /* Header Return Mobile/Desktop */
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-gray-500" />
+              <input
+                type="date"
+                value={historyDateFilter}
+                onChange={(e) => setHistoryDateFilter(e.target.value)}
+                className="bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none"
+              />
+              {!historyDateFilter && (
+                <span className="text-[10px] text-emerald-500 font-bold uppercase">
+                  Showing All Pending Items
+                </span>
+              )}
             </div>
+          )}
+        </div>
+      </div>
 
-            {/* Header Mobile */}
-            <div className="flex md:hidden items-center gap-2 animate-in fade-in">
-              <div className="relative flex-1">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={16}
-                />
-                <input
-                  type="text"
-                  placeholder="ค้นหาอะไหล่..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full h-11 bg-[#1F1F23] border border-gray-700 rounded-xl pl-9 pr-2 text-xs text-white outline-none focus:border-blue-500 transition-all"
-                />
-              </div>
-
-              {/* ✅ เพิ่ม Dropdown แผนกสำหรับมือถือ */}
-              <select
-                value={selectedDept}
-                onChange={(e: any) => setSelectedDept(e.target.value)}
-                className="w-24 h-11 bg-[#1F1F23] border border-gray-800 rounded-xl px-2 text-[10px] font-bold text-slate-300 outline-none focus:border-blue-500 transition-all shrink-0"
-              >
-                <option value="all">ทุกแผนก</option>
-                {departments.map((d: any) => (
-                  <option key={d.id} value={d.name}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={() => setIsCartModalOpen(true)}
-                className="relative h-11 w-11 shrink-0 bg-blue-600 text-white rounded-xl shadow-lg flex items-center justify-center active:scale-90 transition-transform"
-              >
-                <ShoppingCart size={20} />
-                {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-[#0F1115]">
-                    {cart.length}
-                  </span>
-                )}
-              </button>
-            </div>
-
+      {/* 📜 Scrollable Content Area */}
+      <div className="p-4 md:p-6 pt-4 flex flex-col gap-4 md:gap-6 min-h-full">
+        {mode === "withdraw" ? (
+          <>
             {/* Product Lists */}
             <div className="hidden md:grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-6">
               {visibleItems.map((item: any) => (
@@ -1108,7 +1134,7 @@ const InventoryView = ({
                 />
               ))}
             </div>
-            <div className="flex md:hidden grid grid-cols-2 gap-x-4 gap-y-2 pb-6">
+            <div className="flex flex-col md:hidden gap-3 pb-6">
               {visibleItems.map((item: any) => (
                 <ProductCardMobile
                   key={item.id}
@@ -1123,7 +1149,7 @@ const InventoryView = ({
               ))}
             </div>
 
-            {/* ✅ ส่วนที่เพิ่ม: ปุ่มแสดงเพิ่มเติม */}
+            {/* ปุ่มแสดงเพิ่มเติม */}
             {filteredItems.length > displayLimit && (
               <div className="flex justify-center mt-4 mb-20">
                 <button
@@ -1137,22 +1163,8 @@ const InventoryView = ({
             )}
           </>
         ) : (
-          /* --- RETURN MODE --- */
+          /* --- RETURN MODE LIST --- */
           <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-gray-500" />
-              <input
-                type="date"
-                value={historyDateFilter}
-                onChange={(e) => setHistoryDateFilter(e.target.value)}
-                className="bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none"
-              />
-              {!historyDateFilter && (
-                <span className="text-[10px] text-emerald-500 font-bold uppercase">
-                  Showing All Pending Items
-                </span>
-              )}
-            </div>
             <div className="bg-[#1F1F23] border border-gray-800 rounded-xl overflow-x-auto shadow-lg">
               <table className="w-full text-left text-sm text-gray-400 table-fixed min-w-[800px] md:min-w-full">
                 <thead className="bg-[#000000] text-gray-200 font-bold uppercase text-[10px]">
