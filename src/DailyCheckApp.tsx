@@ -75,6 +75,7 @@ import {
   Droplet,
   Save,
   Home,
+  UserCheck,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { QRCodeSVG } from "qrcode.react";
@@ -3252,6 +3253,59 @@ function ScanPage({
     user?.role === "super_admin" ||
     user?.allowedActions?.includes("daily_delete");
 
+  const canVerify =
+    user?.username === "Bank" ||
+    user?.role === "super_admin" ||
+    user?.allowedActions?.includes("daily_verify");
+
+  const [auditLog, setAuditLog] = useState<any>(null);
+
+  useEffect(() => {
+    if (!isHistoryMode) return;
+    const [yStr, mStr, dStr] = workingDate.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    const d = parseInt(dStr, 10);
+    if (!y || !m || !d) return;
+
+    const auditId = `${machine.id}_${y}_${m}_${d}_${workingShift}`;
+    const unsub = onSnapshot(doc(db, "audit_logs", auditId), (docSnap) => {
+      if (docSnap.exists()) {
+        setAuditLog(docSnap.data());
+      } else {
+        setAuditLog(null);
+      }
+    });
+    return () => unsub();
+  }, [machine.id, workingDate, workingShift, isHistoryMode]);
+
+  const handleMobileSignOff = async () => {
+    if (!canVerify) return alert("⛔️ คุณไม่มีสิทธิ์ตรวจสอบความถูกต้อง (Need 'daily_verify' permission)");
+    if (!window.confirm(`ยืนยันการตรวจสอบวันที่ ${workingDate} กะ ${workingShift}?`)) return;
+
+    const [yStr, mStr, dStr] = workingDate.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    const d = parseInt(dStr, 10);
+
+    const auditId = `${machine.id}_${y}_${m}_${d}_${workingShift}`;
+    try {
+      await setDoc(doc(db, "audit_logs", auditId), {
+        mid: machine.id,
+        year: y,
+        month: m,
+        day: d,
+        shift: workingShift,
+        auditor: user.username,
+        timestamp: serverTimestamp()
+      });
+      // ไม่ต้อง alert เพื่อให้ UX ลื่นไหล เพราะ UI จะเปลี่ยนเป็น Verified ทันที
+    } catch (err) {
+      console.error(err);
+      alert("❌ เกิดข้อผิดพลาดในการบันทึกการตรวจสอบ");
+    }
+  };
+
   useEffect(() => {
     const q = query(
       collection(db, "logs"),
@@ -3825,9 +3879,10 @@ function ScanPage({
 
           {/* ส่วนเนื้อหาหลัก (แสดงเมื่อ Unlocked แล้ว) */}
           {isVerified && (
-            isDewPoint ? (
-              // ✅ DEW POINT FORM
-              <div className={`w-full max-w-lg bg-[#1E293B] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 ${isHistoryMode && pendingDpDeletes.size > 0 ? "mb-24" : ""}`}>
+            <div className="w-full flex flex-col items-center pb-24">
+              {isDewPoint ? (
+                // ✅ DEW POINT FORM
+                <div className="w-full max-w-lg bg-[#1E293B] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                 {/* ... (Dew Point form remains the same) */}
                 <div className="bg-blue-600/10 p-4 border-b border-blue-500/20 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-blue-400 font-bold text-base">
@@ -3840,17 +3895,31 @@ function ScanPage({
 
                 <div className="p-6 space-y-5">
                   <div className="grid grid-cols-1 gap-4">
-                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 mb-2">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                        Material System {savedDpLog && "(Saved Value)"}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
-                        <span className="text-sm font-bold text-blue-400">
-                          {savedDpLog
-                            ? (savedDpLog?.material_name || "ไม่ระบุ")
-                            : (machine.material || "ไม่ระบุ (กรุณาตั้งค่าเครื่องจักร)")}
-                        </span>
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                      <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 overflow-hidden">
+                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 truncate">
+                          Material System
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full min-w-[8px] bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
+                          <span className="text-xs font-bold text-blue-400 truncate">
+                            {savedDpLog
+                              ? (savedDpLog?.material_name || "ไม่ระบุ")
+                              : (machine.material || "ไม่ระบุ")}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 overflow-hidden">
+                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 truncate">
+                          ผู้ตรวจ
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <UserCheck size={12} className="text-slate-400 min-w-[12px]" />
+                          <span className="text-xs font-bold text-slate-300 truncate">
+                            {savedDpLog?.inspector || "-"}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -4026,57 +4095,10 @@ function ScanPage({
                     </div>
                   </div>
 
-                  {!isDpSaved && !isHistoryMode && (
-                    (() => {
-                      const isFormIncomplete =
-                        !dpStatus ||
-                        ((dpStatus === "NORMAL" || dpStatus === "ABNORMAL") && (!dpSetPoint.trim() || !dpActual.trim() || !dpDewPoint.trim()));
-
-                      if (isFormIncomplete) return null;
-
-                      return (
-                        <button
-                          onClick={async () => {
-                            let extraFields = undefined;
-                            let finalRemark = dpRemark;
-
-                            if (dpStatus === "NORMAL" || dpStatus === "ABNORMAL") {
-                              extraFields = {
-                                set_point: dpSetPoint,
-                                actual: dpActual,
-                                dew_point_val: dpDewPoint,
-                                material_name: machine.material || "-"
-                              };
-                            } else if (dpStatus === "NA") {
-                              finalRemark = "";
-                            }
-
-                            setIsSavingDewPoint(true);
-                            await executeSave(dpStatus, finalRemark, false, null, extraFields);
-                            setIsSavingDewPoint(false);
-                          }}
-                          disabled={isSavingDewPoint}
-                          className="w-full py-4 rounded-xl font-black text-base uppercase tracking-widest shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-500 shadow-blue-900/40 animate-in fade-in slide-in-from-top-2 duration-300"
-                        >
-                          {isSavingDewPoint ? (
-                            <>
-                              <Loader2 className="animate-spin" />
-                              <span>กำลังบันทึก...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Save />
-                              <span>บันทึกผลการตรวจ</span>
-                            </>
-                          )}
-                        </button>
-                      );
-                    })()
-                  )}
                 </div>
               </div>
             ) : (
-              <div className="w-full max-w-4xl space-y-4 pb-24">
+              <div className="w-full max-w-4xl space-y-4">
                 <div className="bg-[#1E293B] rounded-xl border border-slate-700 shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-500">
                   <div className="bg-green-500/10 p-3 text-[10px] text-green-400 font-black uppercase tracking-widest border-b border-green-500/20 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -4090,6 +4112,7 @@ function ScanPage({
                         <tr>
                           <th className="p-4 text-center w-16">Status</th>
                           <th className="p-4">Item Detail</th>
+                          <th className="p-4 text-center">ผู้ตรวจ</th>
                           <th className="p-4 hidden md:table-cell">Method</th>
                           {isHistoryMode && canDelete && <th className="p-4 text-center w-20">Action</th>}
                         </tr>
@@ -4142,6 +4165,13 @@ function ScanPage({
                                   {item.detail}
                                 </div>
                               </td>
+                                <td className="p-4 text-center">
+                                  {savedLog && savedLog.inspector ? (
+                                    <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">{savedLog.inspector.substring(0, 4)}</span>
+                                  ) : (
+                                    <span className="text-slate-700/50">-</span>
+                                  )}
+                                </td>
                               <td className="p-4 hidden md:table-cell whitespace-pre-wrap text-slate-500 leading-relaxed text-[11px]">
                                 {item.method}
                               </td>
@@ -4173,66 +4203,164 @@ function ScanPage({
                     </table>
                   </div>
                 </div>
-
               </div>
-            )
-          )}
+            )}
+
+            {/* ✅ Action Buttons สำหรับ History Mode (Approve & Delete) วางชิดตาราง / ฟอร์ม */}
+            {isHistoryMode && (
+              <div className="flex justify-center animate-in fade-in duration-500 mt-4">
+                {(() => {
+                  const hasDeletes = pendingDeletes.size > 0 || pendingDpDeletes.size > 0;
+
+                  // 1. ถ้ามีการกดเลือกถังขยะ ให้แสดงปุ่ม Delete (ปุ่มเดียว)
+                  if (hasDeletes && canDelete) {
+                    return (
+                      <button
+                        onClick={pendingDpDeletes.size > 0 ? handleConfirmDpDeletes : handleConfirmDeletes}
+                        disabled={isSavingAll}
+                        className="group relative px-8 py-3 bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-xl font-black uppercase tracking-[.1em] shadow-[0_10px_20px_rgba(225,29,72,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all border border-red-400/20 overflow-hidden min-w-[150px]"
+                      >
+                        {isSavingAll ? (
+                          <>
+                            <Loader2 className="animate-spin" size={16} />
+                            <span className="text-xs">Del...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 size={16} />
+                            <span className="text-xs">
+                              Delete ({pendingDpDeletes.size > 0 ? pendingDpDeletes.size : pendingDeletes.size})
+                            </span>
+                          </>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                      </button>
+                    );
+                  }
+
+                  // 2. ถ้าไม่ได้เลือกถังขยะ และไม่ใช่ Dew Point ให้แสดงปุ่ม Approve/รอตรวจสอบ
+                  if (!isDewPoint) {
+                    const isComplete = logs.length >= machine.checklist.length && machine.checklist.length > 0;
+                    
+                    return (
+                      <button
+                        onClick={handleMobileSignOff}
+                        disabled={!canVerify || !isComplete || !!auditLog}
+                        className={`group relative px-8 py-3 rounded-xl font-black uppercase tracking-[.1em] flex items-center justify-center gap-2 transition-all border overflow-hidden shadow-xl min-w-[150px] ${
+                          !!auditLog 
+                            ? "bg-green-900/40 border-green-500/20 text-green-400/80 cursor-default" 
+                            : !isComplete || !canVerify
+                            ? "bg-slate-800 border-slate-700 text-slate-500 shadow-none cursor-not-allowed"
+                            : "bg-gradient-to-r from-green-500 to-emerald-600 border-green-400/20 text-white hover:from-green-400 hover:to-emerald-500 active:scale-95 shadow-[0_10px_20px_rgba(22,163,74,0.3)]"
+                        }`}
+                      >
+                        {!!auditLog ? (
+                          <>
+                            <CheckCircle2 size={16} />
+                            <span className="text-xs">Verified</span>
+                          </>
+                        ) : (
+                          <>
+                            {isComplete ? <Check size={16} /> : <Clock size={16} />}
+                            <span className="text-xs">{!canVerify ? "ไม่มีสิทธิ์" : !isComplete ? "รอตรวจสอบ" : "Approve"}</span>
+                          </>
+                        )}
+                        {!auditLog && canVerify && isComplete && (
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                        )}
+                      </button>
+                    );
+                  }
+
+                  // 3. ถ้าเป็น Dew Point และไม่ได้เลือกลบ ก็ไม่ต้องแสดงปุ่มอะไรเลย
+                  return null;
+                })()}
+              </div>
+            )}
+
+            {/* ✅ Action Buttons สำหรับ Normal Mode (Save All / บันทึกข้อมูล) วางชิดตาราง / ฟอร์ม */}
+            {!isHistoryMode && (
+              <div className="flex justify-center animate-in fade-in duration-500 mt-4">
+                {isDewPoint ? (
+                  // ✅ ปุ่มบันทึกสำหรับ Dew Point
+                  (() => {
+                    const isFormIncomplete =
+                      !dpStatus ||
+                      ((dpStatus === "NORMAL" || dpStatus === "ABNORMAL") && (!dpSetPoint.trim() || !dpActual.trim() || !dpDewPoint.trim()));
+
+                    if (isFormIncomplete || isDpSaved) return null;
+
+                    return (
+                      <button
+                        onClick={async () => {
+                          let extraFields = undefined;
+                          let finalRemark = dpRemark;
+
+                          if (dpStatus === "NORMAL" || dpStatus === "ABNORMAL") {
+                            extraFields = {
+                              set_point: dpSetPoint,
+                              actual: dpActual,
+                              dew_point_val: dpDewPoint,
+                              material_name: machine.material || "-"
+                            };
+                          } else if (dpStatus === "NA") {
+                            finalRemark = "";
+                          }
+
+                          setIsSavingDewPoint(true);
+                          await executeSave(dpStatus, finalRemark, false, null, extraFields);
+                          setIsSavingDewPoint(false);
+                        }}
+                        disabled={isSavingDewPoint}
+                        className="group relative px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl font-black uppercase tracking-[.1em] shadow-[0_10px_20px_rgba(37,99,235,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all border border-blue-400/20 overflow-hidden min-w-[150px]"
+                      >
+                        {isSavingDewPoint ? (
+                          <>
+                            <Loader2 className="animate-spin" size={16} />
+                            <span className="text-xs">Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save size={16} />
+                            <span className="text-xs">บันทึกผลการตรวจ</span>
+                          </>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                      </button>
+                    );
+                  })()
+                ) : (
+                  // ✅ ปุ่มบันทึกสำหรับ Daily Check
+                  Object.keys(pendingLogs).length > 0 ? (
+                    <button
+                      onClick={handleSaveAll}
+                      disabled={isSavingAll}
+                      className="group relative px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl font-black uppercase tracking-[.1em] shadow-[0_10px_20px_rgba(37,99,235,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all border border-blue-400/20 overflow-hidden min-w-[150px]"
+                    >
+                      {isSavingAll ? (
+                        <>
+                          <Loader2 className="animate-spin" size={16} />
+                          <span className="text-xs">Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={16} />
+                          <span className="text-xs">บันทึกข้อมูล ({Object.keys(pendingLogs).length})</span>
+                        </>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                    </button>
+                  ) : null
+                )}
+              </div>
+            )}
+          </div>
+        )}
         </div>
       </div>
 
-      {/* ✅ ปุ่มบันทึกทั้งหมด (Save All) - เปลี่ยนเป็น absolute เพื่อให้อยู่กึ่งกลางพื้นที่เนื้อหา */}
-      {Object.keys(pendingLogs).length > 0 && (
-        <div className="absolute bottom-8 left-0 right-0 z-50 flex justify-center px-6 animate-in slide-in-from-bottom-10 duration-500">
-          <button
-            onClick={handleSaveAll}
-            disabled={isSavingAll}
-            className="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl font-black uppercase tracking-[.2em] shadow-[0_15px_30px_rgba(37,99,235,0.3)] flex items-center justify-center gap-3 active:scale-95 transition-all border border-blue-400/20 overflow-hidden"
-          >
-            {isSavingAll ? (
-              <>
-                <Loader2 className="animate-spin" size={18} />
-                <span className="text-xs">Saving...</span>
-              </>
-            ) : (
-              <>
-                <Save size={18} />
-                <span className="text-xs">บันทึกข้อมูล ({Object.keys(pendingLogs).length})</span>
-              </>
-            )}
 
-            {/* Shimmer Effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-          </button>
-        </div>
-      )}
 
-      {/* ✅ ปุ่มยืนยันการลบ (Confirm Deletes) สำหรับ History Mode — Daily Check & Dew Point */}
-      {isHistoryMode && canDelete && (pendingDeletes.size > 0 || pendingDpDeletes.size > 0) && (
-        <div className="absolute bottom-8 left-0 right-0 z-50 flex justify-center px-6 animate-in slide-in-from-bottom-10 duration-500">
-          <button
-            onClick={pendingDpDeletes.size > 0 ? handleConfirmDpDeletes : handleConfirmDeletes}
-            disabled={isSavingAll}
-            className="group relative px-8 py-4 bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-2xl font-black uppercase tracking-[.2em] shadow-[0_15px_30px_rgba(225,29,72,0.3)] flex items-center justify-center gap-3 active:scale-95 transition-all border border-red-400/20 overflow-hidden"
-          >
-            {isSavingAll ? (
-              <>
-                <Loader2 className="animate-spin" size={18} />
-                <span className="text-xs">Deleting...</span>
-              </>
-            ) : (
-              <>
-                <Trash2 size={18} />
-                <span className="text-xs">
-                  ยืนยันการลบ ({pendingDpDeletes.size > 0 ? pendingDpDeletes.size : pendingDeletes.size})
-                </span>
-              </>
-            )}
-
-            {/* Shimmer Effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-          </button>
-        </div>
-      )}
 
       {/* --- Wrapper สำหรับ Modals --- */}
       <div className="text-gray-900">
@@ -4948,6 +5076,8 @@ function InspectView({
   workingShift,
   machineStatus,
   isHistoryMode,
+  expandedLines,
+  setExpandedLines,
 }: {
   machines: Machine[];
   user: User;
@@ -4958,8 +5088,12 @@ function InspectView({
   workingShift: string;
   machineStatus?: Record<string, { count: number, isComplete: boolean, isAbnormal: boolean }>;
   isHistoryMode?: boolean;
+  expandedLines?: string[];
+  setExpandedLines?: (lines: string[]) => void;
 }) {
-  const [expandedLines, setExpandedLines] = useState<string[]>([]);
+  const [localExpandedLines, setLocalExpandedLines] = useState<string[]>([]);
+  const activeExpandedLines = expandedLines || localExpandedLines;
+  const activeSetExpandedLines = setExpandedLines || setLocalExpandedLines;
 
   // ✅ 1. เพิ่ม State สำหรับสถานะการโหลด
   const [isLoading, setIsLoading] = useState(false);
@@ -4986,10 +5120,10 @@ function InspectView({
   const sortedProcessNames = Object.keys(groupedMachines).sort();
 
   const toggleLine = (lineName: string) => {
-    if (expandedLines.includes(lineName)) {
-      setExpandedLines(expandedLines.filter((l) => l !== lineName));
+    if (activeExpandedLines.includes(lineName)) {
+      activeSetExpandedLines(activeExpandedLines.filter((l) => l !== lineName));
     } else {
-      setExpandedLines([...expandedLines, lineName]);
+      activeSetExpandedLines([...activeExpandedLines, lineName]);
     }
   };
 
@@ -5091,7 +5225,7 @@ function InspectView({
       <div className="space-y-3">
         {sortedProcessNames.map((processName) => {
           const machinesInLine = groupedMachines[processName];
-          const isExpanded = expandedLines.includes(processName);
+          const isExpanded = activeExpandedLines.includes(processName);
 
           return (
             <div key={processName} className="bg-transparent overflow-hidden">
@@ -7042,6 +7176,7 @@ function MachineSettingsView({
 export function DailyCheckModule({ currentUser, activeTab, onExit, isHistoryMode }: any) {
   const [machines, setMachines] = useState<any[]>([]);
   const [selectedMachine, setSelectedMachine] = useState<any | null>(null);
+  const [expandedLines, setExpandedLines] = useState<string[]>([]);
 
   // ✅ New state to track today's completion status per machine
   const [machineStatus, setMachineStatus] = useState<Record<string, { count: number, isComplete: boolean, isAbnormal: boolean }>>({});
@@ -7260,6 +7395,8 @@ export function DailyCheckModule({ currentUser, activeTab, onExit, isHistoryMode
             workingShift={workingShift}
             machineStatus={machineStatus}
             isHistoryMode={isHistoryMode}
+            expandedLines={expandedLines}
+            setExpandedLines={setExpandedLines}
           />
         )}
 
