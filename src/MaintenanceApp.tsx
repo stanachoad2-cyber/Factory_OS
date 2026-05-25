@@ -71,6 +71,8 @@ import {
   Users,
   Hash,
   ArrowLeft,
+  Check,
+  Undo2,
 } from "lucide-react";
 
 function ConfirmActionModal({
@@ -362,8 +364,8 @@ export default function MaintenanceSettingsContent({
               <button
                 onClick={() => setRequireNote(!requireNote)}
                 className={`h-[34px] px-3 rounded-lg flex items-center gap-1.5 border transition-all ${requireNote
-                    ? "bg-orange-500/10 border-orange-500 text-orange-400"
-                    : "bg-[#0B1121] border-slate-700 text-slate-500 hover:text-slate-300"
+                  ? "bg-orange-500/10 border-orange-500 text-orange-400"
+                  : "bg-[#0B1121] border-slate-700 text-slate-500 hover:text-slate-300"
                   }`}
                 title="บังคับให้ใส่หมายเหตุเมื่อเลือกรายการนี้"
               >
@@ -726,6 +728,26 @@ const getStatusColor = (status: TicketStatus) => {
     default:
       return "bg-gray-400";
   }
+};
+export const getDeptConfig = (dept: string) => {
+  const d = (dept || "").toLowerCase().trim();
+  if (d.includes("cutting")) return { bg: "bg-blue-500", text: "group-hover:text-blue-400", plainText: "text-blue-400", border: "border-blue-500" };
+  if (d.includes("extrusion")) return { bg: "bg-orange-500", text: "group-hover:text-orange-400", plainText: "text-orange-400", border: "border-orange-500" };
+  if (d.includes("lab")) return { bg: "bg-purple-500", text: "group-hover:text-purple-400", plainText: "text-purple-400", border: "border-purple-500" };
+  if (d.includes("office")) return { bg: "bg-emerald-500", text: "group-hover:text-emerald-400", plainText: "text-emerald-400", border: "border-emerald-500" };
+  if (d.includes("warehouse") || d.includes("wh")) return { bg: "bg-amber-500", text: "group-hover:text-amber-400", plainText: "text-amber-400", border: "border-amber-500" };
+  if (d.includes("maintenance") || d.includes("mt")) return { bg: "bg-rose-500", text: "group-hover:text-rose-400", plainText: "text-rose-400", border: "border-rose-500" };
+
+  const configs = [
+    { bg: "bg-cyan-500", text: "group-hover:text-cyan-400", plainText: "text-cyan-400", border: "border-cyan-500" },
+    { bg: "bg-fuchsia-500", text: "group-hover:text-fuchsia-400", plainText: "text-fuchsia-400", border: "border-fuchsia-500" },
+    { bg: "bg-teal-500", text: "group-hover:text-teal-400", plainText: "text-teal-400", border: "border-teal-500" },
+    { bg: "bg-pink-500", text: "group-hover:text-pink-400", plainText: "text-pink-400", border: "border-pink-500" },
+    { bg: "bg-indigo-500", text: "group-hover:text-indigo-400", plainText: "text-indigo-400", border: "border-indigo-500" },
+  ];
+  let sum = 0;
+  for (let i = 0; i < d.length; i++) sum += d.charCodeAt(i);
+  return configs[sum % configs.length];
 };
 
 const getStatusLabel = (status: TicketStatus) => {
@@ -1287,83 +1309,40 @@ function TicketCard({ ticket, onClick }: any) {
 
   const status = getStatusConfig(ticket.status);
   const StatusIcon = status.icon;
+  const deptConfig = getDeptConfig(ticket.department);
 
   return (
     <div
       onClick={onClick}
-      className="group relative flex flex-col w-full h-[150px] rounded-2xl bg-[#1E293B] border border-slate-700/60 hover:border-slate-600 cursor-pointer transition-all duration-300 overflow-hidden shadow-lg hover:shadow-xl hover:-translate-y-1"
+      className={`group relative flex flex-col gap-1 w-full px-4 py-2.5 rounded-xl bg-[#1E293B] border border-slate-700/60 hover:border-slate-500 hover:bg-[#233045] cursor-pointer transition-all duration-200 overflow-hidden shadow-sm hover:shadow hover:-translate-y-0.5`}
     >
-      {/* 1. แถบสีด้านบน */}
-      <div className={`h-1.5 w-full bg-${status.color} shrink-0`}></div>
+      {/* 1. แถบสีด้านซ้าย (ใช้ div ชัวร์กว่าขอบ) */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${deptConfig.bg}`}></div>
 
-      <div className="p-4 flex flex-col h-full justify-between relative z-10">
-        {/* --- ส่วนหัว: ชื่อเครื่องจักร --- */}
-        <div className="flex justify-between items-start mb-1">
-          <div className="flex items-center gap-3">
-            {/* ไอคอนแผนก */}
-            <div className="w-8 h-8 rounded-lg bg-[#0F172A] border border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
-              <Briefcase size={16} />
-            </div>
+      {/* Machine Name & Issue together */}
+      <div className="w-full flex items-baseline gap-2 truncate">
+        <h3 className={`text-sm font-bold text-white shrink-0 transition-colors duration-200 ${deptConfig.text}`}>
+          {ticket.machine_name}
+        </h3>
+        <span className="text-slate-600 font-bold text-[10px] shrink-0">-</span>
+        <span className={`text-sm font-bold text-white truncate transition-colors duration-200 ${deptConfig.text}`}>
+          {ticket.issue_item}
+        </span>
+      </div>
 
-            <div className="min-w-0">
-              {/* ✅ 1. ชื่อเครื่องจักร: text-base (ขนาดมาตรฐาน) */}
-              <h3
-                className={`text-base font-bold text-white truncate leading-tight transition-colors duration-200 ${status.hoverText}`}
-              >
-                {ticket.machine_name}
-              </h3>
-              <div className="flex items-center gap-2 text-[10px] mt-0.5">
-                <span className="text-slate-500 font-mono">#{ticket.id}</span>
-                <span className="font-bold text-slate-300">
-                  {ticket.department}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Badge สถานะ */}
-          <span
-            className={`flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold bg-${status.color}/10 text-${status.color} border border-${status.color}/20 uppercase tracking-wide shrink-0`}
-          >
-            <StatusIcon size={12} /> {status.label}
-          </span>
-        </div>
-
-        {/* --- ส่วนกลาง: อาการเสีย --- */}
-        <div className="flex-1 mt-1 flex items-center">
-          <div className="w-full flex items-baseline gap-2 truncate">
-            {/* หัวข้อ (ISSUE:) */}
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
-              ISSUE:
-            </span>
-
-            {/* ✅ 2. รายละเอียดอาการ: ปรับเป็น text-base (เท่ากับชื่อเครื่อง) */}
-            <span
-              className={`text-base font-bold text-white truncate transition-colors duration-200 ${status.hoverText}`}
-            >
-              {ticket.issue_item}
-            </span>
-          </div>
-        </div>
-
-        {/* --- ส่วนท้าย: ผู้แจ้ง + วันที่ --- */}
-        <div className="flex items-center justify-between pt-3 border-t border-slate-700/50 text-[10px]">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-[#0F172A] px-2 py-1 rounded-full border border-slate-800">
-              <User size={12} className="text-slate-400" />
-              <span className="truncate max-w-[100px] font-medium text-slate-300">
-                {ticket.requester_fullname}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 font-mono bg-[#0F172A] px-2 py-1 rounded-full border border-slate-800">
-            <Clock size={12} className="text-slate-400" />
-            <span className="text-slate-300">
-              {formatDateTime(ticket.created_at)}
-            </span>
-          </div>
-        </div>
+      {/* Date/Time on second line */}
+      <div className="flex items-center gap-1.5 text-white">
+        <Clock size={10} className="text-white/70" />
+        <span className="text-[9px] font-mono font-medium">
+          {ticket.created_at?.toDate
+            ? ticket.created_at.toDate().toLocaleString("th-TH", {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit"
+              })
+            : "-"}
+        </span>
       </div>
     </div>
   );
@@ -1542,8 +1521,8 @@ function TicketFormView({ ticket }: { ticket: any }) {
         <button
           onClick={() => setTestMode(!testMode)}
           className={`px-4 py-2 rounded-lg text-xs font-bold shadow-lg transition-all flex items-center gap-2 ${testMode
-              ? "bg-red-600 text-white hover:bg-red-700 shadow-red-500/50"
-              : "bg-white text-slate-700 hover:bg-slate-100"
+            ? "bg-red-600 text-white hover:bg-red-700 shadow-red-500/50"
+            : "bg-white text-slate-700 hover:bg-slate-100"
             }`}
         >
           {testMode ? <Settings size={16} /> : <Eye size={16} />}
@@ -2297,6 +2276,7 @@ function TicketDetailModal({
   mode: "approve" | "history" | "repair";
 }) {
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showReturnGuard, setShowReturnGuard] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [showCloseJob, setShowCloseJob] = useState(false);
   const [displayData, setDisplayData] = useState(ticket);
@@ -2364,6 +2344,30 @@ function TicketDetailModal({
       alert(e);
       setUpdating(false);
     }
+  };
+
+  const executeReturnJob = async () => {
+    setUpdating(true);
+    try {
+      await updateDoc(doc(db, "maintenance_tickets", displayData.id), {
+        status: "Open",
+        updated_at: serverTimestamp(),
+        responder: null,
+        technician_id: null,
+        technician_name: null,
+        responder_start: null,
+      });
+      setShowReturnGuard(false);
+      onClose();
+    } catch (e) {
+      alert(e);
+      setUpdating(false);
+    }
+  };
+
+  const handleReturnJobClick = () => {
+    if (!canAccept) return alert("⛔️ Permission Denied");
+    setShowReturnGuard(true);
   };
 
   const handleVerify = async () => {
@@ -2501,7 +2505,7 @@ function TicketDetailModal({
             </span>
             <div className="h-4 w-[1px] bg-slate-600 mx-1"></div>
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide opacity-80">
-              {displayData.status.replace("_", " ")}
+              {displayData.department}
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -2653,12 +2657,23 @@ function TicketDetailModal({
               <Edit size={14} />
             </button>
 
+              {["In_Progress", "Waiting_Part"].includes(displayData.status) && (
+                <button
+                  onClick={handleReturnJobClick}
+                  disabled={!canAccept}
+                  className="w-9 flex items-center justify-center rounded-full border border-slate-700 text-slate-500 hover:text-red-400 hover:border-red-400/50 transition-all hover:bg-slate-800"
+                  title="คืนงาน (ในกรณีที่กดรับงานผิด)"
+                >
+                  <Undo2 size={14} />
+                </button>
+              )}
+
             <div className="flex-1">
               {displayData.status === "Open" && (
                 <button
                   onClick={handleAcceptWork}
                   disabled={!canAccept}
-                  className="w-full h-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-full uppercase tracking-wider disabled:bg-slate-800 disabled:text-slate-600 shadow-lg shadow-rose-900/20"
+                  className="w-full h-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-full uppercase tracking-wider disabled:bg-slate-800 disabled:text-slate-600 shadow-lg shadow-emerald-900/20"
                 >
                   Receive Job
                 </button>
@@ -2668,7 +2683,7 @@ function TicketDetailModal({
                 <button
                   onClick={() => setShowCloseJob(true)}
                   disabled={!canClose}
-                  className="w-full h-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-full uppercase tracking-wider disabled:bg-slate-800 disabled:text-slate-600 shadow-lg shadow-blue-900/20"
+                  className="w-full h-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-full uppercase tracking-wider disabled:bg-slate-800 disabled:text-slate-600 shadow-lg shadow-emerald-900/20"
                 >
                   Finish
                 </button>
@@ -2678,7 +2693,7 @@ function TicketDetailModal({
                 <button
                   onClick={handleVerify}
                   disabled={!canVerify}
-                  className="w-full h-full bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-full uppercase tracking-wider disabled:bg-slate-800 disabled:text-slate-600 shadow-lg shadow-purple-900/20"
+                  className="w-full h-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-full uppercase tracking-wider disabled:bg-slate-800 disabled:text-slate-600 shadow-lg shadow-emerald-900/20"
                 >
                   Verify
                 </button>
@@ -2688,7 +2703,7 @@ function TicketDetailModal({
                 <button
                   onClick={handleApprove}
                   disabled={!canApprove}
-                  className="w-full h-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-full uppercase tracking-wider disabled:bg-slate-800 disabled:text-slate-600 shadow-lg shadow-orange-900/20"
+                  className="w-full h-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-full uppercase tracking-wider disabled:bg-slate-800 disabled:text-slate-600 shadow-lg shadow-emerald-900/20"
                 >
                   Approve
                 </button>
@@ -2712,6 +2727,17 @@ function TicketDetailModal({
           onSuccess={async () => {
             await refreshDisplayData();
           }}
+        />
+      )}
+
+      {showReturnGuard && (
+        <ConfirmActionModal
+          isOpen={showReturnGuard}
+          onClose={() => setShowReturnGuard(false)}
+          onConfirm={executeReturnJob}
+          currentUser={user}
+          title="ยืนยันการคืนงาน"
+          message="กรุณาใส่รหัสผ่านเพื่อยืนยันการคืนงาน (งานจะกลับไปสถานะรอรับงาน)"
         />
       )}
     </div>
@@ -3172,8 +3198,8 @@ function CreateTicketModal({
                       setAreaNote("");
                     }}
                     className={`px-3 rounded-md text-[10px] font-bold transition-all ${factory === f
-                        ? "bg-slate-700 text-white shadow-sm"
-                        : "text-slate-500 hover:text-slate-300"
+                      ? "bg-slate-700 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-300"
                       }`}
                   >
                     {f}
@@ -3500,8 +3526,8 @@ function SettingsModal({
               key={t.id}
               onClick={() => setActiveTab(t.id)}
               className={`px-3 py-1.5 text-xs font-bold rounded whitespace-nowrap transition-all ${activeTab === t.id
-                  ? "bg-[#0F1115] text-blue-400 shadow"
-                  : "text-gray-400 hover:bg-gray-700"
+                ? "bg-[#0F1115] text-blue-400 shadow"
+                : "text-gray-400 hover:bg-gray-700"
                 }`}
             >
               {t.label}
@@ -3573,7 +3599,7 @@ function SettingsModal({
   );
 }
 
-function MaintenanceDashboard({ user, perms, activeTab }: any) {
+function MaintenanceDashboard({ user, perms, activeTab, onExit }: any) {
   const getInitialStartDateTime = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -3670,6 +3696,9 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
       hasSearched: true,
     });
   };
+
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>("ALL");
+  const [isDeptDropdownOpen, setIsDeptDropdownOpen] = useState(false);
 
   const filteredTickets = useMemo(() => {
     let result = [];
@@ -3947,8 +3976,178 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
     }
   };
 
+  const grouped = useMemo(() => {
+    return filteredTickets.reduce((acc: any, ticket: any) => {
+      const dept = ticket.department || "ไม่ระบุแผนก";
+      if (!acc[dept]) acc[dept] = [];
+      acc[dept].push(ticket);
+      return acc;
+    }, {});
+  }, [filteredTickets]);
+
+  const availableDepts = useMemo(() => Object.keys(grouped).sort(), [grouped]);
+
+  const renderDeptDropdown = () => (
+    <div className="relative z-[100]">
+      <button
+        onClick={() => setIsDeptDropdownOpen(!isDeptDropdownOpen)}
+        className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 border ${
+          isDeptDropdownOpen 
+            ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' 
+            : 'border-slate-700 bg-slate-900/50 hover:bg-slate-800'
+        }`}
+      >
+        {selectedDeptFilter === "ALL" ? (
+          <>
+            <div className="p-1.5 rounded-lg bg-blue-600 text-white shadow-md">
+              <Briefcase size={14} />
+            </div>
+            <span className="text-xs font-black text-white uppercase tracking-tight hidden sm:inline">
+              ทั้งหมด (ALL)
+            </span>
+          </>
+        ) : (
+          <>
+            <div className={`p-1.5 rounded-lg ${getDeptConfig(selectedDeptFilter).bg} text-white shadow-md`}>
+              <Briefcase size={14} />
+            </div>
+            <span className="text-xs font-black text-white uppercase tracking-tight hidden sm:inline">
+              {selectedDeptFilter}
+            </span>
+          </>
+        )}
+        <ChevronDown size={14} className={`text-slate-500 transition-transform duration-300 ${isDeptDropdownOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isDeptDropdownOpen && (
+        <>
+          <div 
+            className="fixed inset-0 z-[90]" 
+            onClick={() => setIsDeptDropdownOpen(false)} 
+          />
+          <div className="absolute top-full right-0 mt-2 w-56 bg-[#1E293B] border border-slate-700 rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-1.5 space-y-1">
+              <button
+                onClick={() => {
+                  setSelectedDeptFilter("ALL");
+                  setIsDeptDropdownOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                  selectedDeptFilter === "ALL"
+                    ? "bg-blue-600 text-white shadow-lg"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg ${selectedDeptFilter === "ALL" ? "bg-white/20" : "bg-slate-800"} text-inherit`}>
+                  <Briefcase size={16} />
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-[11px] font-black uppercase tracking-tight leading-none mb-1">
+                    ทั้งหมด (ALL)
+                  </span>
+                  <span className={`text-[8px] font-bold uppercase opacity-60 ${selectedDeptFilter === "ALL" ? 'text-white' : 'text-slate-500'}`}>
+                    ดูงานทุกแผนก
+                  </span>
+                </div>
+                {selectedDeptFilter === "ALL" && <Check size={14} className="ml-auto" />}
+              </button>
+              
+              {availableDepts.map((dept) => {
+                const deptConf = getDeptConfig(dept);
+                const isSelected = selectedDeptFilter === dept;
+                return (
+                  <button
+                    key={dept}
+                    onClick={() => {
+                      setSelectedDeptFilter(dept);
+                      setIsDeptDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                      isSelected
+                        ? `${deptConf.bg} text-white shadow-lg`
+                        : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg ${isSelected ? "bg-white/20" : "bg-slate-800"} text-inherit`}>
+                      <Briefcase size={16} />
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <span className="text-[11px] font-black uppercase tracking-tight leading-none mb-1">
+                        {dept}
+                      </span>
+                      <span className={`text-[8px] font-bold uppercase opacity-60 ${isSelected ? 'text-white' : 'text-slate-500'}`}>
+                        {grouped[dept].length} รายการ
+                      </span>
+                    </div>
+                    {isSelected && <Check size={14} className="ml-auto" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden font-sans bg-[#0F172A] text-slate-200 relative">
+      {/* MOBILE HEADER (Premium Style) */}
+      <div className="md:hidden bg-[#1E293B] border-b border-slate-700 px-4 py-3 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-md">
+        <div className="flex items-center gap-3">
+          {onExit && (
+            <button
+              onClick={onExit}
+              className="w-10 h-10 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors border border-slate-600 shadow-sm"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <div className="flex flex-col">
+            <h1 className="text-lg font-bold text-white leading-none flex items-center gap-2">
+              <Wrench className="text-orange-500" size={20} />
+              Maintenance
+            </h1>
+            <span className="text-[10px] text-slate-400 mt-1">
+              {activeTab === 1 && "แจ้งซ่อม / รายการงานเปิด"}
+              {activeTab === 2 && "รายการกำลังซ่อมแซม"}
+              {activeTab === 3 && "ตรวจสอบความเรียบร้อย"}
+              {activeTab === 4 && "รายการรออนุมัติ"}
+              {activeTab === 5 && "ประวัติการซ่อมบำรุง"}
+              {!activeTab && "ระบบซ่อมบำรุง"}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center">
+          {renderDeptDropdown()}
+        </div>
+      </div>
+
+      {/* DESKTOP HEADER (Matches Daily Check) */}
+      <div className="hidden md:flex px-6 py-4 bg-[#1E293B]/80 border-b border-slate-700 items-center justify-between sticky top-0 z-30 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-2xl text-orange-500 bg-white/5 shadow-inner">
+            <Wrench size={28} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-white italic tracking-tighter uppercase">
+              MAINTENANCE
+            </h1>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
+              Smart Factory Monitoring System
+            </p>
+          </div>
+        </div>
+
+        {/* Filter Switcher for Desktop */}
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest hidden lg:inline">
+            เลือกแผนก:
+          </span>
+          {renderDeptDropdown()}
+        </div>
+      </div>
+
       {/* Filter Header */}
       {activeTab === 5 && (
         <div className="shrink-0 p-4 pb-2 z-10">
@@ -4005,8 +4204,8 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
                   }
                 }}
                 className={`px-4 h-10 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${isSelectionMode
-                    ? "bg-slate-700 border-blue-500 text-blue-400"
-                    : "bg-[#0F172A] text-slate-400 border-slate-700 hover:text-white hover:border-slate-500"
+                  ? "bg-slate-700 border-blue-500 text-blue-400"
+                  : "bg-[#0F172A] text-slate-400 border-slate-700 hover:text-white hover:border-slate-500"
                   }`}
               >
                 <CheckSquare size={14} />{" "}
@@ -4038,7 +4237,7 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
       )}
 
       {/* Data List Area */}
-      <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto px-6 pt-2 pb-6 custom-scrollbar">
         {filteredTickets.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-600">
             <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mb-4 border border-slate-700/50">
@@ -4121,14 +4320,48 @@ function MaintenanceDashboard({ user, perms, activeTab }: any) {
             </table>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5 pb-24">
-            {filteredTickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                onClick={() => setSelectedTicket(ticket)}
-              />
-            ))}
+          <div className="pb-24 space-y-8">
+            {(() => {
+              const deptsToRender = selectedDeptFilter === "ALL" ? availableDepts : availableDepts.filter(d => d === selectedDeptFilter);
+
+              return (
+                <>
+                  {deptsToRender.length === 0 && (
+                    <div className="text-center text-slate-500 py-10 text-sm font-bold bg-[#1E293B]/50 rounded-2xl border border-slate-700/50">
+                      ไม่มีรายการแจ้งซ่อมสำหรับแผนกที่เลือก
+                    </div>
+                  )}
+
+                  {deptsToRender.map(dept => {
+                    const deptConf = getDeptConfig(dept);
+                return (
+                  <div key={dept} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="flex items-center gap-3 border-b border-slate-700/50 pb-2 mb-4">
+                      <div className={`w-1.5 h-4 ${deptConf.bg} rounded-full shadow-sm`}></div>
+                      <h3 className="text-sm font-bold text-slate-200 uppercase tracking-widest">{dept}</h3>
+                      <span className="text-[10px] font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700">
+                        {grouped[dept].length} รายการ
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
+                      {grouped[dept].sort((a: any, b: any) => {
+                        const dA = a.created_at?.toDate ? a.created_at.toDate() : new Date(a.created_at || 0);
+                        const dB = b.created_at?.toDate ? b.created_at.toDate() : new Date(b.created_at || 0);
+                        return dA.getTime() - dB.getTime();
+                      }).map((ticket: any) => (
+                        <TicketCard
+                          key={ticket.id}
+                          ticket={ticket}
+                          onClick={() => setSelectedTicket(ticket)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          );
+            })()}
           </div>
         )}
       </div>
@@ -4187,36 +4420,11 @@ export function MaintenanceModule({ currentUser, activeTab, onExit }: any) {
 
   return (
     <div className="bg-[#0F172A] w-full h-full flex flex-col overflow-hidden relative text-slate-200">
-      {/* ✅ MOBILE HEADER (Premium Style) */}
-      <div className="bg-[#1E293B] border-b border-slate-700 px-4 py-3 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-md md:hidden">
-        <div className="flex items-center gap-3">
-          {onExit && (
-            <button
-              onClick={onExit}
-              className="w-10 h-10 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors border border-slate-600 shadow-sm"
-            >
-              <ArrowLeft size={20} />
-            </button>
-          )}
-          <div className="flex flex-col">
-            <h1 className="text-lg font-bold text-white leading-none flex items-center gap-2">
-              <Wrench className="text-orange-500" size={20} />
-              Maintenance
-            </h1>
-            <span className="text-[10px] text-slate-400 mt-1">
-              {activeTab === 1 && "แจ้งซ่อม / รายการงานเปิด"}
-              {activeTab === 2 && "รายการกำลังซ่อมแซม"}
-              {activeTab === 3 && "ตรวจสอบความเรียบร้อย"}
-              {!activeTab && "ระบบซ่อมบำรุง"}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* เรียก Dashboard */}
       <MaintenanceDashboard
         user={currentUser}
         activeTab={activeTab || defaultView}
+        onExit={onExit}
       />
     </div>
   );
