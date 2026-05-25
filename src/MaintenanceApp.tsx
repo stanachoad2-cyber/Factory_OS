@@ -4118,9 +4118,11 @@ function MaintenanceDashboard({ user, perms, activeTab, onExit }: any) {
             </span>
           </div>
         </div>
-        <div className="flex items-center">
-          {renderDeptDropdown()}
-        </div>
+        {activeTab !== 5 && (
+          <div className="flex items-center">
+            {renderDeptDropdown()}
+          </div>
+        )}
       </div>
 
       {/* DESKTOP HEADER (Matches Daily Check) */}
@@ -4140,12 +4142,14 @@ function MaintenanceDashboard({ user, perms, activeTab, onExit }: any) {
         </div>
 
         {/* Filter Switcher for Desktop */}
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest hidden lg:inline">
-            เลือกแผนก:
-          </span>
-          {renderDeptDropdown()}
-        </div>
+        {activeTab !== 5 && (
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest hidden lg:inline">
+              เลือกแผนก:
+            </span>
+            {renderDeptDropdown()}
+          </div>
+        )}
       </div>
 
       {/* Filter Header */}
