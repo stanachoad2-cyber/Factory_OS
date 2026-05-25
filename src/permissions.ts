@@ -39,6 +39,11 @@ export const ALL_PERMISSIONS = [
   { id: "stock_manage", label: "จัดการสินค้า (Add/Edit)", app: "Stock Parts" },
   { id: "stock_settings", label: "ตั้งค่า Supplier/แผนก", app: "Stock Parts" },
 
+  // --- Production (ผลิต/ของเสีย) ---
+  { id: "prod_record", label: "บันทึกข้อมูลของเสีย", app: "Production" },
+  { id: "prod_verify", label: "ตรวจสอบข้อมูลของเสีย", app: "Production" },
+  { id: "prod_settings", label: "เข้าหน้าตั้งค่า (Settings)", app: "Production" },
+
   // --- Main System ---
   {
     id: "main_manage_users",

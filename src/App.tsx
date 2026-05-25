@@ -42,12 +42,13 @@ import {
   Shield,
   Save,
   ChevronRight,
-  Search,
   Lock,
+  Factory,
 } from "lucide-react";
 
 import { MaintenanceModule } from "./MaintenanceApp";
 import { DailyCheckModule } from "./DailyCheckApp";
+import { ProductionModule } from "./ProductionApp";
 import { ALL_PERMISSIONS } from "./permissions";
 import {
   StockModule,
@@ -83,6 +84,7 @@ const APPS = {
   MAINTENANCE: "maintenance",
   DAILY_CHECK: "daily_check",
   INVENTORY: "inventory",
+  PRODUCTION: "production",
   SETTINGS: "settings",
 };
 
@@ -299,6 +301,25 @@ function SubAppSidebar({
       color: "bg-slate-500",
     },
   ];
+  const perms = user?.allowedActions || user?.permissions || [];
+  const isAdmin = user?.role === "admin";
+  const hasProdSettings = isAdmin || (Array.isArray(perms) && perms.includes("prod_settings"));
+
+  const productionMenus = [
+    {
+      id: "waste_entry",
+      label: "บันทึกข้อมูลของเสีย",
+      icon: AlertTriangle,
+      color: "bg-purple-500",
+      count: 0,
+    },
+    {
+      id: "settings",
+      label: "ตั้งค่าระบบ (Settings)",
+      icon: Settings,
+      color: "bg-slate-500",
+    },
+  ];
   const settingsMenus = [
     {
       id: "users",
@@ -317,6 +338,7 @@ function SubAppSidebar({
     MAINTENANCE: "maintenance",
     DAILY_CHECK: "daily_check",
     INVENTORY: "inventory",
+    PRODUCTION: "production",
     SETTINGS: "settings",
   };
 
@@ -332,6 +354,10 @@ function SubAppSidebar({
     displayMenus = dailyCheckMenus;
     appTitle = "DAILY CHECK";
     appColor = "bg-green-500";
+  } else if (currentApp === "production") {
+    displayMenus = productionMenus;
+    appTitle = "PRODUCTION";
+    appColor = "bg-purple-500";
   } else if (currentApp === APPS.SETTINGS) {
     displayMenus = settingsMenus;
     appTitle = "SETTINGS";
@@ -481,6 +507,13 @@ function MainLauncherSidebar({ onSelectApp, user, onLogout }: any) {
       icon: Box,
       color: "text-blue-500",
       desc: "คลังอะไหล่",
+    },
+    {
+      id: "production",
+      label: "Production",
+      icon: Factory,
+      color: "text-purple-500",
+      desc: "บันทึกข้อมูล",
     },
     {
       id: "settings",
@@ -1620,6 +1653,7 @@ export default function FactoryOS_SuperApp() {
   const [stockSettingsTab, setStockSettingsTab] = useState("suppliers");
   const [stockAnalyticsTab, setStockAnalyticsTab] = useState("issued");
   const [dailyCheckTab, setDailyCheckTab] = useState("inspect");
+  const [productionTab, setProductionTab] = useState("waste_entry");
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -1735,6 +1769,7 @@ export default function FactoryOS_SuperApp() {
               (currentApp === APPS.MAINTENANCE ||
                 currentApp === APPS.INVENTORY ||
                 currentApp === APPS.DAILY_CHECK ||
+                currentApp === APPS.PRODUCTION ||
                 currentApp === APPS.SETTINGS) &&
               !isSettingsMode &&
               !isStockAnalytics
@@ -1752,6 +1787,8 @@ export default function FactoryOS_SuperApp() {
                   ? stockTab
                   : currentApp === APPS.DAILY_CHECK
                   ? dailyCheckTab
+                  : currentApp === APPS.PRODUCTION
+                  ? productionTab
                   : globalSettingsTab
               }
               onTabChange={
@@ -1761,6 +1798,8 @@ export default function FactoryOS_SuperApp() {
                   ? setStockTab
                   : currentApp === APPS.DAILY_CHECK
                   ? setDailyCheckTab
+                  : currentApp === APPS.PRODUCTION
+                  ? setProductionTab
                   : setGlobalSettingsTab
               }
               user={user}
@@ -1827,6 +1866,14 @@ export default function FactoryOS_SuperApp() {
           <div className="flex-1 overflow-hidden relative">
             {currentApp === APPS.HOME && (
               <WelcomeDashboard user={user} onSelect={handleSwitchApp} />
+            )}
+
+            {currentApp === APPS.PRODUCTION && (
+              <ProductionModule
+                currentUser={user}
+                activeTab={productionTab}
+                onExit={() => setCurrentApp(APPS.HOME)}
+              />
             )}
 
             {currentApp === APPS.MAINTENANCE && !isSettingsMode && (

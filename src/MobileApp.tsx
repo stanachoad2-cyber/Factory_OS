@@ -7,12 +7,14 @@ import {
   LogOut,
   Hammer, // เพิ่มไอคอนสำหรับหน้ากำลังซ่อม
   History, // เพิ่มไอคอนประวัติ
+  Factory,
 } from "lucide-react";
 
 // ✅ Import Module เดิม
 import { MaintenanceModule } from "./MaintenanceApp";
 import { StockModule } from "./StockApp";
 import { DailyCheckModule } from "./DailyCheckApp";
+import { ProductionModule } from "./ProductionApp";
 
 // ==========================================
 // MOBILE MENU (เพิ่มปุ่มกำลังซ่อม)
@@ -126,6 +128,21 @@ function MobileMenu({ onSelect, currentUser, onLogout }: any) {
           </div>
         </div>
 
+        {/* --- SECTION: Production --- */}
+        <div>
+          <div className="mb-3 ml-1">
+            <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Production</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <MenuCard
+              title="บันทึกข้อมูล"
+              subtitle="Data Entry"
+              icon={Factory}
+              color="bg-purple-600"
+              onClick={() => onSelect("PRODUCTION")}
+            />
+          </div>
+        </div>
 
       </div>
 
@@ -238,6 +255,13 @@ export default function MobileApp({ currentUser, onLogout }: any) {
         <StockModule
           currentUser={currentUser}
           activeTab="inventory"
+          onExit={goBack}
+        />
+      )}
+
+      {activeApp === "PRODUCTION" && (
+        <ProductionModule
+          currentUser={currentUser}
           onExit={goBack}
         />
       )}
