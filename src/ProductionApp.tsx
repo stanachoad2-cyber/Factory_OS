@@ -641,7 +641,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                       const isExpanded = expandedCards[r.id] !== undefined ? expandedCards[r.id] : !r.isSaved;
 
                       return (
-                        <div key={r.id} className={`p-3.5 rounded-2xl border ${!r.isSaved ? "border-blue-500/50 bg-gradient-to-br from-blue-900/40 via-slate-800 to-indigo-900/20 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.3)] ring-1 ring-blue-500/20" : "border-slate-600/50 bg-[#1A2235] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_8px_16px_rgba(0,0,0,0.3)] hover:bg-[#1E293B] border-l-4 border-l-blue-500"} flex flex-col gap-2 relative transition-all duration-300 overflow-hidden`}> 
+                        <div key={r.id} className={`p-3.5 rounded-2xl border ${!r.isSaved ? "border-blue-500/50 bg-gradient-to-br from-blue-900/40 via-slate-800 to-indigo-900/20 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.3)] ring-1 ring-blue-500/20" : "border-slate-600/50 bg-[#1A2235] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_8px_16px_rgba(0,0,0,0.3)] hover:bg-[#1E293B] border-l-4 border-l-blue-500"} flex flex-col gap-2 relative transition-all duration-300`}> 
                           <div className={`flex justify-between items-center border-b ${!r.isSaved ? "border-blue-500/30" : "border-slate-700/50"} pb-2 cursor-pointer`} onClick={() => toggleExpand(r.id)}>
                             <div className="flex items-center gap-2">
                               <input 
