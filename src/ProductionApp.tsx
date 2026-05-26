@@ -22,7 +22,7 @@ const SearchableSelect = ({ value, onChange, options, placeholder, disabled }: a
   return (
     <div className="relative w-full" ref={wrapperRef}>
       <div 
-        className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-xs text-left flex items-center justify-between text-slate-200 ${disabled ? 'cursor-not-allowed' : 'cursor-text focus-within:ring-1 focus-within:ring-blue-500'}`}
+        className={`rounded p-1.5 w-full text-xs text-left flex items-center justify-between text-slate-200 ${disabled ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner cursor-not-allowed font-bold' : 'bg-slate-900 border border-slate-700 cursor-text focus-within:ring-1 focus-within:ring-blue-500'}`}
         onClick={() => !disabled && setIsOpen(true)}
       >
         <input 
@@ -493,62 +493,87 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
         </div>
       </div>
 
+      {/* MOBILE HEADER */}
+      <div className="md:hidden bg-[#1E293B] border-b border-slate-700 px-4 py-3 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-md">
+        <div className="flex items-center gap-3">
+          {onExit && (
+            <button
+              onClick={onExit}
+              className="w-10 h-10 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors border border-slate-600 shadow-sm"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <div className="flex flex-col">
+            <h1 className="text-lg font-bold text-white leading-none flex items-center gap-2">
+              <Factory className="text-blue-500" size={20} />
+              Waste Record
+            </h1>
+            <span className="text-[10px] text-slate-400 mt-1">
+              ระบบบันทึกของเสียการผลิต
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* CONTENT */}
       <div className="flex-1 overflow-hidden p-6 flex flex-col relative">
         {activeView === "WASTE_ENTRY" && (
           isLoadingMaster && loadingProgress > 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center bg-[#1E293B] rounded-2xl border border-slate-700 shadow-xl overflow-hidden relative">
               <div className="w-full max-w-sm flex flex-col items-center relative z-10 animate-in fade-in">
-                <h3 className="text-lg font-bold text-white mb-4">กำลังค้นหาข้อมูล...</h3>
-                <div className="w-full bg-slate-800 rounded-full h-3 mb-2 border border-slate-700 overflow-hidden relative">
-                  <div className="absolute top-0 left-0 h-full bg-blue-500 transition-all duration-300 ease-out" style={{ width: `${loadingProgress}%` }}></div>
-                </div>
-                <div className="w-full text-right text-xs font-bold text-blue-400">
-                  {Math.min(loadingProgress, 100)}%
-                </div>
+                {isMobile ? (
+                  <>
+                    <Loader2 size={48} className="text-blue-500 animate-spin mb-4" />
+                    <h3 className="text-lg font-bold text-white mb-2">กำลังค้นหาข้อมูล...</h3>
+                    <div className="text-xs font-bold text-blue-400">
+                      {Math.min(loadingProgress, 100)}%
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-bold text-white mb-4">กำลังค้นหาข้อมูล...</h3>
+                    <div className="w-full bg-slate-800 rounded-full h-3 mb-2 border border-slate-700 overflow-hidden relative">
+                      <div className="absolute top-0 left-0 h-full bg-blue-500 transition-all duration-300 ease-out" style={{ width: `${loadingProgress}%` }}></div>
+                    </div>
+                    <div className="w-full text-right text-xs font-bold text-blue-400">
+                      {Math.min(loadingProgress, 100)}%
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ) : (
           <div className="flex flex-col h-full bg-[#1E293B] rounded-2xl border border-slate-700 shadow-xl overflow-hidden animate-in fade-in">
             {isMobile ? (
-              <div className="p-3 border-b border-slate-700 bg-[#161B22] flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <button onClick={onExit} className="p-2 bg-slate-800 rounded-lg text-slate-300">
-                      <ArrowLeft size={16} />
-                    </button>
-                    <h2 className="text-base font-bold text-white flex items-center gap-2">
-                      <Factory size={16} className="text-purple-500" /> บันทึกของเสีย
-                    </h2>
-                  </div>
-                  <button
-                    onClick={handleAddRow}
-                    className="h-[32px] bg-blue-600 hover:bg-blue-500 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg"
-                  >
-                    <Plus size={14} /> เพิ่ม
-                  </button>
-                </div>
-                <div className="flex items-center gap-2 w-full">
+              <div className="p-2 border-b border-slate-700 bg-[#161B22] flex items-center gap-1.5">
+                <div className="flex items-center gap-1 flex-1">
                   <input 
                     type="date" 
                     value={startDate} 
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="flex-1 h-[32px] bg-slate-800 border border-slate-600 text-white px-2 rounded-lg text-xs outline-none"
+                    className="w-full h-[32px] bg-slate-800 border border-slate-600 text-white px-1 rounded-lg text-[10px] outline-none"
                   />
-                  <span className="text-xs text-slate-400">-</span>
+                  <span className="text-slate-500">-</span>
                   <input 
                     type="date" 
                     value={endDate} 
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="flex-1 h-[32px] bg-slate-800 border border-slate-600 text-white px-2 rounded-lg text-xs outline-none"
+                    className="w-full h-[32px] bg-slate-800 border border-slate-600 text-white px-1 rounded-lg text-[10px] outline-none"
                   />
-                  <button
-                    onClick={() => fetchMasterData(true)}
-                    className="h-[32px] bg-slate-700 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1 shadow-lg shrink-0"
-                  >
-                    <Search size={14} />
-                  </button>
                 </div>
+                <button
+                  onClick={() => fetchMasterData(true)}
+                  className="h-[32px] bg-slate-700 text-white w-[32px] rounded-lg flex items-center justify-center shadow shrink-0"
+                >
+                  <Search size={14} />
+                </button>
+                <button
+                  onClick={handleAddRow}
+                  className="h-[32px] bg-blue-600 text-white px-2 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg shrink-0"
+                >
+                  <Plus size={14} /> เพิ่ม
+                </button>
               </div>
             ) : (
             <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-[#161B22]">
@@ -616,21 +641,21 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                       const isExpanded = expandedCards[r.id] !== undefined ? expandedCards[r.id] : !r.isSaved;
 
                       return (
-                        <div key={r.id} className={`p-3 rounded-xl border ${!r.isSaved ? "border-blue-500 bg-blue-900/20" : "border-slate-600 bg-slate-700"} flex flex-col gap-2 relative shadow-sm transition-all duration-300`}> 
-                          <div className="flex justify-between items-center border-b border-slate-600 pb-1.5 cursor-pointer" onClick={() => toggleExpand(r.id)}>
+                        <div key={r.id} className={`p-3.5 rounded-2xl border ${!r.isSaved ? "border-blue-500/50 bg-gradient-to-br from-blue-900/40 via-slate-800 to-indigo-900/20 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.3)] ring-1 ring-blue-500/20" : "border-slate-600/50 bg-[#1A2235] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_8px_16px_rgba(0,0,0,0.3)] hover:bg-[#1E293B] border-l-4 border-l-blue-500"} flex flex-col gap-2 relative transition-all duration-300 overflow-hidden`}> 
+                          <div className={`flex justify-between items-center border-b ${!r.isSaved ? "border-blue-500/30" : "border-slate-700/50"} pb-2 cursor-pointer`} onClick={() => toggleExpand(r.id)}>
                             <div className="flex items-center gap-2">
                               <input 
                                 type="date" 
                                 value={r.date.split("/").reverse().join("-")} 
                                 onChange={(e) => updateRow(r.id, "date", e.target.value.split("-").reverse().join("/"))}
-                                className={`bg-transparent text-sm font-bold w-[120px] outline-none ${r.isSaved ? 'text-slate-400' : 'text-slate-200'}`}
+                                className={`bg-transparent text-sm font-black w-[120px] outline-none ${r.isSaved ? 'text-slate-400' : 'text-blue-300'}`}
                                 disabled={r.isSaved}
                                 onClick={(e) => e.stopPropagation()}
                               />
                               <select 
                                 value={r.shift} 
                                 onChange={(e) => updateRow(r.id, "shift", e.target.value)} 
-                                className={`bg-slate-900 border border-slate-700 rounded p-1 text-xs text-slate-200 outline-none ${r.isSaved ? 'opacity-70' : ''}`}
+                                className={`rounded-lg p-1 text-xs outline-none ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner cursor-not-allowed font-bold' : 'bg-slate-900 border border-slate-700 text-slate-200 focus:ring-1 focus:ring-blue-500'}`}
                                 disabled={r.isSaved}
                                 onClick={(e) => e.stopPropagation()}
                               >
@@ -639,7 +664,11 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                               </select>
                             </div>
                             <div className="flex items-center gap-2 text-slate-400">
-                              {r.isSaved && r.inspector && <CheckCircle size={14} className="text-emerald-500" />}
+                              {r.isSaved && r.inspector && (
+                                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                  ตรวจสอบแล้ว
+                                </span>
+                              )}
                               {!r.isSaved && <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>}
                               <ChevronDown size={18} className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} />
                             </div>
@@ -649,7 +678,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                             <div className="flex flex-col gap-2 animate-in slide-in-from-top-2 fade-in duration-200">
                               <div className="grid grid-cols-2 gap-2 mt-0.5">
                                 <div>
-                                  <div className="text-[10px] text-slate-400 mb-1">รุ่น (Model)</div>
+                                  <div className="text-[10px] text-slate-400 mb-1 text-left">รุ่น (Model)</div>
                                   <SearchableSelect 
                                     value={r.model}
                                     onChange={(val: string) => updateRow(r.id, "model", val)}
@@ -659,7 +688,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                                   />
                                 </div>
                                 <div>
-                                  <div className="text-[10px] text-slate-400 mb-1">ปัญหา (Defect)</div>
+                                  <div className="text-[10px] text-slate-400 mb-1 text-left">ปัญหา (Defect)</div>
                                   <SearchableSelect 
                                     value={r.defect}
                                     onChange={(val: string) => updateRow(r.id, "defect", val)}
@@ -672,25 +701,25 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
 
                               <div className="grid grid-cols-3 gap-2">
                                 <div>
-                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-center">คงค้าง (Kg)</div>
-                                  <div className="w-full bg-slate-900/50 border border-slate-700 rounded p-1 text-xs font-bold text-slate-500 text-center h-[28px] flex items-center justify-center">
+                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-left">น้ำหนักใหม่(Kg)</div>
+                                  <button
+                                    onClick={() => !r.isSaved && handleOpenWeightModal(r.id)}
+                                    className={`w-full rounded p-1 text-xs text-center flex items-center justify-center gap-1 transition-colors h-[28px] ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner cursor-not-allowed' : 'bg-slate-900 border border-slate-700 hover:border-purple-500 text-purple-400'}`}
+                                    disabled={r.isSaved}
+                                  >
+                                    <span className="font-bold">{r.newWeight.toFixed(2)}</span>
+                                    
+                                  </button>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-left">คงค้าง (Kg)</div>
+                                  <div className={`w-full rounded p-1 text-xs font-bold text-center h-[28px] flex items-center justify-center ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner' : 'bg-slate-900/50 border border-slate-700 text-slate-500'}`}>
                                     {computedPrevWeightBox.toFixed(2)}
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-center">น้ำหนักใหม่(Kg)</div>
-                                  <button
-                                    onClick={() => !r.isSaved && handleOpenWeightModal(r.id)}
-                                    className={`w-full bg-slate-900 border border-slate-700 rounded p-1 text-xs text-center flex items-center justify-center gap-1 transition-colors h-[28px] ${r.isSaved ? 'cursor-not-allowed text-slate-200' : 'hover:border-purple-500 text-purple-400'}`}
-                                    disabled={r.isSaved}
-                                  >
-                                    <span className="font-bold">{r.newWeight.toFixed(2)}</span>
-                                    {!r.isSaved && <Scale size={12} className="text-purple-500 shrink-0"/>}
-                                  </button>
-                                </div>
-                                <div>
-                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-center">น้ำหนักที่เพิ่มขึ้น(Kg)</div>
-                                  <div className="w-full bg-slate-900 border border-slate-700 rounded p-1 text-xs font-bold text-orange-400 text-center h-[28px] flex items-center justify-center">
+                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-left">น้ำหนักที่เพิ่มขึ้น(Kg)</div>
+                                  <div className={`w-full rounded p-1 text-xs font-bold text-center h-[28px] flex items-center justify-center ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-emerald-400 shadow-inner' : 'bg-slate-900 border border-slate-700 text-emerald-400'}`}>
                                     {formattedIncreasedWeight}
                                   </div>
                                 </div>
@@ -699,23 +728,23 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                               <div className="flex justify-between items-end pt-1.5 border-t border-slate-700/50 mt-0.5">
                                  <div className="text-[10px] text-slate-500">
                                    <span className="font-bold">บันทึก:</span> {r.recorder} <br/>
-                                   <span className="font-bold">ตรวจ:</span> {r.inspector || "-"}
+                                   <span className="font-bold">ตรวจสอบ:</span> {r.inspector || "-"}
                                  </div>
                                  <div className="flex gap-2">
                                    {!r.isSaved ? (
                                       <>
-                                        <button onClick={() => handleDeleteRowClick(r.id)} className="bg-red-500/10 active:bg-red-500/20 p-2.5 rounded-xl text-red-500 border border-red-500/20"><Trash2 size={16}/></button>
-                                        <button onClick={() => handleSaveRow(r.id)} className="bg-blue-600 active:bg-blue-700 p-2.5 px-4 rounded-xl text-white shadow-lg shadow-blue-900/20 font-bold flex items-center gap-2"><Save size={16}/> บันทึก</button>
+                                        <button onClick={() => handleDeleteRowClick(r.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 size={16}/></button>
+                                        <button onClick={() => handleSaveRow(r.id)} className="text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"><Save size={14}/> บันทึก</button>
                                       </>
                                    ) : r.inspector && !hasVerifyPerm ? (
-                                      <span className="text-xs text-emerald-500 flex items-center gap-1 font-bold bg-emerald-500/10 px-3 py-1.5 rounded-lg"><CheckCircle size={14}/> ตรวจแล้ว</span>
+                                      <span className="text-[10px] text-emerald-500 flex items-center gap-1 font-bold bg-emerald-500/10 px-2 py-1 rounded-md"><CheckCircle size={12}/> ยืนยันแล้ว</span>
                                    ) : (
                                       <>
                                         {hasVerifyPerm && !r.inspector && (
-                                           <button onClick={() => handleVerifyRowClick(r.id)} className="bg-emerald-600 p-2 px-3 rounded-xl text-white shadow font-bold text-xs">ตรวจสอบ</button>
+                                           <button onClick={() => handleVerifyRowClick(r.id)} className="text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"><CheckCircle size={14}/> ยืนยัน</button>
                                         )}
-                                        <button onClick={() => updateRow(r.id, "isSaved", false)} className="bg-amber-500/10 p-2.5 rounded-xl text-amber-500 border border-amber-500/20"><Edit size={16}/></button>
-                                        <button onClick={() => handleDeleteRowClick(r.id)} className="bg-red-500/10 p-2.5 rounded-xl text-red-500 border border-red-500/20"><Trash2 size={16}/></button>
+                                        <button onClick={() => updateRow(r.id, "isSaved", false)} className="p-2 text-slate-500 hover:text-amber-400 transition-colors"><Edit size={16}/></button>
+                                        <button onClick={() => handleDeleteRowClick(r.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 size={16}/></button>
                                       </>
                                    )}
                                  </div>
@@ -825,7 +854,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                             disabled={r.isSaved}
                           >
                             <span>{r.newWeight.toFixed(2)}</span>
-                            <Scale size={14} className="text-purple-500" />
+                            
                           </button>
                         </td>
                         <td className="p-3 text-left">
@@ -847,9 +876,9 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                           ) : hasVerifyPerm && r.isSaved ? (
                             <button 
                               onClick={() => handleVerifyRowClick(r.id)}
-                              className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 hover:text-white transition-colors"
+                              className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 hover:text-white transition-colors flex items-center gap-1.5"
                             >
-                              ยืนยัน
+                              <CheckCircle size={14}/> ยืนยัน
                             </button>
                           ) : (
                             <span className="text-slate-600">-</span>
@@ -992,20 +1021,26 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
               <div className="w-16 h-16 bg-purple-500/20 text-purple-400 rounded-full flex items-center justify-center mb-4">
                 <Scale size={32} />
               </div>
-              <h2 className="text-xl font-bold text-white">รับค่าน้ำหนักจากเครื่องชั่ง</h2>
-              <p className="text-sm text-slate-400">กรุณาระบุน้ำหนักใหม่ (Kg)</p>
+              <p className="text-lg text-slate-400 font-bold">กรุณาระบุน้ำหนักใหม่ (Kg)</p>
             </div>
 
             <input
               type="number"
+              min="0"
+              step="any"
               value={tempWeight}
-              onChange={(e) => setTempWeight(e.target.value)}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (val.includes('-')) val = val.replace('-', '');
+                setTempWeight(val);
+              }}
               onKeyDown={(e) => {
+                if (e.key === '-') e.preventDefault();
                 if (e.key === 'Enter') {
                   handleSaveWeight();
                 }
               }}
-              className="w-full bg-black border border-slate-600 rounded-xl p-4 text-center text-3xl font-black text-purple-400 focus:border-purple-500 outline-none mb-6"
+              className="w-full bg-black border border-slate-600 rounded-xl p-4 text-center text-3xl font-black text-purple-400 focus:border-purple-500 outline-none mb-6 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               placeholder="0.00"
               autoFocus
             />
