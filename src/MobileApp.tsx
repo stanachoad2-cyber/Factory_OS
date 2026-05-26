@@ -263,6 +263,8 @@ export default function MobileApp({ currentUser, onLogout }: any) {
         <ProductionModule
           currentUser={currentUser}
           onExit={goBack}
+          activeTab="waste_entry"
+          isMobile={true}
         />
       )}
     </div>
