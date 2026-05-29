@@ -3561,7 +3561,6 @@ const ManagementView = ({
   const [selectedOrigin, setSelectedOrigin] = useState("all");
   const [displayLimit, setDisplayLimit] = useState(24);
 
-  // State สำหรับการ Import ไฟล์
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -3890,6 +3889,16 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
   const [historyData, setHistoryData] = useState<any>({});
   const [deptClosingInfo, setDeptClosingInfo] = useState<any>({});
 
+  const [showGuard, setShowGuard] = useState(false);
+  const [guardMessage, setGuardMessage] = useState("");
+  const [pendingAction, setPendingAction] = useState<any>(null);
+
+  const [toastMessage, setToastMessage] = useState("");
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 2000);
+  };
+
   const ADMIN_PIN = "1234";
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
@@ -3973,15 +3982,14 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
       (a.sku || "").localeCompare(b.sku || "", undefined, { numeric: true })
     );
 
-  const handleCheckStock = async () => {
+  const handleCheckStock = () => {
     if (!selectedDept) return alert("❌ กรุณาเลือกแผนก");
-    if (!confirm(`📦 ยืนยันบันทึกสต็อกแผนก "${selectedDept}" ?`)) return;
-    const pin = prompt("🔒 Admin PIN:");
-    if (pin !== ADMIN_PIN) return alert("❌ PIN ผิด!");
-
-    setIsSaving(true);
-    try {
-      const docRef = doc(db, "monthly_closings", currentMonthKey);
+    
+    setGuardMessage(`📦 ยืนยันบันทึกสต็อกแผนก "${selectedDept}" ?`);
+    setPendingAction(() => async () => {
+      setIsSaving(true);
+      try {
+        const docRef = doc(db, "monthly_closings", currentMonthKey);
       const docSnap = await getDoc(docRef);
       const newSnapshots = filteredItems.map((item: any) => ({
         id: item.id,
@@ -4034,24 +4042,24 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
         ...prev,
         [currentMonthKey]: updatedDeptClosings,
       }));
-      alert(`✅ บันทึกสต็อกแผนก ${selectedDept} เรียบร้อย!`);
+      showToast(`บันทึกสต็อกแผนก ${selectedDept} เรียบร้อย!`);
     } catch (error: any) {
       alert(error.message);
     } finally {
       setIsSaving(false);
     }
+    });
+    setShowGuard(true);
   };
 
-  const handleUncheck = async () => {
+  const handleUncheck = () => {
     if (!selectedDept) return alert("❌ กรุณาเลือกแผนก");
-    if (!confirm(`🔓 ยืนยันยกเลิกการเช็คสต็อกของแผนก "${selectedDept}"?`))
-      return;
-    const pin = prompt("🔒 Enter Admin PIN:");
-    if (pin !== ADMIN_PIN) return alert("❌ PIN ผิด!");
 
-    setIsSaving(true);
-    try {
-      const docRef = doc(db, "monthly_closings", currentMonthKey);
+    setGuardMessage(`🔓 ยืนยันยกเลิกการเช็คสต็อกของแผนก "${selectedDept}"?`);
+    setPendingAction(() => async () => {
+      setIsSaving(true);
+      try {
+        const docRef = doc(db, "monthly_closings", currentMonthKey);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -4090,13 +4098,15 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
             [currentMonthKey]: remainingClosings,
           }));
         }
-        alert(`✅ Uncheck แผนก ${selectedDept} สำเร็จ!`);
+        showToast(`Uncheck แผนก ${selectedDept} สำเร็จ!`);
       }
     } catch (error: any) {
       alert(error.message);
     } finally {
       setIsSaving(false);
     }
+    });
+    setShowGuard(true);
   };
 
   // ✅ Export Excel (หัวข้อ & Balance เขียวพาสเทล + เส้นตารางรอบทิศ + ชิดซ้าย)
@@ -4184,31 +4194,24 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
   );
 
   return (
-    <div className="flex-1 p-4 overflow-hidden flex flex-col bg-[#0F172A] animate-in slide-in-from-right duration-300">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between mb-4 border-b border-slate-700/50 pb-4 gap-3">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-white"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <div>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-[#0F172A] w-full max-w-6xl h-[90vh] rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-700/50">
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b border-slate-700/50 bg-[#1E293B] shrink-0 gap-3">
+          <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <CheckSquare className="text-emerald-500" size={20} />
               Yearly Audit ({currentYear})
             </h2>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-400 mt-1">
               Period:{" "}
               <span className="text-emerald-400 font-bold">
                 {currentMonthName} {currentYear}
               </span>
             </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
           <button
             onClick={handleExportExcel}
             className="bg-green-700 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2"
@@ -4242,11 +4245,23 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
               Check Stock
             </button>
           )}
+
+          <div className="w-px h-6 bg-slate-700 mx-1"></div>
+
+          {/* ปุ่ม X ปิดหน้า Audit */}
+          <button
+            onClick={onBack}
+            className="text-slate-400 hover:text-red-400 p-1.5 rounded-full hover:bg-red-500/10 transition-colors"
+          >
+            <X size={20} />
+          </button>
         </div>
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-2 mb-3">
+      {/* Body Area */}
+      <div className="flex-1 flex flex-col overflow-hidden p-6 bg-[#0F172A]">
+        {/* Filter */}
+        <div className="flex gap-2 mb-4 shrink-0">
         <div className="relative w-[300px]">
           <Search
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
@@ -4416,6 +4431,25 @@ const AuditView = ({ items, departments, onBack, currentUser }: any) => {
             </tbody>
           </table>
         </div>
+      </div>
+      </div>
+
+      <ConfirmActionModal
+        isOpen={showGuard}
+        onClose={() => setShowGuard(false)}
+        onConfirm={pendingAction}
+        title="ยืนยันการทำรายการ"
+        message={guardMessage}
+        currentUser={currentUser}
+      />
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[10000] bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in zoom-in-95 duration-300 border border-emerald-500/30">
+          <CheckCircle size={20} />
+          <span className="font-bold text-sm tracking-wide">{toastMessage}</span>
+        </div>
+      )}
       </div>
     </div>
   );
