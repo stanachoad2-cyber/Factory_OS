@@ -828,7 +828,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                                   <div className="text-[9px] text-slate-400 mb-1 truncate text-left">คงค้าง (Kg)</div>
                                   <div className={`w-full rounded px-1 text-xs font-bold text-center h-[28px] flex items-center justify-between ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner' : 'bg-slate-900/50 border border-slate-700 text-slate-500'}`}>
                                     <span className="flex-1 text-center pl-4">{actualPrevWeight.toFixed(2)}</span>
-                                    {!r.isSaved && hasVerifyPerm && (
+                                    {!r.isSaved && (
                                       <button onClick={() => handleOpenWeightModal(r.id, "prevWeightBox")} className="p-1 text-slate-400 hover:text-blue-400 transition-colors">
                                         <Edit size={10} />
                                       </button>
@@ -979,7 +979,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                         <td className="p-3 text-left">
                           <div className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs text-slate-400 flex items-center justify-between ${r.isSaved ? 'cursor-not-allowed' : ''}`}>
                             <span>{actualPrevWeight.toFixed(2)}</span>
-                            {!r.isSaved && hasVerifyPerm && (
+                            {!r.isSaved && (
                               <button onClick={() => handleOpenWeightModal(r.id, "prevWeightBox")} className="hover:text-blue-400 p-0.5 transition-colors">
                                 <Edit size={12} />
                               </button>
