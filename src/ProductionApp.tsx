@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Factory, Plus, Save, Trash2, CheckCircle, Scale, ChevronDown, Search, Edit, Shield, Loader2, Settings } from "lucide-react";
+import { ArrowLeft, Factory, Plus, Save, Trash2, CheckCircle, Scale, ChevronDown, Search, Edit, Shield, Loader2, Settings, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 import AccessDeniedView from "./AccessDeniedView";
 
 const SearchableSelect = ({ value, onChange, options, placeholder, disabled }: any) => {
@@ -80,6 +81,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
   const [masterDefects, setMasterDefects] = useState<string[]>([]);
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [activeWeightField, setActiveWeightField] = useState<"newWeight" | "prevWeightBox">("newWeight");
   const [tempWeight, setTempWeight] = useState("");
   const [deleteModalInfo, setDeleteModalInfo] = useState<{ isOpen: boolean, id: string | null }>({ isOpen: false, id: null });
   const [deletePassword, setDeletePassword] = useState("");
@@ -209,10 +211,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
       prev.map((r) => {
         if (r.id === id) {
           const updated = { ...r, [field]: value };
-          // คำนวณ นน.ที่เพิ่มขึ้นอัตโนมัติ
-          if (field === "newWeight" || field === "prevWeightBox") {
-            updated.increasedWeight = (updated.newWeight || 0) - (updated.prevWeightBox || 0);
-          }
+          // นน.ที่เพิ่มขึ้นจะถูกคำนวณใหม่ในตอนบันทึกหรือตอนแสดงผล เพื่อความแม่นยำ
           return updated;
         }
         return r;
@@ -220,15 +219,19 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
     );
   };
 
-  const handleOpenWeightModal = (id: string) => {
+  const handleOpenWeightModal = (id: string, field: "newWeight" | "prevWeightBox" = "newWeight") => {
     setActiveRowId(id);
+    setActiveWeightField(field);
     setTempWeight("");
     setIsWeightModalOpen(true);
   };
 
   const handleSaveWeight = () => {
     if (activeRowId) {
-      updateRow(activeRowId, "newWeight", parseFloat(tempWeight) || 0);
+      updateRow(activeRowId, activeWeightField, parseFloat(tempWeight) || 0);
+      if (activeWeightField === "prevWeightBox") {
+        updateRow(activeRowId, "isManualPrevWeight", true);
+      }
     }
     setIsWeightModalOpen(false);
   };
@@ -246,10 +249,11 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
     try {
       const index = records.findIndex(r => r.id === id);
       const prev = index === 0 ? 0 : records[index - 1].newWeight;
+      const finalPrevWeight = rowToSave.isManualPrevWeight || rowToSave.isSaved ? rowToSave.prevWeightBox : prev;
       const finalRow = {
         ...rowToSave,
-        prevWeightBox: prev,
-        increasedWeight: rowToSave.newWeight - prev
+        prevWeightBox: finalPrevWeight,
+        increasedWeight: rowToSave.newWeight - finalPrevWeight
       };
 
       const payload = id.startsWith("gas-") 
@@ -474,6 +478,102 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
     setDeleteModalInfo({ isOpen: true, id: `master-${type}-${index}` });
   };
 
+  const handleExportExcel = () => {
+    try {
+      const dataToExport = records.filter(r => {
+        const parts = r.date.split("/");
+        if (parts.length === 3) {
+          const rowDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          return rowDateStr >= startDate && rowDateStr <= endDate;
+        }
+        return true;
+      }).map((r, index, filteredArr) => {
+        const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
+        const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
+        const computedIncreasedWeight = r.newWeight - actualPrevWeight;
+        const displayIncreasedWeight = r.newWeight === 0 ? 0 : computedIncreasedWeight;
+
+        // แปลงวันที่กรณีที่มาจาก Google Sheets แล้วเป็นรูปแบบ Sun Jan 04 2026...
+        let exportDate = r.date;
+        if (exportDate && typeof exportDate === 'string' && (exportDate.includes("GMT") || exportDate.includes("เวลาอินโดจีน") || exportDate.includes("Indochina Time"))) {
+           const d = new Date(exportDate);
+           if (!isNaN(d.getTime())) {
+             exportDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()}`;
+           }
+        }
+
+        return {
+          "วันที่": exportDate,
+          "กะ": r.shift,
+          "รุ่น": r.model,
+          "ลักษณะปัญหา": r.defect,
+          "นน.ใหม่ที่ชั่งได้": r.newWeight,
+          "นน.คงค้าง+กล่อง(Kg)": actualPrevWeight,
+          "นน.ที่เพิ่มขึ้น": displayIncreasedWeight,
+          "ผู้บันทึก": r.recorder,
+          "ผู้ตรวจสอบ": r.inspector || "-"
+        };
+      });
+
+      if (dataToExport.length === 0) {
+        alert("ไม่มีข้อมูลสำหรับส่งออก");
+        return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+
+      const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+      
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const addr = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[addr]) continue;
+
+          if (R > 0) {
+            ws[addr].s = {
+              alignment: { horizontal: "left" },
+              font: { name: "Calibri", sz: 11 }
+            };
+          } else {
+             ws[addr].s = {
+               alignment: { horizontal: "left" },
+               font: { name: "Calibri", sz: 11, bold: true },
+               fill: { fgColor: { rgb: "DDEBF7" } }
+             };
+          }
+        }
+      }
+      
+      ws["!cols"] = [
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 20 },
+        { wch: 20 },
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, "WasteRecord");
+      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbout], { type: "application/octet-stream" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      
+      a.download = `Waste Record.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e: any) {
+      alert("Export Error: " + e.message);
+    }
+  };
+
   return (
     <div className="bg-[#0F172A] w-full h-full flex flex-col overflow-hidden relative text-slate-200">
       {/* DESKTOP HEADER */}
@@ -569,6 +669,12 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                   <Search size={14} />
                 </button>
                 <button
+                  onClick={handleExportExcel}
+                  className="h-[32px] bg-emerald-600 text-white px-2 rounded-lg text-[10px] font-bold flex items-center justify-center shadow-lg shrink-0"
+                >
+                  <FileSpreadsheet size={14} />
+                </button>
+                <button
                   onClick={handleAddRow}
                   className="h-[32px] bg-blue-600 text-white px-2 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg shrink-0"
                 >
@@ -604,6 +710,12 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                   <Search size={14} /> ค้นหา
                 </button>
                 <button
+                  onClick={handleExportExcel}
+                  className="h-[32px] bg-emerald-600 hover:bg-emerald-500 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-1"
+                >
+                  <FileSpreadsheet size={14} /> Excel
+                </button>
+                <button
                   onClick={handleAddRow}
                   className="h-[32px] bg-blue-600 hover:bg-blue-500 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-1"
                 >
@@ -635,7 +747,8 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                       return true;
                     }).map((r, index, filteredArr) => {
                       const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
-                      const computedIncreasedWeight = r.newWeight - computedPrevWeightBox;
+                      const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
+                      const computedIncreasedWeight = r.newWeight - actualPrevWeight;
                       const displayIncreasedWeight = r.newWeight === 0 ? 0 : computedIncreasedWeight;
                       const formattedIncreasedWeight = displayIncreasedWeight === 0 ? "0.00" : (displayIncreasedWeight > 0 ? "+" : "") + displayIncreasedWeight.toFixed(2);
                       const isExpanded = expandedCards[r.id] !== undefined ? expandedCards[r.id] : !r.isSaved;
@@ -713,8 +826,13 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                                 </div>
                                 <div>
                                   <div className="text-[9px] text-slate-400 mb-1 truncate text-left">คงค้าง (Kg)</div>
-                                  <div className={`w-full rounded p-1 text-xs font-bold text-center h-[28px] flex items-center justify-center ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner' : 'bg-slate-900/50 border border-slate-700 text-slate-500'}`}>
-                                    {computedPrevWeightBox.toFixed(2)}
+                                  <div className={`w-full rounded px-1 text-xs font-bold text-center h-[28px] flex items-center justify-between ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner' : 'bg-slate-900/50 border border-slate-700 text-slate-500'}`}>
+                                    <span className="flex-1 text-center pl-4">{actualPrevWeight.toFixed(2)}</span>
+                                    {!r.isSaved && hasVerifyPerm && (
+                                      <button onClick={() => handleOpenWeightModal(r.id, "prevWeightBox")} className="p-1 text-slate-400 hover:text-blue-400 transition-colors">
+                                        <Edit size={10} />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                                 <div>
@@ -796,7 +914,8 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                       return true;
                     }).map((r, index, filteredArr) => {
                       const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
-                      const computedIncreasedWeight = r.newWeight - computedPrevWeightBox;
+                      const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
+                      const computedIncreasedWeight = r.newWeight - actualPrevWeight;
                       const displayIncreasedWeight = r.newWeight === 0 ? 0 : computedIncreasedWeight;
                       const formattedIncreasedWeight = displayIncreasedWeight === 0 ? "0.00" : (displayIncreasedWeight > 0 ? "+" : "") + displayIncreasedWeight.toFixed(2);
 
@@ -858,8 +977,13 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                           </button>
                         </td>
                         <td className="p-3 text-left">
-                          <div className="bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs text-slate-400 cursor-not-allowed">
-                            {computedPrevWeightBox.toFixed(2)}
+                          <div className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs text-slate-400 flex items-center justify-between ${r.isSaved ? 'cursor-not-allowed' : ''}`}>
+                            <span>{actualPrevWeight.toFixed(2)}</span>
+                            {!r.isSaved && hasVerifyPerm && (
+                              <button onClick={() => handleOpenWeightModal(r.id, "prevWeightBox")} className="hover:text-blue-400 p-0.5 transition-colors">
+                                <Edit size={12} />
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td className="p-3 text-left">
@@ -1021,7 +1145,9 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
               <div className="w-16 h-16 bg-purple-500/20 text-purple-400 rounded-full flex items-center justify-center mb-4">
                 <Scale size={32} />
               </div>
-              <p className="text-lg text-slate-400 font-bold">กรุณาระบุน้ำหนักใหม่ (Kg)</p>
+              <p className="text-lg text-slate-400 font-bold">
+                {activeWeightField === "prevWeightBox" ? "กรุณาระบุน้ำหนักคงค้าง (Kg)" : "กรุณาระบุน้ำหนักใหม่ (Kg)"}
+              </p>
             </div>
 
             <input
