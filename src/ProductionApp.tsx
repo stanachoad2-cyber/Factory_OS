@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Factory, Plus, Save, Trash2, CheckCircle, Scale, ChevronDown, Search, Edit, Shield, Loader2, Settings, FileSpreadsheet, Calendar } from "lucide-react";
+import { ArrowLeft, Factory, Plus, Save, Trash2, CheckCircle, Scale, ChevronDown, Search, Edit, Shield, Loader2, Settings, FileSpreadsheet, Calendar, Filter, Check } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import AccessDeniedView from "./AccessDeniedView";
 
@@ -22,11 +22,11 @@ const SearchableSelect = ({ value, onChange, options, placeholder, disabled }: a
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
-      <div 
-        className={`rounded p-1.5 w-full text-xs text-left flex items-center justify-between text-slate-200 ${disabled ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner cursor-not-allowed font-bold' : 'bg-slate-900 border border-slate-700 cursor-text focus-within:ring-1 focus-within:ring-blue-500'}`}
+      <div
+        className={`rounded p-1.5 w-full text-xs text-left flex items-center justify-between text-slate-200 ${disabled ? 'bg-slate-900 border border-slate-700 cursor-not-allowed' : 'bg-slate-900 border border-slate-700 cursor-text focus-within:ring-1 focus-within:ring-blue-500'}`}
         onClick={() => !disabled && setIsOpen(true)}
       >
-        <input 
+        <input
           type="text"
           value={isOpen ? search : (value || "")}
           onChange={(e) => {
@@ -40,19 +40,19 @@ const SearchableSelect = ({ value, onChange, options, placeholder, disabled }: a
             setSearch("");
           }}
           placeholder={value ? value : placeholder}
-          className="bg-transparent border-none outline-none w-full text-xs text-slate-200 placeholder-slate-400"
+          className={`bg-transparent border-none outline-none w-full text-xs ${disabled ? 'text-slate-200 cursor-not-allowed' : 'text-slate-200 placeholder-slate-400'}`}
           disabled={disabled}
         />
-        <ChevronDown size={14} className="text-slate-400 shrink-0 ml-1" />
+        {!disabled && <ChevronDown size={14} className="text-slate-400 shrink-0 ml-1" />}
       </div>
-      
+
       {isOpen && (
         <div className="absolute z-[100] mt-1 w-full max-h-48 overflow-y-auto custom-scrollbar bg-slate-800 border border-slate-600 rounded-lg shadow-xl">
           {filteredOptions.length === 0 ? (
             <div className="p-2 text-xs text-slate-400">ไม่พบข้อมูล</div>
           ) : (
             filteredOptions.map((opt: string, idx: number) => (
-              <div 
+              <div
                 key={idx}
                 className="p-2 text-xs text-slate-200 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors"
                 onClick={() => {
@@ -97,20 +97,20 @@ const DateInput = ({ date, isSaved, onChange }: { date: string, isSaved: boolean
   };
 
   return (
-    <div className={`flex items-center bg-transparent border border-slate-700 rounded w-full ${isSaved ? 'bg-slate-800/30' : ''}`}>
-      <input 
+    <div className={`flex items-center bg-slate-900 border border-slate-700 rounded w-full`}>
+      <input
         type="text"
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={handleBlur}
         placeholder="DD/MM/YYYY"
-        className={`bg-transparent p-1.5 w-full text-xs text-left outline-none ${isSaved ? 'text-slate-400 cursor-not-allowed' : 'text-slate-200'}`}
+        className={`bg-transparent p-1.5 w-full text-xs text-left outline-none text-slate-200 ${isSaved ? 'cursor-not-allowed' : ''}`}
         disabled={isSaved}
       />
       {!isSaved && (
         <div className="relative w-6 h-6 flex items-center justify-center shrink-0 mr-1 cursor-pointer hover:bg-slate-700 rounded">
           <Calendar size={12} className="text-slate-400" />
-          <input 
+          <input
             type="date"
             value={date}
             onChange={(e) => onChange(e.target.value)}
@@ -140,7 +140,7 @@ const MobileDateInput = ({ date, isSaved, onChange }: { date: string, isSaved: b
 
   return (
     <div className="flex items-center gap-1 w-[120px]">
-      <input 
+      <input
         type="text"
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -153,12 +153,134 @@ const MobileDateInput = ({ date, isSaved, onChange }: { date: string, isSaved: b
       {!isSaved && (
         <div className="relative w-6 h-6 flex items-center justify-center shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()}>
           <Calendar size={12} className="text-blue-400" />
-          <input 
+          <input
             type="date"
             value={date}
             onChange={(e) => onChange(e.target.value)}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MultiColumnFilter = ({ title, options, selectedValues, onChange }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [localSelected, setLocalSelected] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  
+  useEffect(() => {
+    if (isOpen) {
+      setLocalSelected(selectedValues.length === 0 ? options.map((o: any) => o.value || o) : selectedValues);
+      setSearch("");
+    }
+  }, [isOpen, selectedValues, options]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const visibleOptions = options.filter((opt: any) => {
+    const label = String(opt.label || opt).toLowerCase();
+    return label.includes(search.toLowerCase());
+  });
+
+  const isAllVisibleSelected = visibleOptions.length > 0 && visibleOptions.every((opt: any) => localSelected.includes(opt.value || opt));
+
+  const handleToggleAll = () => {
+    if (isAllVisibleSelected) {
+      const visibleVals = visibleOptions.map((o:any) => o.value || o);
+      setLocalSelected(localSelected.filter(val => !visibleVals.includes(val)));
+    } else {
+      const visibleVals = visibleOptions.map((o:any) => o.value || o);
+      const newSelected = new Set([...localSelected, ...visibleVals]);
+      setLocalSelected(Array.from(newSelected));
+    }
+  };
+
+  const handleToggleOne = (val: string) => {
+    if (localSelected.includes(val)) {
+      setLocalSelected(localSelected.filter(item => item !== val));
+    } else {
+      setLocalSelected([...localSelected, val]);
+    }
+  };
+
+  const handleApply = () => {
+    if (localSelected.length === options.length) {
+      onChange([]);
+    } else {
+      onChange(localSelected);
+    }
+    setIsOpen(false);
+  };
+
+  const hasFilter = selectedValues.length > 0;
+
+  return (
+    <div className="relative inline-flex items-center gap-1" ref={wrapperRef}>
+      <span>{title}</span>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`p-0.5 rounded transition-colors ${hasFilter ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300 hover:bg-slate-700"}`}
+      >
+        <Filter size={12} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-slate-300 rounded shadow-xl z-[100] font-normal text-xs text-slate-800 flex flex-col">
+           <div className="p-2 border-b border-slate-200">
+             <div className="flex items-center border border-slate-300 rounded px-1.5 py-1 focus-within:border-blue-500">
+               <Search size={12} className="text-slate-400 mr-1" />
+               <input 
+                 type="text" 
+                 placeholder="Search" 
+                 value={search}
+                 onChange={(e) => setSearch(e.target.value)}
+                 className="w-full border-none outline-none bg-transparent" 
+               />
+             </div>
+           </div>
+           <div className="flex-1 overflow-y-auto max-h-48 p-2 space-y-1">
+             {visibleOptions.length > 0 ? (
+               <>
+                 <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 rounded">
+                   <input type="checkbox" checked={isAllVisibleSelected} onChange={handleToggleAll} className="w-3 h-3 cursor-pointer" />
+                   <span className="truncate">(Select All)</span>
+                 </label>
+                 {visibleOptions.map((opt: any) => {
+                   const val = opt.value || opt;
+                   const label = opt.label || opt;
+                   return (
+                     <label key={val} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 rounded pl-6">
+                       <input 
+                         type="checkbox" 
+                         checked={localSelected.includes(val)} 
+                         onChange={() => handleToggleOne(val)}
+                         className="w-3 h-3 cursor-pointer"
+                       />
+                       <span className="truncate">{label}</span>
+                     </label>
+                   );
+                 })}
+               </>
+             ) : (
+               <div className="p-2 text-center text-slate-400">ไม่พบรายการ</div>
+             )}
+           </div>
+
+           <div className="p-2 border-t border-slate-200 flex justify-end gap-2 bg-slate-50">
+             <button onClick={() => setIsOpen(false)} className="px-3 py-1 rounded bg-white border border-slate-300 hover:bg-slate-50">Cancel</button>
+             <button onClick={handleApply} className="px-3 py-1 rounded bg-blue-600 border border-blue-600 text-white hover:bg-blue-700">OK</button>
+           </div>
         </div>
       )}
     </div>
@@ -183,7 +305,7 @@ const FilterDateInput = ({ date, onChange, isMobile }: { date: string, onChange:
 
   return (
     <div className={`relative flex items-center bg-slate-800 border border-slate-600 rounded-lg h-[32px] w-full focus-within:border-blue-500 overflow-hidden`}>
-      <input 
+      <input
         type="text"
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -193,7 +315,7 @@ const FilterDateInput = ({ date, onChange, isMobile }: { date: string, onChange:
       />
       <div className="relative w-6 h-6 flex items-center justify-center shrink-0 mr-1 cursor-pointer">
         <Calendar size={isMobile ? 12 : 14} className="text-slate-400" />
-        <input 
+        <input
           type="date"
           value={date}
           onChange={(e) => onChange(e.target.value)}
@@ -231,13 +353,17 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
     const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
     return `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
   });
+  const [filterShift, setFilterShift] = useState<string[]>([]);
+  const [filterModel, setFilterModel] = useState<string[]>([]);
+  const [filterDefect, setFilterDefect] = useState<string[]>([]);
+  const [filterDateList, setFilterDateList] = useState<string[]>([]);
   const [isLoadingMaster, setIsLoadingMaster] = useState(false);
   const [processingText, setProcessingText] = useState("");
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   const toggleExpand = (id: string) => {
-    setExpandedCards(prev => ({...prev, [id]: !prev[id]}));
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   // Settings State
@@ -275,7 +401,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
       setIsLoadingMaster(true);
       setLoadingProgress(10);
     }
-    
+
     let progressInterval: NodeJS.Timeout | null = null;
     if (showOverlay) {
       progressInterval = setInterval(() => {
@@ -291,7 +417,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
       if (showOverlay) setLoadingProgress(95);
       const result = await response.json();
       if (showOverlay) setLoadingProgress(100);
-      
+
       if (result.status === "success") {
         const sortedModels = (result.models || []).sort((a: string, b: string) => a.localeCompare(b, "th"));
         const sortedDefects = (result.defects || []).sort((a: string, b: string) => a.localeCompare(b, "th"));
@@ -307,7 +433,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
               } else {
                 const d = new Date(safeDate);
                 if (!isNaN(d.getTime())) {
-                  safeDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  safeDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                 }
               }
             }
@@ -390,7 +516,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
   const handleSaveRow = async (id: string) => {
     const rowToSave = records.find(r => r.id === id);
     if (!rowToSave) return;
-    
+
     if (!rowToSave.model || !rowToSave.defect) {
       alert("กรุณาเลือกรุ่นและลักษณะปัญหาให้ครบ");
       return;
@@ -407,7 +533,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
         increasedWeight: rowToSave.newWeight - finalPrevWeight
       };
 
-      const payload = id.startsWith("gas-") 
+      const payload = id.startsWith("gas-")
         ? { action: "update", row: parseInt(id.replace("gas-", "")), record: finalRow }
         : { records: [finalRow] };
 
@@ -488,9 +614,9 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
 
       const updatedRow = { ...row, inspector: currentUser.fullname || currentUser.username };
 
-      const payload = id.startsWith("gas-") 
+      const payload = id.startsWith("gas-")
         ? { action: "update", row: parseInt(id.replace("gas-", "")), record: updatedRow }
-        : { records: [updatedRow] }; 
+        : { records: [updatedRow] };
 
       const response = await fetch(GAS_URL, {
         method: "POST",
@@ -516,13 +642,13 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
       setDeletePassword("");
       return;
     }
-    
+
     const id = deleteModalInfo.id;
     if (!id) return;
-    
+
     setDeleteModalInfo({ isOpen: false, id: null });
     setDeletePassword("");
-    
+
     if (id.startsWith("master-model-")) {
       const idx = parseInt(id.replace("master-model-", ""));
       let newModels = [...tempModels];
@@ -547,7 +673,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
         setRecords(records.filter(record => record.id !== id));
         return;
       }
-      
+
       setProcessingText("กำลังลบข้อมูล...");
       try {
         const response = await fetch(GAS_URL, {
@@ -641,8 +767,8 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
 
         let exportDate = r.date;
         if (exportDate && exportDate.includes("-")) {
-           const parts = exportDate.split("-");
-           if (parts.length === 3) exportDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+          const parts = exportDate.split("-");
+          if (parts.length === 3) exportDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
 
         return {
@@ -667,7 +793,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
       const wb = XLSX.utils.book_new();
 
       const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-      
+
       for (let R = range.s.r; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
           const addr = XLSX.utils.encode_cell({ r: R, c: C });
@@ -679,15 +805,15 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
               font: { name: "Calibri", sz: 11 }
             };
           } else {
-             ws[addr].s = {
-               alignment: { horizontal: "left" },
-               font: { name: "Calibri", sz: 11, bold: true },
-               fill: { fgColor: { rgb: "DDEBF7" } }
-             };
+            ws[addr].s = {
+              alignment: { horizontal: "left" },
+              font: { name: "Calibri", sz: 11, bold: true },
+              fill: { fgColor: { rgb: "DDEBF7" } }
+            };
           }
         }
       }
-      
+
       ws["!cols"] = [
         { wch: 12 },
         { wch: 10 },
@@ -706,7 +832,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      
+
       a.download = `Waste Record.xlsx`;
       document.body.appendChild(a);
       a.click();
@@ -787,456 +913,523 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
               </div>
             </div>
           ) : (
-          <div className="flex flex-col h-full bg-[#1E293B] rounded-2xl border border-slate-700 shadow-xl overflow-hidden animate-in fade-in">
-            {isMobile ? (
-              <div className="p-2 border-b border-slate-700 bg-[#161B22] flex items-center gap-1.5">
-                <div className="flex items-center gap-1 flex-1">
-                  <div className="flex-1">
-                    <FilterDateInput date={startDate} onChange={setStartDate} isMobile={true} />
-                  </div>
-                  <span className="text-slate-500">-</span>
-                  <div className="flex-1">
-                    <FilterDateInput date={endDate} onChange={setEndDate} isMobile={true} />
-                  </div>
-                </div>
-                <button
-                  onClick={() => fetchMasterData(true)}
-                  className="h-[32px] bg-slate-700 text-white w-[32px] rounded-lg flex items-center justify-center shadow shrink-0"
-                >
-                  <Search size={14} />
-                </button>
-                <button
-                  onClick={handleExportExcel}
-                  className="h-[32px] bg-emerald-600 text-white px-2 rounded-lg text-[10px] font-bold flex items-center justify-center shadow-lg shrink-0"
-                >
-                  <FileSpreadsheet size={14} />
-                </button>
-                <button
-                  onClick={handleAddRow}
-                  className="h-[32px] bg-blue-600 text-white px-2 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg shrink-0"
-                >
-                  <Plus size={14} /> เพิ่ม
-                </button>
-              </div>
-            ) : (
-            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-[#161B22]">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Factory size={18} className="text-purple-500" /> บันทึกข้อมูลของเสีย
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">ตั้งแต่:</span>
-                <div className="w-[120px]">
-                  <FilterDateInput date={startDate} onChange={setStartDate} />
-                </div>
-                <span className="text-xs text-slate-400">ถึง:</span>
-                <div className="w-[120px]">
-                  <FilterDateInput date={endDate} onChange={setEndDate} />
-                </div>
-                <button
-                  onClick={() => fetchMasterData(true)}
-                  className="h-[32px] bg-slate-700 hover:bg-slate-600 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-2"
-                >
-                  <Search size={14} /> ค้นหา
-                </button>
-                <button
-                  onClick={handleExportExcel}
-                  className="h-[32px] bg-emerald-600 hover:bg-emerald-500 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-1"
-                >
-                  <FileSpreadsheet size={14} /> Excel
-                </button>
-                <button
-                  onClick={handleAddRow}
-                  className="h-[32px] bg-blue-600 hover:bg-blue-500 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-1"
-                >
-                  <Plus size={14} /> เพิ่มรายการ
-                </button>
-              </div>
-            </div>
-            )}
-
-            <div className="flex-1 overflow-auto custom-scrollbar p-2 md:p-4 pb-24 md:pb-4">
+            <div className="flex flex-col h-full bg-[#1E293B] rounded-2xl border border-slate-700 shadow-xl overflow-hidden animate-in fade-in">
               {isMobile ? (
-                <div className="space-y-3">
-                  {records.filter(r => {
-                    return r.date >= startDate && r.date <= endDate;
-                  }).length === 0 ? (
-                    <div className="text-center p-8 text-slate-500 bg-slate-800/50 rounded-xl border border-slate-700">ไม่มีข้อมูลในช่วงวันที่นี้ กดเพิ่มรายการ</div>
-                  ) : (
-                    records.filter(r => {
-                      return r.date >= startDate && r.date <= endDate;
-                    }).map((r, index, filteredArr) => {
-                      const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
-                      const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
-                      const computedIncreasedWeight = r.newWeight - actualPrevWeight;
-                      const displayIncreasedWeight = r.newWeight === 0 ? 0 : computedIncreasedWeight;
-                      const formattedIncreasedWeight = displayIncreasedWeight === 0 ? "0.00" : (displayIncreasedWeight > 0 ? "+" : "") + displayIncreasedWeight.toFixed(2);
-                      const isExpanded = expandedCards[r.id] !== undefined ? expandedCards[r.id] : !r.isSaved;
+                <div className="p-2 border-b border-slate-700 bg-[#161B22] flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 flex-1">
+                    <div className="flex-1">
+                      <FilterDateInput date={startDate} onChange={setStartDate} isMobile={true} />
+                    </div>
+                    <span className="text-slate-500">-</span>
+                    <div className="flex-1">
+                      <FilterDateInput date={endDate} onChange={setEndDate} isMobile={true} />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => fetchMasterData(true)}
+                    className="h-[32px] bg-slate-700 text-white w-[32px] rounded-lg flex items-center justify-center shadow shrink-0"
+                  >
+                    <Search size={14} />
+                  </button>
+                  <button
+                    onClick={handleExportExcel}
+                    className="h-[32px] bg-emerald-600 text-white px-2 rounded-lg text-[10px] font-bold flex items-center justify-center shadow-lg shrink-0"
+                  >
+                    <FileSpreadsheet size={14} />
+                  </button>
+                  <button
+                    onClick={handleAddRow}
+                    className="h-[32px] bg-blue-600 text-white px-2 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg shrink-0"
+                  >
+                    <Plus size={14} /> เพิ่ม
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-[#161B22]">
+                  <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Factory size={18} className="text-purple-500" /> บันทึกข้อมูลของเสีย
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">ตั้งแต่:</span>
+                    <div className="w-[120px]">
+                      <FilterDateInput date={startDate} onChange={setStartDate} />
+                    </div>
+                    <span className="text-xs text-slate-400">ถึง:</span>
+                    <div className="w-[120px]">
+                      <FilterDateInput date={endDate} onChange={setEndDate} />
+                    </div>
+                    <button
+                      onClick={() => fetchMasterData(true)}
+                      className="h-[32px] bg-slate-700 hover:bg-slate-600 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-2"
+                    >
+                      <Search size={14} /> ค้นหา
+                    </button>
+                    <button
+                      onClick={handleExportExcel}
+                      className="h-[32px] bg-emerald-600 hover:bg-emerald-500 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-1"
+                    >
+                      <FileSpreadsheet size={14} /> Excel
+                    </button>
+                    <button
+                      onClick={handleAddRow}
+                      className="h-[32px] bg-blue-600 hover:bg-blue-500 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-1"
+                    >
+                      <Plus size={14} /> เพิ่มรายการ
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                      return (
-                        <div key={r.id} className={`p-3.5 rounded-2xl border ${!r.isSaved ? "border-blue-500/50 bg-gradient-to-br from-blue-900/40 via-slate-800 to-indigo-900/20 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.3)] ring-1 ring-blue-500/20" : "border-slate-600/50 bg-[#1A2235] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_8px_16px_rgba(0,0,0,0.3)] hover:bg-[#1E293B] border-l-4 border-l-blue-500"} flex flex-col gap-2 relative transition-all duration-300`}> 
-                          <div className={`flex justify-between items-center border-b ${!r.isSaved ? "border-blue-500/30" : "border-slate-700/50"} pb-2 cursor-pointer`} onClick={() => toggleExpand(r.id)}>
-                            <div className="flex items-center gap-2">
-                              <MobileDateInput 
-                                date={r.date} 
-                                isSaved={r.isSaved} 
-                                onChange={(newDate) => updateRow(r.id, "date", newDate)} 
-                              />
-                              <select 
-                                value={r.shift} 
-                                onChange={(e) => updateRow(r.id, "shift", e.target.value)} 
-                                className={`rounded-lg p-1 text-xs outline-none ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner cursor-not-allowed font-bold' : 'bg-slate-900 border border-slate-700 text-slate-200 focus:ring-1 focus:ring-blue-500'}`}
-                                disabled={r.isSaved}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <option>Day</option>
-                                <option>Night</option>
-                              </select>
-                            </div>
-                            <div className="flex items-center gap-2 text-slate-400">
-                              {r.isSaved && r.inspector && (
-                                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                                  ตรวจสอบแล้ว
-                                </span>
-                              )}
-                              {!r.isSaved && <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>}
-                              <ChevronDown size={18} className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} />
-                            </div>
-                          </div>
-                          
-                          {isExpanded && (
-                            <div className="flex flex-col gap-2 animate-in slide-in-from-top-2 fade-in duration-200">
-                              <div className="grid grid-cols-2 gap-2 mt-0.5">
-                                <div>
-                                  <div className="text-[10px] text-slate-400 mb-1 text-left">รุ่น (Model)</div>
-                                  <SearchableSelect 
-                                    value={r.model}
-                                    onChange={(val: string) => updateRow(r.id, "model", val)}
-                                    options={masterModels}
-                                    placeholder="-- เลือกรุ่น --"
-                                    disabled={r.isSaved}
-                                  />
-                                </div>
-                                <div>
-                                  <div className="text-[10px] text-slate-400 mb-1 text-left">ปัญหา (Defect)</div>
-                                  <SearchableSelect 
-                                    value={r.defect}
-                                    onChange={(val: string) => updateRow(r.id, "defect", val)}
-                                    options={masterDefects}
-                                    placeholder="-- เลือกปัญหา --"
-                                    disabled={r.isSaved}
-                                  />
-                                </div>
+              <div className="flex-1 overflow-auto custom-scrollbar p-2 md:p-4 pb-24 md:pb-4">
+                {isMobile ? (
+                  <div className="space-y-3">
+                    {records.filter(r => {
+                      const dateMatch = r.date >= startDate && r.date <= endDate;
+                      const dateListMatch = filterDateList.length === 0 || filterDateList.includes(r.date);
+                      const shiftMatch = filterShift.length === 0 || filterShift.includes(r.shift);
+                      const modelMatch = filterModel.length === 0 || filterModel.includes(r.model);
+                      const defectMatch = filterDefect.length === 0 || filterDefect.includes(r.defect);
+                      return dateMatch && dateListMatch && shiftMatch && modelMatch && defectMatch;
+                    }).length === 0 ? (
+                      <div className="text-center p-8 text-slate-500 bg-slate-800/50 rounded-xl border border-slate-700">ไม่มีข้อมูลที่ตรงกับเงื่อนไข</div>
+                    ) : (
+                      records.filter(r => {
+                        const dateMatch = r.date >= startDate && r.date <= endDate;
+                        const dateListMatch = filterDateList.length === 0 || filterDateList.includes(r.date);
+                        const shiftMatch = filterShift.length === 0 || filterShift.includes(r.shift);
+                        const modelMatch = filterModel.length === 0 || filterModel.includes(r.model);
+                        const defectMatch = filterDefect.length === 0 || filterDefect.includes(r.defect);
+                        return dateMatch && dateListMatch && shiftMatch && modelMatch && defectMatch;
+                      }).map((r, index, filteredArr) => {
+                        const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
+                        const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
+                        const computedIncreasedWeight = r.newWeight - actualPrevWeight;
+                        const displayIncreasedWeight = r.newWeight === 0 ? 0 : computedIncreasedWeight;
+                        const formattedIncreasedWeight = displayIncreasedWeight === 0 ? "0.00" : (displayIncreasedWeight > 0 ? "+" : "") + displayIncreasedWeight.toFixed(2);
+                        const isExpanded = expandedCards[r.id] !== undefined ? expandedCards[r.id] : !r.isSaved;
+
+                        return (
+                          <div key={r.id} className={`p-3.5 rounded-2xl border ${!r.isSaved ? "border-blue-500/50 bg-gradient-to-br from-blue-900/40 via-slate-800 to-indigo-900/20 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.3)] ring-1 ring-blue-500/20" : "border-slate-600/50 bg-[#1A2235] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_8px_16px_rgba(0,0,0,0.3)] hover:bg-[#1E293B] border-l-4 border-l-blue-500"} flex flex-col gap-2 relative transition-all duration-300`}>
+                            <div className={`flex justify-between items-center border-b ${!r.isSaved ? "border-blue-500/30" : "border-slate-700/50"} pb-2 cursor-pointer`} onClick={() => toggleExpand(r.id)}>
+                              <div className="flex items-center gap-2">
+                                <MobileDateInput
+                                  date={r.date}
+                                  isSaved={r.isSaved}
+                                  onChange={(newDate) => updateRow(r.id, "date", newDate)}
+                                />
+                                <select
+                                  value={r.shift}
+                                  onChange={(e) => updateRow(r.id, "shift", e.target.value)}
+                                  className={`rounded-lg p-1 text-xs outline-none ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner cursor-not-allowed font-bold' : 'bg-slate-900 border border-slate-700 text-slate-200 focus:ring-1 focus:ring-blue-500'}`}
+                                  disabled={r.isSaved}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <option>Day</option>
+                                  <option>Night</option>
+                                </select>
                               </div>
+                              <div className="flex items-center gap-2 text-slate-400">
+                                {r.isSaved && r.inspector && (
+                                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                    ตรวจสอบแล้ว
+                                  </span>
+                                )}
+                                {!r.isSaved && <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>}
+                                <ChevronDown size={18} className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} />
+                              </div>
+                            </div>
 
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-left">น้ำหนักใหม่(Kg)</div>
-                                  <button
-                                    onClick={() => !r.isSaved && handleOpenWeightModal(r.id)}
-                                    className={`w-full rounded p-1 text-xs text-center flex items-center justify-center gap-1 transition-colors h-[28px] ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner cursor-not-allowed' : 'bg-slate-900 border border-slate-700 hover:border-purple-500 text-purple-400'}`}
-                                    disabled={r.isSaved}
-                                  >
-                                    <span className="font-bold">{r.newWeight.toFixed(2)}</span>
-                                    
-                                  </button>
+                            {isExpanded && (
+                              <div className="flex flex-col gap-2 animate-in slide-in-from-top-2 fade-in duration-200">
+                                <div className="grid grid-cols-2 gap-2 mt-0.5">
+                                  <div>
+                                    <div className="text-[10px] text-slate-400 mb-1 text-left">รุ่น (Model)</div>
+                                    <SearchableSelect
+                                      value={r.model}
+                                      onChange={(val: string) => updateRow(r.id, "model", val)}
+                                      options={masterModels}
+                                      placeholder="-- เลือกรุ่น --"
+                                      disabled={r.isSaved}
+                                    />
+                                  </div>
+                                  <div>
+                                    <div className="text-[10px] text-slate-400 mb-1 text-left">ปัญหา (Defect)</div>
+                                    <SearchableSelect
+                                      value={r.defect}
+                                      onChange={(val: string) => updateRow(r.id, "defect", val)}
+                                      options={masterDefects}
+                                      placeholder="-- เลือกปัญหา --"
+                                      disabled={r.isSaved}
+                                    />
+                                  </div>
                                 </div>
-                                <div>
-                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-left">คงค้าง (Kg)</div>
-                                  <div className={`w-full rounded px-1 text-xs font-bold text-center h-[28px] flex items-center justify-between ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner' : 'bg-slate-900/50 border border-slate-700 text-slate-500'}`}>
-                                    <span className="flex-1 text-center pl-4">{actualPrevWeight.toFixed(2)}</span>
-                                    {!r.isSaved && (
-                                      <button onClick={() => handleOpenWeightModal(r.id, "prevWeightBox")} className="p-1 text-slate-400 hover:text-blue-400 transition-colors">
-                                        <Edit size={10} />
-                                      </button>
+
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <div className="text-[9px] text-slate-400 mb-1 truncate text-left">น้ำหนักใหม่(Kg)</div>
+                                    <button
+                                      onClick={() => !r.isSaved && handleOpenWeightModal(r.id)}
+                                      className={`w-full rounded p-1 text-xs text-center flex items-center justify-center gap-1 transition-colors h-[28px] ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner cursor-not-allowed' : 'bg-slate-900 border border-slate-700 hover:border-purple-500 text-purple-400'}`}
+                                      disabled={r.isSaved}
+                                    >
+                                      <span className="font-bold">{r.newWeight.toFixed(2)}</span>
+
+                                    </button>
+                                  </div>
+                                  <div>
+                                    <div className="text-[9px] text-slate-400 mb-1 truncate text-left">คงค้าง (Kg)</div>
+                                    <div className={`w-full rounded px-1 text-xs font-bold text-center h-[28px] flex items-center justify-between ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-blue-100 shadow-inner' : 'bg-slate-900/50 border border-slate-700 text-slate-500'}`}>
+                                      <span className="flex-1 text-center pl-4">{actualPrevWeight.toFixed(2)}</span>
+                                      {!r.isSaved && (
+                                        <button onClick={() => handleOpenWeightModal(r.id, "prevWeightBox")} className="p-1 text-slate-400 hover:text-blue-400 transition-colors">
+                                          <Edit size={10} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-[9px] text-slate-400 mb-1 truncate text-left">น้ำหนักที่เพิ่มขึ้น(Kg)</div>
+                                    <div className={`w-full rounded p-1 text-xs font-bold text-center h-[28px] flex items-center justify-center ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-emerald-400 shadow-inner' : 'bg-slate-900 border border-slate-700 text-emerald-400'}`}>
+                                      {formattedIncreasedWeight}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-between items-end pt-1.5 border-t border-slate-700/50 mt-0.5">
+                                  <div className="text-[10px] text-slate-500">
+                                    <span className="font-bold">บันทึก:</span> {r.recorder} <br />
+                                    <span className="font-bold">ตรวจสอบ:</span> {r.inspector || "-"}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    {!r.isSaved ? (
+                                      <>
+                                        <button onClick={() => handleDeleteRowClick(r.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
+                                        <button onClick={() => handleSaveRow(r.id)} className="text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"><Save size={14} /> บันทึก</button>
+                                      </>
+                                    ) : r.inspector && !hasVerifyPerm ? (
+                                      <span className="text-[10px] text-emerald-500 flex items-center gap-1 font-bold bg-emerald-500/10 px-2 py-1 rounded-md"><CheckCircle size={12} /> ยืนยันแล้ว</span>
+                                    ) : (
+                                      <>
+                                        {hasVerifyPerm && !r.inspector && (
+                                          <button onClick={() => handleVerifyRowClick(r.id)} className="text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"><CheckCircle size={14} /> ยืนยัน</button>
+                                        )}
+                                        <button onClick={() => updateRow(r.id, "isSaved", false)} className="p-2 text-slate-500 hover:text-amber-400 transition-colors"><Edit size={16} /></button>
+                                        <button onClick={() => handleDeleteRowClick(r.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
+                                      </>
                                     )}
                                   </div>
                                 </div>
-                                <div>
-                                  <div className="text-[9px] text-slate-400 mb-1 truncate text-left">น้ำหนักที่เพิ่มขึ้น(Kg)</div>
-                                  <div className={`w-full rounded p-1 text-xs font-bold text-center h-[28px] flex items-center justify-center ${r.isSaved ? 'bg-blue-900/30 border border-blue-500/30 text-emerald-400 shadow-inner' : 'bg-slate-900 border border-slate-700 text-emerald-400'}`}>
-                                    {formattedIncreasedWeight}
-                                  </div>
-                                </div>
                               </div>
-
-                              <div className="flex justify-between items-end pt-1.5 border-t border-slate-700/50 mt-0.5">
-                                 <div className="text-[10px] text-slate-500">
-                                   <span className="font-bold">บันทึก:</span> {r.recorder} <br/>
-                                   <span className="font-bold">ตรวจสอบ:</span> {r.inspector || "-"}
-                                 </div>
-                                 <div className="flex gap-2">
-                                   {!r.isSaved ? (
-                                      <>
-                                        <button onClick={() => handleDeleteRowClick(r.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 size={16}/></button>
-                                        <button onClick={() => handleSaveRow(r.id)} className="text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"><Save size={14}/> บันทึก</button>
-                                      </>
-                                   ) : r.inspector && !hasVerifyPerm ? (
-                                      <span className="text-[10px] text-emerald-500 flex items-center gap-1 font-bold bg-emerald-500/10 px-2 py-1 rounded-md"><CheckCircle size={12}/> ยืนยันแล้ว</span>
-                                   ) : (
-                                      <>
-                                        {hasVerifyPerm && !r.inspector && (
-                                           <button onClick={() => handleVerifyRowClick(r.id)} className="text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"><CheckCircle size={14}/> ยืนยัน</button>
-                                        )}
-                                        <button onClick={() => updateRow(r.id, "isSaved", false)} className="p-2 text-slate-500 hover:text-amber-400 transition-colors"><Edit size={16}/></button>
-                                        <button onClick={() => handleDeleteRowClick(r.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 size={16}/></button>
-                                      </>
-                                   )}
-                                 </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              ) : (
-              <table className="w-full table-fixed text-left border-collapse min-w-[1200px]">
-                <thead>
-                  <tr className="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
-                    <th className="p-3 rounded-tl-lg text-left whitespace-nowrap w-[9%]">วันที่</th>
-                    <th className="p-3 text-left whitespace-nowrap w-[6%]">กะ</th>
-                    <th className="p-3 text-left whitespace-nowrap w-[12%]">รุ่น</th>
-                    <th className="p-3 text-left whitespace-nowrap w-[12%]">ลักษณะปัญหา</th>
-                    <th className="p-3 text-left whitespace-nowrap w-[12%]">นน.ใหม่ (Kg)</th>
-                    <th className="p-3 text-left whitespace-nowrap w-[12%]">นน.คงค้าง+กล่อง (Kg)</th>
-                    <th className="p-3 text-left whitespace-nowrap w-[12%]">นน.เพิ่มขึ้น (Kg)</th>
-                    <th className="p-3 text-left whitespace-nowrap w-[10%]">ผู้บันทึก</th>
-                    <th className="p-3 text-left whitespace-nowrap w-[9%]">ผู้ตรวจสอบ</th>
-                    <th className="p-3 rounded-tr-lg text-center whitespace-nowrap w-[6%]">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
-                  {records.filter(r => {
-                    return r.date >= startDate && r.date <= endDate;
-                  }).length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="text-center p-8 text-slate-500">
-                        ไม่มีข้อมูลในช่วงวันที่นี้ กดเพิ่มรายการ
-                      </td>
-                    </tr>
-                  ) : (
-                    records.filter(r => {
-                      return r.date >= startDate && r.date <= endDate;
-                    }).map((r, index, filteredArr) => {
-                      const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
-                      const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
-                      const computedIncreasedWeight = r.newWeight - actualPrevWeight;
-                      const displayIncreasedWeight = r.newWeight === 0 ? 0 : computedIncreasedWeight;
-                      const formattedIncreasedWeight = displayIncreasedWeight === 0 ? "0.00" : (displayIncreasedWeight > 0 ? "+" : "") + displayIncreasedWeight.toFixed(2);
-
-                      return (
-                        <tr 
-                          key={r.id} 
-                          className={`border-b border-slate-700/50 transition-colors ${
-                            !r.isSaved 
-                              ? "bg-blue-800/30 shadow-[inset_4px_0_0_0_#3b82f6]" 
-                              : "hover:bg-slate-800/30"
-                          }`}
-                        >
-                        <td className="p-3 text-left">
-                          <DateInput 
-                            date={r.date} 
-                            isSaved={r.isSaved} 
-                            onChange={(newDate) => updateRow(r.id, "date", newDate)} 
-                          />
-                        </td>
-                        <td className="p-3 text-left">
-                          <select 
-                            value={r.shift} 
-                            onChange={(e) => updateRow(r.id, "shift", e.target.value)} 
-                            className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-xs text-left text-slate-200 ${r.isSaved ? 'cursor-not-allowed' : ''}`}
-                            disabled={r.isSaved}
-                          >
-                            <option>Day</option>
-                            <option>Night</option>
-                          </select>
-                        </td>
-                        <td className="p-3 text-left">
-                          <SearchableSelect 
-                            value={r.model}
-                            onChange={(val: string) => updateRow(r.id, "model", val)}
-                            options={masterModels}
-                            placeholder="-- เลือกรุ่น --"
-                            disabled={r.isSaved}
-                          />
-                        </td>
-                        <td className="p-3 text-left">
-                          <SearchableSelect 
-                            value={r.defect}
-                            onChange={(val: string) => updateRow(r.id, "defect", val)}
-                            options={masterDefects}
-                            placeholder="-- เลือกปัญหา --"
-                            disabled={r.isSaved}
-                          />
-                        </td>
-                        <td className="p-3 text-left">
-                          <button
-                            onClick={() => !r.isSaved && handleOpenWeightModal(r.id)}
-                            className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs flex justify-between items-center text-slate-200 ${r.isSaved ? 'cursor-not-allowed' : 'hover:bg-slate-800 transition-colors'}`}
-                            disabled={r.isSaved}
-                          >
-                            <span>{r.newWeight.toFixed(2)}</span>
-                            
-                          </button>
-                        </td>
-                        <td className="p-3 text-left">
-                          <div className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs text-slate-400 flex items-center justify-between ${r.isSaved ? 'cursor-not-allowed' : ''}`}>
-                            <span>{actualPrevWeight.toFixed(2)}</span>
-                            {!r.isSaved && (
-                              <button onClick={() => handleOpenWeightModal(r.id, "prevWeightBox")} className="hover:text-blue-400 p-0.5 transition-colors">
-                                <Edit size={12} />
-                              </button>
                             )}
                           </div>
-                        </td>
-                        <td className="p-3 text-left">
-                          <div className="bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs font-bold text-orange-400">
-                            {formattedIncreasedWeight}
-                          </div>
-                        </td>
-                        <td className="p-3 text-xs text-slate-400 text-left">{r.recorder}</td>
-                        <td className="p-3 text-left">
-                          {r.inspector ? (
-                            <div className="text-xs text-blue-400 font-bold whitespace-nowrap">
-                              {r.inspector}
-                            </div>
-                          ) : hasVerifyPerm && r.isSaved ? (
-                            <button 
-                              onClick={() => handleVerifyRowClick(r.id)}
-                              className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 hover:text-white transition-colors flex items-center gap-1.5"
-                            >
-                              <CheckCircle size={14}/> ยืนยัน
-                            </button>
-                          ) : (
-                            <span className="text-slate-600">-</span>
-                          )}
-                        </td>
-                        <td className="p-3 text-center">
-                          {!r.isSaved ? (
-                            <div className="flex justify-center gap-2">
-                              <button 
-                                onClick={() => handleSaveRow(r.id)}
-                                className="text-blue-500 hover:text-blue-400 p-1.5 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors"
-                                title="บันทึกรายการ"
-                              >
-                                <Save size={16} />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteRowClick(r.id)}
-                                className="text-red-500 hover:text-red-400 p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
-                                title="ลบรายการ"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          ) : r.inspector && !hasVerifyPerm ? (
-                            <span className="text-slate-600 text-xs">-</span>
-                          ) : (
-                            <div className="flex justify-center gap-2">
-                              <button 
-                                onClick={() => updateRow(r.id, "isSaved", false)}
-                                className="text-amber-500 hover:text-amber-400 p-1.5 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg transition-colors"
-                                title="แก้ไขรายการ"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteRowClick(r.id)}
-                                className="text-red-500 hover:text-red-400 p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
-                                title="ลบรายการ"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          )}
-                        </td>
+                        )
+                      })
+                    )}
+                  </div>
+                ) : (
+                  <table className="w-full table-fixed text-left border-collapse min-w-[1200px]">
+                    <thead>
+                      <tr className="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
+                        <th className="p-3 rounded-tl-lg text-left whitespace-nowrap w-[9%] overflow-visible">
+                          <MultiColumnFilter 
+                            title="วันที่" 
+                            options={Array.from(new Set(records.filter(r => 
+                              r.date >= startDate && r.date <= endDate &&
+                              (filterShift.length === 0 || filterShift.includes(r.shift)) &&
+                              (filterModel.length === 0 || filterModel.includes(r.model)) &&
+                              (filterDefect.length === 0 || filterDefect.includes(r.defect))
+                            ).map(r => r.date))).sort().map(d => ({ value: d, label: formatDateToDDMMYYYY(d) }))} 
+                            selectedValues={filterDateList} 
+                            onChange={setFilterDateList} 
+                          />
+                        </th>
+                        <th className="p-3 text-left whitespace-nowrap w-[6%] overflow-visible">
+                          <MultiColumnFilter 
+                            title="กะ" 
+                            options={Array.from(new Set(records.filter(r => 
+                              r.date >= startDate && r.date <= endDate &&
+                              (filterDateList.length === 0 || filterDateList.includes(r.date)) &&
+                              (filterModel.length === 0 || filterModel.includes(r.model)) &&
+                              (filterDefect.length === 0 || filterDefect.includes(r.defect))
+                            ).map(r => r.shift))).filter(Boolean).sort()} 
+                            selectedValues={filterShift} 
+                            onChange={setFilterShift} 
+                          />
+                        </th>
+                        <th className="p-3 text-left whitespace-nowrap w-[12%] overflow-visible">
+                          <MultiColumnFilter 
+                            title="รุ่น" 
+                            options={Array.from(new Set(records.filter(r => 
+                              r.date >= startDate && r.date <= endDate &&
+                              (filterDateList.length === 0 || filterDateList.includes(r.date)) &&
+                              (filterShift.length === 0 || filterShift.includes(r.shift)) &&
+                              (filterDefect.length === 0 || filterDefect.includes(r.defect))
+                            ).map(r => r.model))).filter(Boolean).sort()} 
+                            selectedValues={filterModel} 
+                            onChange={setFilterModel} 
+                          />
+                        </th>
+                        <th className="p-3 text-left whitespace-nowrap w-[12%] overflow-visible">
+                          <MultiColumnFilter 
+                            title="ลักษณะปัญหา" 
+                            options={Array.from(new Set(records.filter(r => 
+                              r.date >= startDate && r.date <= endDate &&
+                              (filterDateList.length === 0 || filterDateList.includes(r.date)) &&
+                              (filterShift.length === 0 || filterShift.includes(r.shift)) &&
+                              (filterModel.length === 0 || filterModel.includes(r.model))
+                            ).map(r => r.defect))).filter(Boolean).sort()} 
+                            selectedValues={filterDefect} 
+                            onChange={setFilterDefect} 
+                          />
+                        </th>
+                        <th className="p-3 text-left whitespace-nowrap w-[12%]">นน.ใหม่ (Kg)</th>
+                        <th className="p-3 text-left whitespace-nowrap w-[12%]">นน.คงค้าง+กล่อง (Kg)</th>
+                        <th className="p-3 text-left whitespace-nowrap w-[12%]">นน.เพิ่มขึ้น (Kg)</th>
+                        <th className="p-3 text-left whitespace-nowrap w-[10%]">ผู้บันทึก</th>
+                        <th className="p-3 text-left whitespace-nowrap w-[9%]">ผู้ตรวจสอบ</th>
+                        <th className="p-3 rounded-tr-lg text-center whitespace-nowrap w-[6%]">Action</th>
                       </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-              )}
+                    </thead>
+                    <tbody className="text-sm">
+                      {records.filter(r => {
+                        const dateMatch = r.date >= startDate && r.date <= endDate;
+                        const dateListMatch = filterDateList.length === 0 || filterDateList.includes(r.date);
+                        const shiftMatch = filterShift.length === 0 || filterShift.includes(r.shift);
+                        const modelMatch = filterModel.length === 0 || filterModel.includes(r.model);
+                        const defectMatch = filterDefect.length === 0 || filterDefect.includes(r.defect);
+                        return dateMatch && dateListMatch && shiftMatch && modelMatch && defectMatch;
+                      }).length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="text-center p-8 text-slate-500">
+                            ไม่มีข้อมูลที่ตรงกับเงื่อนไข
+                          </td>
+                        </tr>
+                      ) : (
+                        records.filter(r => {
+                          const dateMatch = r.date >= startDate && r.date <= endDate;
+                          const dateListMatch = filterDateList.length === 0 || filterDateList.includes(r.date);
+                          const shiftMatch = filterShift.length === 0 || filterShift.includes(r.shift);
+                          const modelMatch = filterModel.length === 0 || filterModel.includes(r.model);
+                          const defectMatch = filterDefect.length === 0 || filterDefect.includes(r.defect);
+                          return dateMatch && dateListMatch && shiftMatch && modelMatch && defectMatch;
+                        }).map((r, index, filteredArr) => {
+                          const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
+                          const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
+                          const computedIncreasedWeight = r.newWeight - actualPrevWeight;
+                          const displayIncreasedWeight = r.newWeight === 0 ? 0 : computedIncreasedWeight;
+                          const formattedIncreasedWeight = displayIncreasedWeight === 0 ? "0.00" : (displayIncreasedWeight > 0 ? "+" : "") + displayIncreasedWeight.toFixed(2);
+
+                          return (
+                            <tr
+                              key={r.id}
+                              className={`border-b border-slate-700/50 transition-colors ${!r.isSaved
+                                  ? "bg-blue-800/30 shadow-[inset_4px_0_0_0_#3b82f6]"
+                                  : "hover:bg-slate-800/30"
+                                }`}
+                            >
+                              <td className="p-3 text-left">
+                                <DateInput
+                                  date={r.date}
+                                  isSaved={r.isSaved}
+                                  onChange={(newDate) => updateRow(r.id, "date", newDate)}
+                                />
+                              </td>
+                              <td className="p-3 text-left">
+                                <select
+                                  value={r.shift}
+                                  onChange={(e) => updateRow(r.id, "shift", e.target.value)}
+                                  className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-xs text-left text-slate-200 ${r.isSaved ? 'cursor-not-allowed appearance-none' : ''}`}
+                                  disabled={r.isSaved}
+                                >
+                                  <option>Day</option>
+                                  <option>Night</option>
+                                </select>
+                              </td>
+                              <td className="p-3 text-left">
+                                <SearchableSelect
+                                  value={r.model}
+                                  onChange={(val: string) => updateRow(r.id, "model", val)}
+                                  options={masterModels}
+                                  placeholder="-- เลือกรุ่น --"
+                                  disabled={r.isSaved}
+                                />
+                              </td>
+                              <td className="p-3 text-left">
+                                <SearchableSelect
+                                  value={r.defect}
+                                  onChange={(val: string) => updateRow(r.id, "defect", val)}
+                                  options={masterDefects}
+                                  placeholder="-- เลือกปัญหา --"
+                                  disabled={r.isSaved}
+                                />
+                              </td>
+                              <td className="p-3 text-left">
+                                <button
+                                  onClick={() => !r.isSaved && handleOpenWeightModal(r.id)}
+                                  className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs flex justify-between items-center text-slate-200 ${r.isSaved ? 'cursor-not-allowed' : 'hover:bg-slate-800 transition-colors'}`}
+                                  disabled={r.isSaved}
+                                >
+                                  <span>{r.newWeight.toFixed(2)}</span>
+
+                                </button>
+                              </td>
+                              <td className="p-3 text-left">
+                                <div className={`bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs text-slate-400 flex items-center justify-between ${r.isSaved ? 'cursor-not-allowed' : ''}`}>
+                                  <span>{actualPrevWeight.toFixed(2)}</span>
+                                  {!r.isSaved && (
+                                    <button onClick={() => handleOpenWeightModal(r.id, "prevWeightBox")} className="hover:text-blue-400 p-0.5 transition-colors">
+                                      <Edit size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3 text-left">
+                                <div className="bg-slate-900 border border-slate-700 rounded p-1.5 w-full text-left text-xs font-bold text-emerald-400">
+                                  {formattedIncreasedWeight}
+                                </div>
+                              </td>
+                              <td className="p-3 text-xs text-slate-400 text-left">{r.recorder}</td>
+                              <td className="p-3 text-left">
+                                {r.inspector ? (
+                                  <div className="text-xs text-blue-400 font-bold whitespace-nowrap">
+                                    {r.inspector}
+                                  </div>
+                                ) : hasVerifyPerm && r.isSaved ? (
+                                  <button
+                                    onClick={() => handleVerifyRowClick(r.id)}
+                                    className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 hover:text-white transition-colors flex items-center gap-1.5"
+                                  >
+                                    <CheckCircle size={14} /> ยืนยัน
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-600">-</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-center">
+                                {!r.isSaved ? (
+                                  <div className="flex justify-center gap-2">
+                                    <button
+                                      onClick={() => handleSaveRow(r.id)}
+                                      className="text-blue-500 hover:text-blue-400 p-1.5 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors"
+                                      title="บันทึกรายการ"
+                                    >
+                                      <Save size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteRowClick(r.id)}
+                                      className="text-red-500 hover:text-red-400 p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
+                                      title="ลบรายการ"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                ) : r.inspector && !hasVerifyPerm ? (
+                                  <span className="text-slate-600 text-xs">-</span>
+                                ) : (
+                                  <div className="flex justify-center gap-2">
+                                    <button
+                                      onClick={() => updateRow(r.id, "isSaved", false)}
+                                      className="text-amber-500 hover:text-amber-400 p-1.5 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg transition-colors"
+                                      title="แก้ไขรายการ"
+                                    >
+                                      <Edit size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteRowClick(r.id)}
+                                      className="text-red-500 hover:text-red-400 p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
+                                      title="ลบรายการ"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
-          </div>
           )
         )}
 
         {activeView === "SETTINGS" && (
           hasSettingsPerm ? (
-          <div className="flex flex-col h-full bg-[#1E293B] rounded-2xl border border-slate-700 shadow-xl overflow-hidden animate-in fade-in">
-            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-[#161B22]">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Settings size={18} className="text-blue-500" /> ตั้งค่าระบบ (Master Data)
-              </h2>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 bg-[#0F172A]">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-                
-                {/* Column 1: รุ่น (Models) */}
-                <div className="bg-[#1E293B] rounded-xl border border-slate-700 overflow-hidden shadow-lg">
-                  <div className="p-4 border-b border-slate-700 bg-[#161B22] flex justify-between items-center">
-                    <h3 className="font-bold text-white">รุ่น (Models)</h3>
-                    <button 
-                      onClick={() => openMasterModal("model", "add")}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded-lg transition-colors"
-                      title="เพิ่มรุ่น"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                  <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    {tempModels.length === 0 ? (
-                      <div className="text-slate-500 text-center py-4 text-sm">ไม่มีข้อมูลรุ่น</div>
-                    ) : (
-                      tempModels.map((m, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
-                          <span className="text-slate-200 text-sm font-medium">{m}</span>
-                          <div className="flex gap-2">
-                            <button onClick={() => openMasterModal("model", "edit", idx)} className="text-amber-500 hover:bg-amber-500/20 p-1.5 rounded transition-colors"><Edit size={16}/></button>
-                            <button onClick={() => handleDeleteTemp("model", idx)} className="text-red-500 hover:bg-red-500/20 p-1.5 rounded transition-colors"><Trash2 size={16}/></button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+            <div className="flex flex-col h-full bg-[#1E293B] rounded-2xl border border-slate-700 shadow-xl overflow-hidden animate-in fade-in">
+              <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-[#161B22]">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Settings size={18} className="text-blue-500" /> ตั้งค่าระบบ (Master Data)
+                </h2>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 bg-[#0F172A]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
 
-                {/* Column 2: ลักษณะปัญหา (Defects) */}
-                <div className="bg-[#1E293B] rounded-xl border border-slate-700 overflow-hidden shadow-lg">
-                  <div className="p-4 border-b border-slate-700 bg-[#161B22] flex justify-between items-center">
-                    <h3 className="font-bold text-white">ลักษณะปัญหา (Defects)</h3>
-                    <button 
-                      onClick={() => openMasterModal("defect", "add")}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded-lg transition-colors"
-                      title="เพิ่มปัญหา"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                  <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    {tempDefects.length === 0 ? (
-                      <div className="text-slate-500 text-center py-4 text-sm">ไม่มีข้อมูลลักษณะปัญหา</div>
-                    ) : (
-                      tempDefects.map((d, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
-                          <span className="text-slate-200 text-sm font-medium">{d}</span>
-                          <div className="flex gap-2">
-                            <button onClick={() => openMasterModal("defect", "edit", idx)} className="text-amber-500 hover:bg-amber-500/20 p-1.5 rounded transition-colors"><Edit size={16}/></button>
-                            <button onClick={() => handleDeleteTemp("defect", idx)} className="text-red-500 hover:bg-red-500/20 p-1.5 rounded transition-colors"><Trash2 size={16}/></button>
+                  {/* Column 1: รุ่น (Models) */}
+                  <div className="bg-[#1E293B] rounded-xl border border-slate-700 overflow-hidden shadow-lg">
+                    <div className="p-4 border-b border-slate-700 bg-[#161B22] flex justify-between items-center">
+                      <h3 className="font-bold text-white">รุ่น (Models)</h3>
+                      <button
+                        onClick={() => openMasterModal("model", "add")}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded-lg transition-colors"
+                        title="เพิ่มรุ่น"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                    <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                      {tempModels.length === 0 ? (
+                        <div className="text-slate-500 text-center py-4 text-sm">ไม่มีข้อมูลรุ่น</div>
+                      ) : (
+                        tempModels.map((m, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
+                            <span className="text-slate-200 text-sm font-medium">{m}</span>
+                            <div className="flex gap-2">
+                              <button onClick={() => openMasterModal("model", "edit", idx)} className="text-amber-500 hover:bg-amber-500/20 p-1.5 rounded transition-colors"><Edit size={16} /></button>
+                              <button onClick={() => handleDeleteTemp("model", idx)} className="text-red-500 hover:bg-red-500/20 p-1.5 rounded transition-colors"><Trash2 size={16} /></button>
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    )}
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
 
+                  {/* Column 2: ลักษณะปัญหา (Defects) */}
+                  <div className="bg-[#1E293B] rounded-xl border border-slate-700 overflow-hidden shadow-lg">
+                    <div className="p-4 border-b border-slate-700 bg-[#161B22] flex justify-between items-center">
+                      <h3 className="font-bold text-white">ลักษณะปัญหา (Defects)</h3>
+                      <button
+                        onClick={() => openMasterModal("defect", "add")}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded-lg transition-colors"
+                        title="เพิ่มปัญหา"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                    <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                      {tempDefects.length === 0 ? (
+                        <div className="text-slate-500 text-center py-4 text-sm">ไม่มีข้อมูลลักษณะปัญหา</div>
+                      ) : (
+                        tempDefects.map((d, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
+                            <span className="text-slate-200 text-sm font-medium">{d}</span>
+                            <div className="flex gap-2">
+                              <button onClick={() => openMasterModal("defect", "edit", idx)} className="text-amber-500 hover:bg-amber-500/20 p-1.5 rounded transition-colors"><Edit size={16} /></button>
+                              <button onClick={() => handleDeleteTemp("defect", idx)} className="text-red-500 hover:bg-red-500/20 p-1.5 rounded transition-colors"><Trash2 size={16} /></button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                </div>
               </div>
             </div>
-          </div>
           ) : (
             <AccessDeniedView message="คุณไม่มีสิทธิ์เข้าถึงหน้าตั้งค่าระบบ" />
           )
@@ -1318,9 +1511,8 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                 setDeleteError(false);
               }}
               onKeyDown={(e) => e.key === "Enter" && confirmDeleteRow()}
-              className={`w-full bg-black border ${
-                deleteError ? "border-red-500" : "border-gray-700 focus:border-blue-500"
-              } rounded-xl px-4 py-3 text-center text-white outline-none transition-all mb-4`}
+              className={`w-full bg-black border ${deleteError ? "border-red-500" : "border-gray-700 focus:border-blue-500"
+                } rounded-xl px-4 py-3 text-center text-white outline-none transition-all mb-4`}
               placeholder="Password"
             />
 
@@ -1368,9 +1560,8 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                 setVerifyError(false);
               }}
               onKeyDown={(e) => e.key === "Enter" && confirmVerifyRow()}
-              className={`w-full bg-black border ${
-                verifyError ? "border-red-500" : "border-gray-700 focus:border-emerald-500"
-              } rounded-xl px-4 py-3 text-center text-white outline-none transition-all mb-4`}
+              className={`w-full bg-black border ${verifyError ? "border-red-500" : "border-gray-700 focus:border-emerald-500"
+                } rounded-xl px-4 py-3 text-center text-white outline-none transition-all mb-4`}
               placeholder="Password"
             />
 
@@ -1402,10 +1593,10 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
             <h2 className="text-xl font-bold text-white mb-4 text-center">
               {masterModal.action === "add" ? "เพิ่ม" : "แก้ไข"}{masterModal.type === "model" ? "รุ่น" : "ลักษณะปัญหา"}
             </h2>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={masterModal.value}
-              onChange={(e) => setMasterModal({...masterModal, value: e.target.value})}
+              onChange={(e) => setMasterModal({ ...masterModal, value: e.target.value })}
               className="w-full bg-slate-900 border border-slate-600 text-white rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 mb-6 text-center text-lg"
               autoFocus
               onKeyDown={(e) => {
@@ -1413,13 +1604,13 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
               }}
             />
             <div className="flex gap-4">
-              <button 
-                onClick={() => setMasterModal({...masterModal, isOpen: false})}
+              <button
+                onClick={() => setMasterModal({ ...masterModal, isOpen: false })}
                 className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-colors"
               >
                 ยกเลิก
               </button>
-              <button 
+              <button
                 onClick={confirmMasterModal}
                 className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors flex justify-center items-center gap-2 shadow-lg"
               >
