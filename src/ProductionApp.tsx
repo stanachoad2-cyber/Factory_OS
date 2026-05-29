@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Factory, Plus, Save, Trash2, CheckCircle, Scale, ChevronDown, Search, Edit, Shield, Loader2, Settings, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Factory, Plus, Save, Trash2, CheckCircle, Scale, ChevronDown, Search, Edit, Shield, Loader2, Settings, FileSpreadsheet, Calendar } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import AccessDeniedView from "./AccessDeniedView";
 
@@ -71,6 +71,139 @@ const SearchableSelect = ({ value, onChange, options, placeholder, disabled }: a
   );
 };
 
+const formatDateToDDMMYYYY = (isoDate: string) => {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return isoDate;
+};
+
+const DateInput = ({ date, isSaved, onChange }: { date: string, isSaved: boolean, onChange: (newDate: string) => void }) => {
+  const [text, setText] = useState(formatDateToDDMMYYYY(date));
+
+  useEffect(() => {
+    setText(formatDateToDDMMYYYY(date));
+  }, [date]);
+
+  const handleBlur = () => {
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) {
+      const parts = text.split("/");
+      onChange(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    } else {
+      setText(formatDateToDDMMYYYY(date));
+    }
+  };
+
+  return (
+    <div className={`flex items-center bg-transparent border border-slate-700 rounded w-full ${isSaved ? 'bg-slate-800/30' : ''}`}>
+      <input 
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={handleBlur}
+        placeholder="DD/MM/YYYY"
+        className={`bg-transparent p-1.5 w-full text-xs text-left outline-none ${isSaved ? 'text-slate-400 cursor-not-allowed' : 'text-slate-200'}`}
+        disabled={isSaved}
+      />
+      {!isSaved && (
+        <div className="relative w-6 h-6 flex items-center justify-center shrink-0 mr-1 cursor-pointer hover:bg-slate-700 rounded">
+          <Calendar size={12} className="text-slate-400" />
+          <input 
+            type="date"
+            value={date}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MobileDateInput = ({ date, isSaved, onChange }: { date: string, isSaved: boolean, onChange: (newDate: string) => void }) => {
+  const [text, setText] = useState(formatDateToDDMMYYYY(date));
+
+  useEffect(() => {
+    setText(formatDateToDDMMYYYY(date));
+  }, [date]);
+
+  const handleBlur = () => {
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) {
+      const parts = text.split("/");
+      onChange(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    } else {
+      setText(formatDateToDDMMYYYY(date));
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1 w-[120px]">
+      <input 
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={handleBlur}
+        placeholder="DD/MM/YYYY"
+        className={`bg-transparent text-sm font-black w-full outline-none text-left ${isSaved ? 'text-slate-400' : 'text-blue-300'}`}
+        disabled={isSaved}
+        onClick={(e) => e.stopPropagation()}
+      />
+      {!isSaved && (
+        <div className="relative w-6 h-6 flex items-center justify-center shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+          <Calendar size={12} className="text-blue-400" />
+          <input 
+            type="date"
+            value={date}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const FilterDateInput = ({ date, onChange, isMobile }: { date: string, onChange: (newDate: string) => void, isMobile?: boolean }) => {
+  const [text, setText] = useState(formatDateToDDMMYYYY(date));
+
+  useEffect(() => {
+    setText(formatDateToDDMMYYYY(date));
+  }, [date]);
+
+  const handleBlur = () => {
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) {
+      const parts = text.split("/");
+      onChange(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    } else {
+      setText(formatDateToDDMMYYYY(date));
+    }
+  };
+
+  return (
+    <div className={`relative flex items-center bg-slate-800 border border-slate-600 rounded-lg h-[32px] w-full focus-within:border-blue-500 overflow-hidden`}>
+      <input 
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={handleBlur}
+        placeholder="DD/MM/YYYY"
+        className={`bg-transparent px-2 w-full outline-none text-white ${isMobile ? 'text-[10px]' : 'text-xs'}`}
+      />
+      <div className="relative w-6 h-6 flex items-center justify-center shrink-0 mr-1 cursor-pointer">
+        <Calendar size={isMobile ? 12 : 14} className="text-slate-400" />
+        <input 
+          type="date"
+          value={date}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
+      </div>
+    </div>
+  );
+};
+
 export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: any) {
   const [activeView, setActiveView] = useState<"MENU" | "WASTE_ENTRY" | "SETTINGS">(
     activeTab === "waste_entry" ? "WASTE_ENTRY" : "MENU"
@@ -91,10 +224,13 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
   const [verifyError, setVerifyError] = useState(false);
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(1); // ค่าเริ่มต้นเป็นวันที่ 1 ของเดือนนี้
-    return d.toISOString().split("T")[0];
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+  });
   const [isLoadingMaster, setIsLoadingMaster] = useState(false);
   const [processingText, setProcessingText] = useState("");
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -162,7 +298,22 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
         setMasterModels(sortedModels);
         setMasterDefects(sortedDefects);
         if (result.wasteRecords) {
-          setRecords(result.wasteRecords);
+          const sanitizedRecords = result.wasteRecords.map((r: any) => {
+            let safeDate = r.date;
+            if (safeDate && typeof safeDate === 'string') {
+              if (/^\d{2}\/\d{2}\/\d{4}$/.test(safeDate)) {
+                const parts = safeDate.split("/");
+                safeDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+              } else {
+                const d = new Date(safeDate);
+                if (!isNaN(d.getTime())) {
+                  safeDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                }
+              }
+            }
+            return { ...r, date: safeDate };
+          });
+          setRecords(sanitizedRecords);
         }
       } else {
         console.error("Failed to fetch master data", result);
@@ -192,7 +343,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
   const handleAddRow = () => {
     const newRow = {
       id: Date.now().toString(),
-      date: new Date().toLocaleDateString("en-GB"),
+      date: new Date().toISOString().split("T")[0],
       shift: "Day",
       model: "",
       defect: "",
@@ -481,25 +632,17 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
   const handleExportExcel = () => {
     try {
       const dataToExport = records.filter(r => {
-        const parts = r.date.split("/");
-        if (parts.length === 3) {
-          const rowDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
-          return rowDateStr >= startDate && rowDateStr <= endDate;
-        }
-        return true;
+        return r.date >= startDate && r.date <= endDate;
       }).map((r, index, filteredArr) => {
         const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
         const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
         const computedIncreasedWeight = r.newWeight - actualPrevWeight;
         const displayIncreasedWeight = r.newWeight === 0 ? 0 : computedIncreasedWeight;
 
-        // แปลงวันที่กรณีที่มาจาก Google Sheets แล้วเป็นรูปแบบ Sun Jan 04 2026...
         let exportDate = r.date;
-        if (exportDate && typeof exportDate === 'string' && (exportDate.includes("GMT") || exportDate.includes("เวลาอินโดจีน") || exportDate.includes("Indochina Time"))) {
-           const d = new Date(exportDate);
-           if (!isNaN(d.getTime())) {
-             exportDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()}`;
-           }
+        if (exportDate && exportDate.includes("-")) {
+           const parts = exportDate.split("-");
+           if (parts.length === 3) exportDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
 
         return {
@@ -648,19 +791,13 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
             {isMobile ? (
               <div className="p-2 border-b border-slate-700 bg-[#161B22] flex items-center gap-1.5">
                 <div className="flex items-center gap-1 flex-1">
-                  <input 
-                    type="date" 
-                    value={startDate} 
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full h-[32px] bg-slate-800 border border-slate-600 text-white px-1 rounded-lg text-[10px] outline-none"
-                  />
+                  <div className="flex-1">
+                    <FilterDateInput date={startDate} onChange={setStartDate} isMobile={true} />
+                  </div>
                   <span className="text-slate-500">-</span>
-                  <input 
-                    type="date" 
-                    value={endDate} 
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full h-[32px] bg-slate-800 border border-slate-600 text-white px-1 rounded-lg text-[10px] outline-none"
-                  />
+                  <div className="flex-1">
+                    <FilterDateInput date={endDate} onChange={setEndDate} isMobile={true} />
+                  </div>
                 </div>
                 <button
                   onClick={() => fetchMasterData(true)}
@@ -690,19 +827,13 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400">ตั้งแต่:</span>
-                <input 
-                  type="date" 
-                  value={startDate} 
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="h-[32px] bg-slate-800 border border-slate-600 text-white px-3 rounded-lg text-xs outline-none focus:border-blue-500"
-                />
+                <div className="w-[120px]">
+                  <FilterDateInput date={startDate} onChange={setStartDate} />
+                </div>
                 <span className="text-xs text-slate-400">ถึง:</span>
-                <input 
-                  type="date" 
-                  value={endDate} 
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="h-[32px] bg-slate-800 border border-slate-600 text-white px-3 rounded-lg text-xs outline-none focus:border-blue-500"
-                />
+                <div className="w-[120px]">
+                  <FilterDateInput date={endDate} onChange={setEndDate} />
+                </div>
                 <button
                   onClick={() => fetchMasterData(true)}
                   className="h-[32px] bg-slate-700 hover:bg-slate-600 text-white px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg ml-2"
@@ -729,22 +860,12 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
               {isMobile ? (
                 <div className="space-y-3">
                   {records.filter(r => {
-                    const parts = r.date.split("/");
-                    if (parts.length === 3) {
-                      const rowDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                      return rowDateStr >= startDate && rowDateStr <= endDate;
-                    }
-                    return true;
+                    return r.date >= startDate && r.date <= endDate;
                   }).length === 0 ? (
                     <div className="text-center p-8 text-slate-500 bg-slate-800/50 rounded-xl border border-slate-700">ไม่มีข้อมูลในช่วงวันที่นี้ กดเพิ่มรายการ</div>
                   ) : (
                     records.filter(r => {
-                      const parts = r.date.split("/");
-                      if (parts.length === 3) {
-                        const rowDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                        return rowDateStr >= startDate && rowDateStr <= endDate;
-                      }
-                      return true;
+                      return r.date >= startDate && r.date <= endDate;
                     }).map((r, index, filteredArr) => {
                       const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
                       const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
@@ -757,13 +878,10 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                         <div key={r.id} className={`p-3.5 rounded-2xl border ${!r.isSaved ? "border-blue-500/50 bg-gradient-to-br from-blue-900/40 via-slate-800 to-indigo-900/20 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.3)] ring-1 ring-blue-500/20" : "border-slate-600/50 bg-[#1A2235] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_8px_16px_rgba(0,0,0,0.3)] hover:bg-[#1E293B] border-l-4 border-l-blue-500"} flex flex-col gap-2 relative transition-all duration-300`}> 
                           <div className={`flex justify-between items-center border-b ${!r.isSaved ? "border-blue-500/30" : "border-slate-700/50"} pb-2 cursor-pointer`} onClick={() => toggleExpand(r.id)}>
                             <div className="flex items-center gap-2">
-                              <input 
-                                type="date" 
-                                value={r.date.split("/").reverse().join("-")} 
-                                onChange={(e) => updateRow(r.id, "date", e.target.value.split("-").reverse().join("/"))}
-                                className={`bg-transparent text-sm font-black w-[120px] outline-none ${r.isSaved ? 'text-slate-400' : 'text-blue-300'}`}
-                                disabled={r.isSaved}
-                                onClick={(e) => e.stopPropagation()}
+                              <MobileDateInput 
+                                date={r.date} 
+                                isSaved={r.isSaved} 
+                                onChange={(newDate) => updateRow(r.id, "date", newDate)} 
                               />
                               <select 
                                 value={r.shift} 
@@ -892,12 +1010,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                 </thead>
                 <tbody className="text-sm">
                   {records.filter(r => {
-                    const parts = r.date.split("/");
-                    if (parts.length === 3) {
-                      const rowDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                      return rowDateStr >= startDate && rowDateStr <= endDate;
-                    }
-                    return true;
+                    return r.date >= startDate && r.date <= endDate;
                   }).length === 0 ? (
                     <tr>
                       <td colSpan={10} className="text-center p-8 text-slate-500">
@@ -906,12 +1019,7 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                     </tr>
                   ) : (
                     records.filter(r => {
-                      const parts = r.date.split("/");
-                      if (parts.length === 3) {
-                        const rowDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                        return rowDateStr >= startDate && rowDateStr <= endDate;
-                      }
-                      return true;
+                      return r.date >= startDate && r.date <= endDate;
                     }).map((r, index, filteredArr) => {
                       const computedPrevWeightBox = index === 0 ? 0 : filteredArr[index - 1].newWeight;
                       const actualPrevWeight = r.isManualPrevWeight || r.isSaved ? r.prevWeightBox : computedPrevWeightBox;
@@ -929,12 +1037,10 @@ export function ProductionModule({ currentUser, onExit, activeTab, isMobile }: a
                           }`}
                         >
                         <td className="p-3 text-left">
-                          <input 
-                            type="date" 
-                            value={r.date.split("/").reverse().join("-")} 
-                            onChange={(e) => updateRow(r.id, "date", e.target.value.split("-").reverse().join("/"))}
-                            className={`bg-transparent border border-slate-700 rounded p-1 w-full text-xs text-left ${r.isSaved ? 'cursor-not-allowed text-slate-200' : 'text-slate-200'}`} 
-                            disabled={r.isSaved}
+                          <DateInput 
+                            date={r.date} 
+                            isSaved={r.isSaved} 
+                            onChange={(newDate) => updateRow(r.id, "date", newDate)} 
                           />
                         </td>
                         <td className="p-3 text-left">
