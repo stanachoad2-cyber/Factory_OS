@@ -74,6 +74,9 @@ import {
   item,
   UserCheck,
   Info,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Check,
 } from "lucide-react";
 
 const CLOUDINARY_CLOUD_NAME = "dmqcyeu9a";
@@ -734,11 +737,12 @@ const InventoryView = ({
   departments,
   suppliers,
   currentUser,
+  mode,
+  setMode,
 }: any) => {
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState("all");
   const [selectedOrigin, setSelectedOrigin] = useState("all");
-  const [mode, setMode] = useState("withdraw");
 
   // Modal States
   const [isQtyModalOpen, setIsQtyModalOpen] = useState(false);
@@ -923,83 +927,69 @@ const InventoryView = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col bg-[#0F172A] custom-scrollbar relative z-0">
+    <div className="flex-1 overflow-hidden flex flex-col bg-[#0F172A] relative z-0">
       
       {/* 📌 Pinned Header Area (Sticky) */}
       <div className="sticky top-0 z-30 bg-[#0F172A] flex flex-col border-b border-gray-800 shadow-md">
-        <div className="p-4 md:p-6 pb-3 flex flex-col gap-4">
-          <div className="flex-none">
-            <div className="inline-flex p-1.5 bg-[#1F1F23] border border-gray-800 rounded-2xl gap-1 shadow-sm">
-              <button
-                onClick={() => setMode("withdraw")}
-                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === "withdraw"
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
-                  }`}
-              >
-                เบิกอะไหล่
-              </button>
-              <button
-                onClick={() => setMode("return")}
-                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === "return"
-                  ? "bg-orange-600 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
-                  }`}
-              >
-                คืนอะไหล่
-              </button>
-            </div>
-          </div>
-
+        <div className="p-3 md:px-5 md:py-3 flex flex-col gap-3">
           {mode === "withdraw" ? (
             <>
               {/* Header Desktop */}
-              <div className="hidden md:flex items-center justify-between gap-4 animate-in fade-in">
-                <div className="flex flex-1 gap-2 max-w-2xl">
-                  <div className="relative flex-1">
-                    <Search
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-                      size={18}
-                    />
-                    <input
-                      type="text"
-                      placeholder="ค้นหาอะไหล่..."
-                      value={search}
-                      onChange={(e: any) => setSearch(e.target.value)}
-                      className="w-full bg-[#1F1F23] border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:border-blue-500 outline-none"
-                    />
+              <div className="hidden md:flex items-end justify-between gap-4 animate-in fade-in">
+                <div className="flex flex-1 gap-3 max-w-2xl">
+                  <div className="flex flex-col flex-1 gap-1">
+                    <label className="text-[10px] text-gray-400 font-bold ml-1 uppercase tracking-wider">ค้นหาอะไหล่</label>
+                    <div className="relative">
+                      <Search
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                        size={16}
+                      />
+                      <input
+                        type="text"
+                        placeholder="ค้นหาอะไหล่..."
+                        value={search}
+                        onChange={(e: any) => setSearch(e.target.value)}
+                        className="w-full bg-[#1F1F23] border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
                   </div>
-                  <select
-                    value={selectedOrigin}
-                    onChange={(e: any) => setSelectedOrigin(e.target.value)}
-                    className="w-40 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none"
-                  >
-                    <option value="all">ทุกแหล่ง</option>
-                    <option value="local">ในประเทศ</option>
-                    <option value="import">นำเข้า</option>
-                  </select>
-                  <select
-                    value={selectedDept}
-                    onChange={(e: any) => setSelectedDept(e.target.value)}
-                    className="w-48 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none"
-                  >
-                    <option value="all">ทุกแผนก</option>
-                    {departments.map((d: any) => (
-                      <option key={d.id} value={d.name}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-gray-400 font-bold ml-1 uppercase tracking-wider">แหล่งจัดซื้อ</label>
+                    <select
+                      value={selectedOrigin}
+                      onChange={(e: any) => setSelectedOrigin(e.target.value)}
+                      className="w-32 shrink-0 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white outline-none"
+                    >
+                      <option value="all">ทุกแหล่ง</option>
+                      <option value="local">ในประเทศ</option>
+                      <option value="import">นำเข้า</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-gray-400 font-bold ml-1 uppercase tracking-wider">แผนก</label>
+                    <select
+                      value={selectedDept}
+                      onChange={(e: any) => setSelectedDept(e.target.value)}
+                      className="w-32 shrink-0 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white outline-none"
+                    >
+                      <option value="all">ทุกแผนก</option>
+                      {departments.map((d: any) => (
+                        <option key={d.id} value={d.name}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="relative pl-2 pb-1">
+                <div className="relative pl-2">
                   <button
                     onClick={() => setIsCartModalOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl shadow-lg flex items-center justify-center shrink-0"
+                    className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-xl shadow-lg flex items-center justify-center shrink-0"
                   >
-                    <ShoppingCart size={20} />
+                    <ShoppingCart size={18} />
                   </button>
                   {cart.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-[#0F1115] shadow-sm">
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#0F1115] shadow-sm">
                       {cart.length}
                     </span>
                   )}
@@ -1069,7 +1059,7 @@ const InventoryView = ({
       </div>
 
       {/* 📜 Scrollable Content Area */}
-      <div className="p-4 md:p-6 pt-4 flex flex-col gap-4 md:gap-6 min-h-full">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pt-4 flex flex-col gap-4 md:gap-6">
         {mode === "withdraw" ? (
           <>
             {/* Product Lists */}
@@ -1306,18 +1296,18 @@ const InventoryView = ({
               onClick={() => setIsCartModalOpen(false)}
             ></div>
             <div className="relative transform overflow-hidden rounded-2xl bg-[#1F1F23] text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-gray-800/50">
-              <div className="bg-[#1F1F23] px-6 py-4 border-b border-gray-800 flex items-center justify-between sticky top-0 z-10">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-3">
-                  <div className="p-2 bg-green-500/10 rounded-full">
-                    <ShoppingCart className="w-6 h-6 text-green-500" />
+              <div className="bg-[#1F1F23] px-5 py-3 border-b border-gray-800 flex items-center justify-between sticky top-0 z-10">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2.5">
+                  <div className="p-1.5 bg-green-500/10 rounded-full">
+                    <ShoppingCart size={18} className="text-green-500" />
                   </div>
                   ยืนยันรายการเบิก
                 </h2>
                 <button
                   onClick={() => setIsCartModalOpen(false)}
-                  className="text-gray-400 hover:text-white p-2 rounded-full transition-colors"
+                  className="text-gray-400 hover:text-white p-1 rounded-full transition-colors"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
               <div className="px-6 py-6 max-h-[50vh] overflow-y-auto custom-scrollbar">
@@ -1331,11 +1321,11 @@ const InventoryView = ({
                     {cart.map((item: any, idx: number) => (
                       <div
                         key={idx}
-                        className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-[#27272A]/80 rounded-xl border border-gray-800/50 hover:border-gray-700 transition-all"
+                        className="group flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-[#27272A]/80 rounded-xl border border-gray-800/50 hover:border-gray-700 transition-all"
                       >
-                        <div className="flex items-start gap-4 mb-4 sm:mb-0 flex-1">
+                        <div className="flex items-center gap-3 mb-3 sm:mb-0 flex-1">
                           {/* ✅ เพิ่มรูปจัตุรัสพร้อมพิกัดในตะกร้า */}
-                          <div className="w-14 h-14 rounded-lg overflow-hidden bg-black shrink-0 border border-gray-700">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-black shrink-0 border border-gray-700">
                             <img
                               src={item.image}
                               className="w-full h-full object-cover"
@@ -1347,10 +1337,10 @@ const InventoryView = ({
                             />
                           </div>
                           <div className="min-w-0">
-                            <h4 className="font-medium text-lg text-white truncate">
+                            <h4 className="font-bold text-sm text-white truncate">
                               {item.name}
                             </h4>
-                            <div className="mt-2 text-xs p-1.5 bg-black/20 rounded border border-gray-700/50 inline-block text-slate-300">
+                            <div className="mt-1 text-[10px] px-1.5 py-0.5 bg-black/20 rounded border border-gray-700/50 inline-block text-slate-300">
                               {item.uiLabel}
                             </div>
                           </div>
@@ -1360,18 +1350,18 @@ const InventoryView = ({
                             <button
                               onClick={() => updateCartQty(idx, -1)}
                               disabled={item.cartQty <= 1}
-                              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-l-lg disabled:opacity-30"
+                              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-l-lg disabled:opacity-30"
                             >
-                              <Minus size={18} />
+                              <Minus size={14} />
                             </button>
-                            <div className="w-12 text-center font-mono text-lg font-medium text-white border-x border-gray-700 py-1">
+                            <div className="w-10 text-center font-mono text-sm font-medium text-white border-x border-gray-700 py-1">
                               {item.cartQty}
                             </div>
                             <button
                               onClick={() => updateCartQty(idx, 1)}
-                              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-r-lg"
+                              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-r-lg"
                             >
-                              <Plus size={18} />
+                              <Plus size={14} />
                             </button>
                           </div>
                           <button
@@ -1380,9 +1370,9 @@ const InventoryView = ({
                                 cart.filter((_: any, i: number) => i !== idx)
                               )
                             }
-                            className="p-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           >
-                            <Trash2 size={20} />
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>
@@ -1390,26 +1380,26 @@ const InventoryView = ({
                   </div>
                 )}
               </div>
-              <div className="bg-[#1F1F23] px-6 py-4 border-t border-gray-800 sticky bottom-0">
-                <div className="flex justify-between items-center mb-4 bg-[#16181C] p-3 rounded-xl border border-gray-800">
+              <div className="bg-[#1F1F23] px-5 py-3 border-t border-gray-800 sticky bottom-0">
+                <div className="flex justify-between items-center mb-3 bg-[#16181C] px-4 py-2.5 rounded-xl border border-gray-800">
                   <div className="text-sm text-gray-400">
                     รวมทั้งหมด{" "}
                     <span className="text-white font-bold">{totalQty}</span>{" "}
                     รายการ
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500 mb-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
                       มูลค่ารวม (Total)
-                    </p>
-                    <p className="text-2xl font-bold text-green-400 leading-none">
+                    </span>
+                    <span className="text-xl font-bold text-green-400">
                       ฿{totalCartPrice.toLocaleString()}
-                    </p>
+                    </span>
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center justify-end gap-3">
                   <button
                     onClick={() => setIsCartModalOpen(false)}
-                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-white transition-colors font-medium"
+                    className="w-full sm:w-auto px-5 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white text-sm transition-colors font-bold"
                   >
                     ยกเลิก
                   </button>
@@ -1419,9 +1409,9 @@ const InventoryView = ({
                       setIsCartModalOpen(false);
                     }}
                     disabled={cart.length === 0}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold shadow-lg disabled:opacity-50"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-bold shadow-lg disabled:opacity-50"
                   >
-                    <CheckCircle size={20} /> ยืนยันการเบิก
+                    <CheckCircle size={18} /> ยืนยันการเบิก
                   </button>
                 </div>
               </div>
@@ -3286,7 +3276,7 @@ const AddStockModal = ({
   onConfirm,
   suppliers = [],
 }: any) => {
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState<number | string>(1);
   const [price, setPrice] = useState(item?.price || 0);
   const [supplier, setSupplier] = useState(item?.supplier || "");
   const [note, setNote] = useState("");
@@ -3328,13 +3318,13 @@ const AddStockModal = ({
   if (!isOpen || !item) return null;
 
   const handleSubmit = async () => {
-    if (qty <= 0) return alert("จำนวนต้องมากกว่า 0");
+    if (Number(qty) <= 0) return alert("จำนวนต้องมากกว่า 0");
     if (!supplier || !supplier.trim())
       return alert("กรุณาระบุชื่อร้านค้า/ผู้จำหน่าย");
 
     setSubmitting(true);
     try {
-      await onConfirm(item, qty, Number(price), supplier, note);
+      await onConfirm(item, Number(qty), Number(price), supplier, note);
       onClose();
     } catch (error) {
       console.error(error);
@@ -3411,7 +3401,7 @@ const AddStockModal = ({
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setQty(Math.max(1, qty - 1))}
+                onClick={() => setQty(Math.max(1, Number(qty) - 1))}
                 className="w-12 h-12 rounded-xl bg-[#0F172A] border border-slate-700 hover:border-emerald-500/50 hover:text-emerald-400 text-slate-400 flex items-center justify-center transition-all active:scale-95"
               >
                 <Minus size={20} />
@@ -3421,11 +3411,14 @@ const AddStockModal = ({
                   type="number"
                   className="w-full h-full bg-transparent text-center text-2xl font-bold text-white outline-none z-10 font-mono"
                   value={qty}
-                  onChange={(e) => setQty(Number(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === "." || e.key === "-") e.preventDefault();
+                  }}
+                  onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ""))}
                 />
               </div>
               <button
-                onClick={() => setQty(qty + 1)}
+                onClick={() => setQty(Number(qty) + 1)}
                 className="w-12 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 flex items-center justify-center transition-all active:scale-95"
               >
                 <Plus size={24} />
@@ -3740,42 +3733,68 @@ const ManagementView = ({
           item.sku.toLowerCase().includes(localSearch.toLowerCase()));
       const matchesDept =
         selectedDept === "all" ? true : item.department === selectedDept;
-      return matchesSearch && matchesDept;
+      const matchesOrigin =
+        selectedOrigin === "all"
+          ? true
+          : selectedOrigin === "import"
+            ? item.isImport
+            : !item.isImport;
+      return matchesSearch && matchesDept && matchesOrigin;
     })
     .sort((a: any, b: any) =>
       (a.sku || "").localeCompare(b.sku || "", undefined, { numeric: true })
     );
 
   return (
-    <div className="flex-1 p-6 overflow-hidden flex flex-col relative animate-in fade-in duration-300">
-      <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
+    <div className="flex-1 overflow-hidden flex flex-col relative animate-in fade-in duration-300">
+      {/* 📌 Pinned Header Area (Sticky) */}
+      <div className="sticky top-0 z-30 bg-[#0F172A] flex flex-col border-b border-gray-800 shadow-md">
+        <div className="p-3 md:px-5 md:py-3 flex flex-col md:flex-row items-end justify-between gap-4">
         {/* Search Bar */}
-        <div className="flex flex-1 gap-2 w-full md:max-w-2xl">
-          <div className="relative flex-1">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder="ค้นหาอะไหล่..."
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-              className="w-full bg-[#1F1F23] border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:border-blue-500 outline-none"
-            />
+        <div className="flex flex-1 gap-3 w-full md:max-w-2xl">
+          <div className="flex flex-col flex-1 gap-1">
+            <label className="text-[10px] text-gray-400 font-bold ml-1 uppercase tracking-wider">ค้นหาอะไหล่</label>
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                size={16}
+              />
+              <input
+                type="text"
+                placeholder="ค้นหาอะไหล่..."
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                className="w-full bg-[#1F1F23] border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:border-blue-500 outline-none"
+              />
+            </div>
           </div>
-          <select
-            value={selectedDept}
-            onChange={(e) => setSelectedDept(e.target.value)}
-            className="bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none"
-          >
-            <option value="all">ทุกแผนก</option>
-            {departments.map((d: any) => (
-              <option key={d.id} value={d.name}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-gray-400 font-bold ml-1 uppercase tracking-wider">แหล่งจัดซื้อ</label>
+            <select
+              value={selectedOrigin}
+              onChange={(e) => setSelectedOrigin(e.target.value)}
+              className="w-32 shrink-0 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white outline-none"
+            >
+              <option value="all">ทุกแหล่ง</option>
+              <option value="local">ในประเทศ</option>
+              <option value="import">นำเข้า</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-gray-400 font-bold ml-1 uppercase tracking-wider">แผนก</label>
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              className="w-32 shrink-0 bg-[#1F1F23] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white outline-none"
+            >
+              <option value="all">ทุกแผนก</option>
+              {departments.map((d: any) => (
+                <option key={d.id} value={d.name}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Action Buttons Group */}
@@ -3783,48 +3802,50 @@ const ManagementView = ({
           {/* ปุ่ม Check Stock เดิม */}
           <button
             onClick={onOpenAudit}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm font-bold transition-all active:scale-95"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 shrink-0"
+            title="Check Stock"
           >
-            <CheckSquare size={18} /> Check Stock
+            <CheckSquare size={18} />
           </button>
 
           {/* ✅ ปุ่มดาวน์โหลดเทมเพลต (ใหม่) */}
           <button
             onClick={handleDownloadTemplate}
-            className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2"
+            className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-95"
             title="ดาวน์โหลดแบบฟอร์ม Excel"
           >
-            <FileSpreadsheet size={16} /> แบบฟอร์ม
+            <FileSpreadsheet size={18} />
           </button>
 
           {/* ✅ ปุ่ม Import Excel (ใหม่) */}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isProcessing}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm font-bold disabled:opacity-50 transition-all active:scale-95"
+            className="bg-orange-600 hover:bg-orange-700 text-white p-2 rounded-xl shadow-lg flex items-center justify-center disabled:opacity-50 transition-all active:scale-95 shrink-0"
+            title="นำเข้าจาก Excel"
           >
             {isProcessing ? (
               <Loader2 className="animate-spin" size={18} />
             ) : (
               <UploadCloud size={18} />
             )}
-            Import
           </button>
 
           {/* ปุ่ม Add Manual เดิม */}
           <button
             onClick={onOpenAddStock}
-            className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl transition-all active:scale-95"
+            className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center shrink-0"
             title="เพิ่มสินค้าทีละรายการ"
           >
-            <Plus size={20} />
+            <Plus size={18} />
           </button>
         </div>
       </div>
+      </div>
 
       {/* Product Grid */}
-      <div className="flex-1 overflow-y-auto pb-20 custom-scrollbar">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pb-20">
           {filteredItems.slice(0, displayLimit).map((item: any) => (
             <ProductCardAdminCompact
               key={item.id}
@@ -5144,8 +5165,11 @@ export function CreateStockModal({
                   value={
                     mode === "add_stock" ? formData.quantity : formData.minStock
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === "." || e.key === "-") e.preventDefault();
+                  }}
                   onChange={(e) =>
-                    setFormData({ ...formData, minStock: e.target.value })
+                    setFormData({ ...formData, minStock: e.target.value.replace(/[^0-9]/g, "") })
                   }
                   className={inputStyle}
                   disabled={mode === "add_stock" || mode === "view"}
@@ -5164,11 +5188,14 @@ export function CreateStockModal({
                   value={
                     mode === "edit" ? formData.quantity : formData.initialQty
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === "." || e.key === "-") e.preventDefault();
+                  }}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
                       [mode === "edit" ? "quantity" : "initialQty"]:
-                        e.target.value,
+                        e.target.value.replace(/[^0-9]/g, ""),
                     })
                   }
                   className={inputStyle}
@@ -5259,6 +5286,93 @@ export function CreateStockModal({
   );
 }
 
+const StockModeDropdown = ({ value, onChange }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const modes = [
+    { id: "withdraw", label: "เบิกอะไหล่", desc: "Withdraw Parts", icon: ArrowUpRight, bg: "bg-blue-600" },
+    { id: "return", label: "คืนอะไหล่", desc: "Return Parts", icon: ArrowDownLeft, bg: "bg-orange-600" },
+  ];
+
+  const currentMode = modes.find((m) => m.id === value) || modes[0];
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 border ${
+          isOpen
+            ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20"
+            : "border-slate-700 bg-slate-900/50 hover:bg-slate-800"
+        }`}
+      >
+        <div className={`p-1.5 rounded-lg ${currentMode.bg} text-white shadow-md`}>
+          <currentMode.icon size={14} />
+        </div>
+        <span className="text-xs font-black text-white uppercase tracking-tight hidden sm:inline">
+          {currentMode.label}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`text-slate-500 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-2 w-48 bg-[#1E293B] border border-slate-700 rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="p-1.5 space-y-1">
+            {modes.map((mode) => {
+              const isSelected = value === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  onClick={() => {
+                    onChange(mode.id);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                    isSelected
+                      ? `${mode.bg} text-white shadow-lg`
+                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  }`}
+                >
+                  <div className={`p-1.5 rounded-lg ${isSelected ? "bg-white/20" : "bg-slate-800"} text-inherit`}>
+                    <mode.icon size={16} />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-[11px] font-black uppercase tracking-tight leading-none mb-1">
+                      {mode.label}
+                    </span>
+                    <span
+                      className={`text-[8px] font-bold uppercase opacity-60 ${
+                        isSelected ? "text-white" : "text-slate-500"
+                      }`}
+                    >
+                      {mode.desc}
+                    </span>
+                  </div>
+                  {isSelected && <Check size={14} className="ml-auto" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export function StockModule({
   currentUser,
   activeTab,
@@ -5267,6 +5381,7 @@ export function StockModule({
   onExit,
 }: any) {
   const currentView = activeTab || "overview";
+  const [inventoryMode, setInventoryMode] = useState("withdraw");
 
   // --- 1. State ข้อมูลหลัก ---
   const [items, setItems] = useState<any[]>([]);
@@ -5493,33 +5608,62 @@ export function StockModule({
   return (
     <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
       <div className="flex-1 overflow-hidden flex flex-col relative">
-        {/* ✅ MOBILE HEADER (Premium Style) */}
-        <div className="bg-[#1E293B] border-b border-slate-700 px-4 py-3 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-md md:hidden">
-          <div className="flex items-center gap-3">
-            {onExit && (
-              <button
-                onClick={onExit}
-                className="w-10 h-10 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors border border-slate-600 shadow-sm"
-              >
-                <ArrowLeft size={20} />
-              </button>
-            )}
-            <div className="flex flex-col">
-              <h1 className="text-lg font-bold text-white leading-none flex items-center gap-2">
-                <Box className="text-slate-400" size={20} />
-                Stock Parts
-              </h1>
-              <span className="text-[10px] text-slate-400 mt-1">
-                {activeTab === "overview" && "ภาพรวมคลังสินค้า"}
-                {activeTab === "inventory" && "คลังอะไหล่ (เบิก/คืน)"}
-                {activeTab === "management" && "จัดการรายการสต็อก"}
-                {activeTab === "analytics" && "รายงานและสถิติ"}
-                {activeTab === "settings" && "ตั้งค่าระบบคลัง"}
-                {!activeTab && "ระบบคลังอะไหล่"}
-              </span>
+        {currentView !== "analytics" && currentView !== "settings" && (
+          <>
+            {/* ✅ MOBILE HEADER (Premium Style) */}
+            <div className="bg-[#1E293B] border-b border-slate-700 px-4 py-3 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-md md:hidden">
+              <div className="flex items-center gap-3">
+                {onExit && (
+                  <button
+                    onClick={onExit}
+                    className="w-10 h-10 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors border border-slate-600 shadow-sm"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                )}
+                <div className="flex flex-col">
+                  <h1 className="text-lg font-bold text-white leading-none flex items-center gap-2">
+                    <Box className="text-slate-400" size={20} />
+                    Stock Parts
+                  </h1>
+                  <span className="text-[10px] text-slate-400 mt-1">
+                    {activeTab === "overview" && "ภาพรวมคลังสินค้า"}
+                    {activeTab === "inventory" && "คลังอะไหล่ (เบิก/คืน)"}
+                    {activeTab === "management" && "จัดการรายการสต็อก"}
+                    {activeTab === "analytics" && "รายงานและสถิติ"}
+                    {activeTab === "settings" && "ตั้งค่าระบบคลัง"}
+                    {!activeTab && "ระบบคลังอะไหล่"}
+                  </span>
+                </div>
+              </div>
+              {currentView === "inventory" && (
+                <StockModeDropdown value={inventoryMode} onChange={setInventoryMode} />
+              )}
             </div>
-          </div>
-        </div>
+
+            {/* ✅ DESKTOP HEADER (Matches Maintenance) */}
+            <div className="hidden md:flex px-6 py-4 bg-[#1E293B]/80 border-b border-slate-700 items-center justify-between sticky top-0 z-30 backdrop-blur-md shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-2xl text-blue-500 bg-white/5 shadow-inner">
+                  <Box size={28} />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-black text-white italic tracking-tighter uppercase">
+                    STOCK PARTS
+                  </h1>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
+                    Inventory & Parts Management System
+                  </p>
+                </div>
+              </div>
+              {currentView === "inventory" && (
+                <div className="flex items-center gap-3">
+                  <StockModeDropdown value={inventoryMode} onChange={setInventoryMode} />
+                </div>
+              )}
+            </div>
+          </>
+        )}
         {/* หน้า 1: Overview */}
         {currentView === "overview" && <OverviewPage items={items} />}
 
@@ -5535,6 +5679,8 @@ export function StockModule({
               suppliers={suppliers}
               onWithdraw={handleWithdraw}
               onReturnItem={handleReturnItem}
+              mode={inventoryMode}
+              setMode={setInventoryMode}
             />
           ) : (
             <AccessDeniedView
