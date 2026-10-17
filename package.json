@@ -25,13 +25,13 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "CI=false react-scripts build"
+    "build": "react-scripts build"
   },
   "overrides": {
     "typescript": "4.9.5"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "browserslist": [
     ">0.2%",
