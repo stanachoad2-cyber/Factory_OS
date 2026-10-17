@@ -3,7 +3,7 @@ import html2pdf from "html2pdf.js";
 import { db } from "./firebase";
 const LOGO_URL = "/logo.png";
 import { createPortal } from "react-dom";
-// import MonthlySummaryReport from "./MonthlySummaryReport";
+import DailyCheckPDFExportModal from "./DailyCheckPDFExportModal";
 import {
   collection,
   addDoc,
@@ -3883,209 +3883,139 @@ function ScanPage({
               {isDewPoint ? (
                 // ✅ DEW POINT FORM
                 <div className="w-full max-w-lg bg-[#1E293B] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                {/* ... (Dew Point form remains the same) */}
-                <div className="bg-blue-600/10 p-4 border-b border-blue-500/20 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-blue-400 font-bold text-base">
-                    <Droplet size={20} /> บันทึกค่า Dew Point
-                  </div>
-                  <div className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-black uppercase">
-                    Measurement
-                  </div>
-                </div>
-
-                <div className="p-6 space-y-5">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="grid grid-cols-2 gap-3 mb-2">
-                      <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 overflow-hidden">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 truncate">
-                          Material System
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full min-w-[8px] bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
-                          <span className="text-xs font-bold text-blue-400 truncate">
-                            {savedDpLog
-                              ? (savedDpLog?.material_name || "ไม่ระบุ")
-                              : (machine.material || "ไม่ระบุ")}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 overflow-hidden">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 truncate">
-                          ผู้ตรวจ
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <UserCheck size={12} className="text-slate-400 min-w-[12px]" />
-                          <span className="text-xs font-bold text-slate-300 truncate">
-                            {savedDpLog?.inspector || "-"}
-                          </span>
-                        </div>
-                      </div>
+                  {/* ... (Dew Point form remains the same) */}
+                  <div className="bg-blue-600/10 p-4 border-b border-blue-500/20 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-blue-400 font-bold text-base">
+                      <Droplet size={20} /> บันทึกค่า Dew Point
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                        1. Set point
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="..."
-                          disabled={isDpSaved || isHistoryMode}
-                          value={dpSetPoint}
-                          onChange={(e) => setDpSetPoint(e.target.value)}
-                          className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
-                            ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
-                            : dpStatus === "NA"
-                              ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
-                              : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
-                            }`}
-                        />
-                        {isHistoryMode && canDelete && savedDpLog && savedDpLog.set_point && dpSetPoint && dpSetPoint.trim() && (
-                          <button
-                            onClick={() => togglePendingDpDelete("set_point")}
-                            className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("set_point")
-                              ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
-                              : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
-                              }`}
-                            title={pendingDpDeletes.has("set_point") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                        2. Actual
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="..."
-                          disabled={isDpSaved || isHistoryMode}
-                          value={dpActual}
-                          onChange={(e) => setDpActual(e.target.value)}
-                          className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
-                            ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
-                            : dpStatus === "NA"
-                              ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
-                              : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
-                            }`}
-                        />
-                        {isHistoryMode && canDelete && savedDpLog && savedDpLog.actual && dpActual && dpActual.trim() && (
-                          <button
-                            onClick={() => togglePendingDpDelete("actual")}
-                            className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("actual")
-                              ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
-                              : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
-                              }`}
-                            title={pendingDpDeletes.has("actual") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                        3. Dew Point Value
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          inputMode="text"
-                          placeholder="..."
-                          disabled={isDpSaved || isHistoryMode}
-                          value={dpDewPoint}
-                          onChange={(e) => setDpDewPoint(e.target.value)}
-                          className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
-                            ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
-                            : dpStatus === "NA"
-                              ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
-                              : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
-                            }`}
-                        />
-                        {isHistoryMode && canDelete && savedDpLog && savedDpLog.dew_point_val && dpDewPoint && dpDewPoint.trim() && (
-                          <button
-                            onClick={() => togglePendingDpDelete("dew_point_val")}
-                            className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("dew_point_val")
-                              ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
-                              : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
-                              }`}
-                            title={pendingDpDeletes.has("dew_point_val") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
+                    <div className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-black uppercase">
+                      Measurement
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      4. Machine Status
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          disabled={isDpSaved || isHistoryMode}
-                          onClick={() => setInspectingItem({
-                            detail: machine.checklist[0]?.detail || "Dew Point Check",
-                            method: "ตรวจสอบค่า Dew Point และบันทึกสถานะ"
-                          })}
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border border-slate-700 relative overflow-hidden group ${dpStatus
-                            ? "bg-slate-900 border-blue-500/50 shadow-md"
-                            : "bg-slate-800/50 border-slate-700 hover:border-slate-500 shadow-inner"
-                            } ${isDpSaved ? "cursor-default" : "active:scale-95"}`}
-                        >
-                          {dpStatus ? (
-                            <span className={`text-sm font-bold relative z-10 ${getResultDisplay(dpStatus).color}`}>
-                              {getResultDisplay(dpStatus).symbol}
+                  <div className="p-6 space-y-5">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="grid grid-cols-2 gap-3 mb-2">
+                        <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 overflow-hidden">
+                          <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 truncate">
+                            Material System
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full min-w-[8px] bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
+                            <span className="text-xs font-bold text-blue-400 truncate">
+                              {savedDpLog
+                                ? (savedDpLog?.material_name || "ไม่ระบุ")
+                                : (machine.material || "ไม่ระบุ")}
                             </span>
-                          ) : (
-                            <div className="relative z-10 text-slate-500 group-hover:text-slate-300 transition-colors">
-                              <Pencil size={14} />
-                            </div>
-                          )}
-                        </button>
+                          </div>
+                        </div>
 
-                        {isHistoryMode && canDelete && savedDpLog && savedDpLog.result && dpStatus && (
-                          <button
-                            onClick={() => togglePendingDpDelete("result")}
-                            className={`p-2.5 rounded-xl transition-all active:scale-95 ${pendingDpDeletes.has("result")
-                              ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
-                              : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
-                              }`}
-                            title={pendingDpDeletes.has("result") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
+                        <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 overflow-hidden">
+                          <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 truncate">
+                            ผู้ตรวจ
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <UserCheck size={12} className="text-slate-400 min-w-[12px]" />
+                            <span className="text-xs font-bold text-slate-300 truncate">
+                              {savedDpLog?.inspector || "-"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="flex-1 min-w-0">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                          1. Set point
+                        </label>
                         <div className="flex items-center gap-2">
-                          <textarea
-                            placeholder="Remark"
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="..."
                             disabled={isDpSaved || isHistoryMode}
-                            value={dpRemark}
-                            onChange={(e) => setDpRemark(e.target.value)}
-                            className={`flex-1 border rounded-xl px-3 py-2 text-white text-base outline-none shadow-inner transition-all h-10 resize-none overflow-hidden ${isDpSaved
+                            value={dpSetPoint}
+                            onChange={(e) => setDpSetPoint(e.target.value)}
+                            className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
                               ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
-                              : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
+                              : dpStatus === "NA"
+                                ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
+                                : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
                               }`}
                           />
-                          {isHistoryMode && canDelete && savedDpLog && savedDpLog.problem_detail && dpRemark && dpRemark.trim() && (
+                          {isHistoryMode && canDelete && savedDpLog && savedDpLog.set_point && dpSetPoint && dpSetPoint.trim() && (
                             <button
-                              onClick={() => togglePendingDpDelete("problem_detail")}
-                              className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("problem_detail")
+                              onClick={() => togglePendingDpDelete("set_point")}
+                              className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("set_point")
                                 ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
                                 : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
                                 }`}
-                              title={pendingDpDeletes.has("problem_detail") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
+                              title={pendingDpDeletes.has("set_point") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                          2. Actual
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="..."
+                            disabled={isDpSaved || isHistoryMode}
+                            value={dpActual}
+                            onChange={(e) => setDpActual(e.target.value)}
+                            className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
+                              ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
+                              : dpStatus === "NA"
+                                ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
+                                : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
+                              }`}
+                          />
+                          {isHistoryMode && canDelete && savedDpLog && savedDpLog.actual && dpActual && dpActual.trim() && (
+                            <button
+                              onClick={() => togglePendingDpDelete("actual")}
+                              className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("actual")
+                                ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                                : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                                }`}
+                              title={pendingDpDeletes.has("actual") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                          3. Dew Point Value
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            inputMode="text"
+                            placeholder="..."
+                            disabled={isDpSaved || isHistoryMode}
+                            value={dpDewPoint}
+                            onChange={(e) => setDpDewPoint(e.target.value)}
+                            className={`flex-1 h-10 border rounded-xl px-3 py-0 text-white font-normal text-base outline-none shadow-inner transition-all ${isDpSaved
+                              ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
+                              : dpStatus === "NA"
+                                ? "bg-slate-800/30 border-slate-700 text-slate-500 opacity-40"
+                                : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
+                              }`}
+                          />
+                          {isHistoryMode && canDelete && savedDpLog && savedDpLog.dew_point_val && dpDewPoint && dpDewPoint.trim() && (
+                            <button
+                              onClick={() => togglePendingDpDelete("dew_point_val")}
+                              className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("dew_point_val")
+                                ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                                : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                                }`}
+                              title={pendingDpDeletes.has("dew_point_val") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -4093,78 +4023,148 @@ function ScanPage({
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                </div>
-              </div>
-            ) : (
-              <div className="w-full max-w-4xl space-y-4">
-                <div className="bg-[#1E293B] rounded-xl border border-slate-700 shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-500">
-                  <div className="bg-green-500/10 p-3 text-[10px] text-green-400 font-black uppercase tracking-widest border-b border-green-500/20 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle size={14} /> Ready to Check
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                        4. Machine Status
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            disabled={isDpSaved || isHistoryMode}
+                            onClick={() => setInspectingItem({
+                              detail: machine.checklist[0]?.detail || "Dew Point Check",
+                              method: "ตรวจสอบค่า Dew Point และบันทึกสถานะ"
+                            })}
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border border-slate-700 relative overflow-hidden group ${dpStatus
+                              ? "bg-slate-900 border-blue-500/50 shadow-md"
+                              : "bg-slate-800/50 border-slate-700 hover:border-slate-500 shadow-inner"
+                              } ${isDpSaved ? "cursor-default" : "active:scale-95"}`}
+                          >
+                            {dpStatus ? (
+                              <span className={`text-sm font-bold relative z-10 ${getResultDisplay(dpStatus).color}`}>
+                                {getResultDisplay(dpStatus).symbol}
+                              </span>
+                            ) : (
+                              <div className="relative z-10 text-slate-500 group-hover:text-slate-300 transition-colors">
+                                <Pencil size={14} />
+                              </div>
+                            )}
+                          </button>
+
+                          {isHistoryMode && canDelete && savedDpLog && savedDpLog.result && dpStatus && (
+                            <button
+                              onClick={() => togglePendingDpDelete("result")}
+                              className={`p-2.5 rounded-xl transition-all active:scale-95 ${pendingDpDeletes.has("result")
+                                ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                                : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                                }`}
+                              title={pendingDpDeletes.has("result") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <textarea
+                              placeholder="Remark"
+                              disabled={isDpSaved || isHistoryMode}
+                              value={dpRemark}
+                              onChange={(e) => setDpRemark(e.target.value)}
+                              className={`flex-1 border rounded-xl px-3 py-2 text-white text-base outline-none shadow-inner transition-all h-10 resize-none overflow-hidden ${isDpSaved
+                                ? "bg-[#0F172A] border-slate-600 text-white cursor-default"
+                                : "bg-[#0F172A] border-slate-600 focus:border-blue-500"
+                                }`}
+                            />
+                            {isHistoryMode && canDelete && savedDpLog && savedDpLog.problem_detail && dpRemark && dpRemark.trim() && (
+                              <button
+                                onClick={() => togglePendingDpDelete("problem_detail")}
+                                className={`p-2.5 rounded-xl transition-all active:scale-95 shrink-0 ${pendingDpDeletes.has("problem_detail")
+                                  ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
+                                  : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                                  }`}
+                                title={pendingDpDeletes.has("problem_detail") ? "ยกเลิกการเลือก" : "เลือกเพื่อลบ"}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <span className="opacity-60">Daily Checklist</span>
+
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left text-slate-300">
-                      <thead className="text-[10px] text-slate-500 font-black uppercase tracking-widest bg-[#0F172A]/50 border-b border-slate-800">
-                        <tr>
-                          <th className="p-4 text-center w-16">Status</th>
-                          <th className="p-4">Item Detail</th>
-                          <th className="p-4 text-center">ผู้ตรวจ</th>
-                          <th className="p-4 hidden md:table-cell">Method</th>
-                          {isHistoryMode && canDelete && <th className="p-4 text-center w-20">Action</th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/50">
-                        {machine.checklist.map((item, idx) => {
-                          const savedLog = logs.find((l) => l.checklist_item === item.detail);
-                          const pendingLog = pendingLogs[item.detail];
+                </div>
+              ) : (
+                <div className="w-full max-w-4xl space-y-4">
+                  <div className="bg-[#1E293B] rounded-xl border border-slate-700 shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-500">
+                    <div className="bg-green-500/10 p-3 text-[10px] text-green-400 font-black uppercase tracking-widest border-b border-green-500/20 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle size={14} /> Ready to Check
+                      </div>
+                      <span className="opacity-60">Daily Checklist</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left text-slate-300">
+                        <thead className="text-[10px] text-slate-500 font-black uppercase tracking-widest bg-[#0F172A]/50 border-b border-slate-800">
+                          <tr>
+                            <th className="p-4 text-center w-16">Status</th>
+                            <th className="p-4">Item Detail</th>
+                            <th className="p-4 text-center">ผู้ตรวจ</th>
+                            <th className="p-4 hidden md:table-cell">Method</th>
+                            {isHistoryMode && canDelete && <th className="p-4 text-center w-20">Action</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/50">
+                          {machine.checklist.map((item, idx) => {
+                            const savedLog = logs.find((l) => l.checklist_item === item.detail);
+                            const pendingLog = pendingLogs[item.detail];
 
-                          // ลำดับความสำคัญ: บันทึกแล้ว > กำลังรอส่ง > ยังไม่ได้ทำ
-                          const statusDisplay = savedLog
-                            ? getResultDisplay(savedLog.result)
-                            : pendingLog
-                              ? getResultDisplay(pendingLog.result)
-                              : null;
+                            // ลำดับความสำคัญ: บันทึกแล้ว > กำลังรอส่ง > ยังไม่ได้ทำ
+                            const statusDisplay = savedLog
+                              ? getResultDisplay(savedLog.result)
+                              : pendingLog
+                                ? getResultDisplay(pendingLog.result)
+                                : null;
 
-                          const isPending = !!pendingLog && !savedLog;
+                            const isPending = !!pendingLog && !savedLog;
 
-                          return (
-                            <tr
-                              key={idx}
-                              onClick={() => {
-                                if (!isHistoryMode && !savedLog) {
-                                  setInspectingItem(item);
-                                }
-                              }}
-                              className={`transition-all duration-200 ${savedLog || isHistoryMode
+                            return (
+                              <tr
+                                key={idx}
+                                onClick={() => {
+                                  if (!isHistoryMode && !savedLog) {
+                                    setInspectingItem(item);
+                                  }
+                                }}
+                                className={`transition-all duration-200 ${savedLog || isHistoryMode
                                   ? "bg-slate-900/40 opacity-60 cursor-not-allowed"
                                   : "bg-[#1E293B] hover:bg-[#253045] cursor-pointer active:scale-[0.99]"
-                                }`}
-                            >
-                              <td className="p-4 text-center relative">
-                                {statusDisplay ? (
-                                  <div className="flex flex-col items-center">
-                                    <span className={`text-xl font-bold ${statusDisplay.color} ${isPending ? "animate-pulse" : ""}`}>
-                                      {statusDisplay.symbol}
-                                    </span>
-                                    {isPending && (
-                                      <span className="text-[8px] font-black uppercase text-blue-400 tracking-tighter absolute -bottom-1">Pending</span>
-                                    )}
+                                  }`}
+                              >
+                                <td className="p-4 text-center relative">
+                                  {statusDisplay ? (
+                                    <div className="flex flex-col items-center">
+                                      <span className={`text-xl font-bold ${statusDisplay.color} ${isPending ? "animate-pulse" : ""}`}>
+                                        {statusDisplay.symbol}
+                                      </span>
+                                      {isPending && (
+                                        <span className="text-[8px] font-black uppercase text-blue-400 tracking-tighter absolute -bottom-1">Pending</span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="w-9 h-9 rounded-xl bg-slate-800/50 border border-slate-700 mx-auto flex items-center justify-center text-slate-500 shadow-inner group-hover:border-slate-500 transition-colors">
+                                      <Pencil size={14} />
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-4">
+                                  <div className="font-medium text-slate-200 whitespace-pre-wrap leading-relaxed">
+                                    {item.detail}
                                   </div>
-                                ) : (
-                                  <div className="w-9 h-9 rounded-xl bg-slate-800/50 border border-slate-700 mx-auto flex items-center justify-center text-slate-500 shadow-inner group-hover:border-slate-500 transition-colors">
-                                    <Pencil size={14} />
-                                  </div>
-                                )}
-                              </td>
-                              <td className="p-4">
-                                <div className="font-medium text-slate-200 whitespace-pre-wrap leading-relaxed">
-                                  {item.detail}
-                                </div>
-                              </td>
+                                </td>
                                 <td className="p-4 text-center">
                                   {savedLog && savedLog.inspector ? (
                                     <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">{savedLog.inspector.substring(0, 4)}</span>
@@ -4172,149 +4172,171 @@ function ScanPage({
                                     <span className="text-slate-700/50">-</span>
                                   )}
                                 </td>
-                              <td className="p-4 hidden md:table-cell whitespace-pre-wrap text-slate-500 leading-relaxed text-[11px]">
-                                {item.method}
-                              </td>
-                              {isHistoryMode && canDelete && (
-                                <td className="p-4 text-center">
-                                  {savedLog ? (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        togglePendingDelete(savedLog.id);
-                                      }}
-                                      className={`p-2.5 rounded-xl transition-all active:scale-95 ${pendingDeletes.has(savedLog.id)
+                                <td className="p-4 hidden md:table-cell whitespace-pre-wrap text-slate-500 leading-relaxed text-[11px]">
+                                  {item.method}
+                                </td>
+                                {isHistoryMode && canDelete && (
+                                  <td className="p-4 text-center">
+                                    {savedLog ? (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          togglePendingDelete(savedLog.id);
+                                        }}
+                                        className={`p-2.5 rounded-xl transition-all active:scale-95 ${pendingDeletes.has(savedLog.id)
                                           ? "text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20"
                                           : "text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
-                                        }`}
-                                      title={pendingDeletes.has(savedLog.id) ? "ยกเลิกการลบ" : "เลือกเพื่อลบ"}
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  ) : (
-                                    <span className="text-slate-700/50">-</span>
-                                  )}
-                                </td>
-                              )}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                          }`}
+                                        title={pendingDeletes.has(savedLog.id) ? "ยกเลิกการลบ" : "เลือกเพื่อลบ"}
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    ) : (
+                                      <span className="text-slate-700/50">-</span>
+                                    )}
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* ✅ Action Buttons สำหรับ History Mode (Approve & Delete) วางชิดตาราง / ฟอร์ม */}
-            {isHistoryMode && (
-              <div className="flex justify-center animate-in fade-in duration-500 mt-4">
-                {(() => {
-                  const hasDeletes = pendingDeletes.size > 0 || pendingDpDeletes.size > 0;
+              {/* ✅ Action Buttons สำหรับ History Mode (Approve & Delete) วางชิดตาราง / ฟอร์ม */}
+              {isHistoryMode && (
+                <div className="flex justify-center animate-in fade-in duration-500 mt-4">
+                  {(() => {
+                    const hasDeletes = pendingDeletes.size > 0 || pendingDpDeletes.size > 0;
 
-                  // 1. ถ้ามีการกดเลือกถังขยะ ให้แสดงปุ่ม Delete (ปุ่มเดียว)
-                  if (hasDeletes && canDelete) {
-                    return (
-                      <button
-                        onClick={pendingDpDeletes.size > 0 ? handleConfirmDpDeletes : handleConfirmDeletes}
-                        disabled={isSavingAll}
-                        className="group relative px-8 py-3 bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-xl font-black uppercase tracking-[.1em] shadow-[0_10px_20px_rgba(225,29,72,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all border border-red-400/20 overflow-hidden min-w-[150px]"
-                      >
-                        {isSavingAll ? (
-                          <>
-                            <Loader2 className="animate-spin" size={16} />
-                            <span className="text-xs">Del...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Trash2 size={16} />
-                            <span className="text-xs">
-                              Delete ({pendingDpDeletes.size > 0 ? pendingDpDeletes.size : pendingDeletes.size})
-                            </span>
-                          </>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-                      </button>
-                    );
-                  }
+                    // 1. ถ้ามีการกดเลือกถังขยะ ให้แสดงปุ่ม Delete (ปุ่มเดียว)
+                    if (hasDeletes && canDelete) {
+                      return (
+                        <button
+                          onClick={pendingDpDeletes.size > 0 ? handleConfirmDpDeletes : handleConfirmDeletes}
+                          disabled={isSavingAll}
+                          className="group relative px-8 py-3 bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-xl font-black uppercase tracking-[.1em] shadow-[0_10px_20px_rgba(225,29,72,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all border border-red-400/20 overflow-hidden min-w-[150px]"
+                        >
+                          {isSavingAll ? (
+                            <>
+                              <Loader2 className="animate-spin" size={16} />
+                              <span className="text-xs">Del...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 size={16} />
+                              <span className="text-xs">
+                                Delete ({pendingDpDeletes.size > 0 ? pendingDpDeletes.size : pendingDeletes.size})
+                              </span>
+                            </>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                        </button>
+                      );
+                    }
 
-                  // 2. ถ้าไม่ได้เลือกถังขยะ และไม่ใช่ Dew Point ให้แสดงปุ่ม Approve/รอตรวจสอบ
-                  if (!isDewPoint) {
-                    const isComplete = logs.length >= machine.checklist.length && machine.checklist.length > 0;
-                    
-                    return (
-                      <button
-                        onClick={handleMobileSignOff}
-                        disabled={!canVerify || !isComplete || !!auditLog}
-                        className={`group relative px-8 py-3 rounded-xl font-black uppercase tracking-[.1em] flex items-center justify-center gap-2 transition-all border overflow-hidden shadow-xl min-w-[150px] ${
-                          !!auditLog 
-                            ? "bg-green-900/40 border-green-500/20 text-green-400/80 cursor-default" 
+                    // 2. ถ้าไม่ได้เลือกถังขยะ และไม่ใช่ Dew Point ให้แสดงปุ่ม Approve/รอตรวจสอบ
+                    if (!isDewPoint) {
+                      const isComplete = logs.length >= machine.checklist.length && machine.checklist.length > 0;
+
+                      return (
+                        <button
+                          onClick={handleMobileSignOff}
+                          disabled={!canVerify || !isComplete || !!auditLog}
+                          className={`group relative px-8 py-3 rounded-xl font-black uppercase tracking-[.1em] flex items-center justify-center gap-2 transition-all border overflow-hidden shadow-xl min-w-[150px] ${!!auditLog
+                            ? "bg-green-900/40 border-green-500/20 text-green-400/80 cursor-default"
                             : !isComplete || !canVerify
-                            ? "bg-slate-800 border-slate-700 text-slate-500 shadow-none cursor-not-allowed"
-                            : "bg-gradient-to-r from-green-500 to-emerald-600 border-green-400/20 text-white hover:from-green-400 hover:to-emerald-500 active:scale-95 shadow-[0_10px_20px_rgba(22,163,74,0.3)]"
-                        }`}
-                      >
-                        {!!auditLog ? (
-                          <>
-                            <CheckCircle2 size={16} />
-                            <span className="text-xs">Verified</span>
-                          </>
-                        ) : (
-                          <>
-                            {isComplete ? <Check size={16} /> : <Clock size={16} />}
-                            <span className="text-xs">{!canVerify ? "ไม่มีสิทธิ์" : !isComplete ? "รอตรวจสอบ" : "Approve"}</span>
-                          </>
-                        )}
-                        {!auditLog && canVerify && isComplete && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-                        )}
-                      </button>
-                    );
-                  }
+                              ? "bg-slate-800 border-slate-700 text-slate-500 shadow-none cursor-not-allowed"
+                              : "bg-gradient-to-r from-green-500 to-emerald-600 border-green-400/20 text-white hover:from-green-400 hover:to-emerald-500 active:scale-95 shadow-[0_10px_20px_rgba(22,163,74,0.3)]"
+                            }`}
+                        >
+                          {!!auditLog ? (
+                            <>
+                              <CheckCircle2 size={16} />
+                              <span className="text-xs">Verified</span>
+                            </>
+                          ) : (
+                            <>
+                              {isComplete ? <Check size={16} /> : <Clock size={16} />}
+                              <span className="text-xs">{!canVerify ? "ไม่มีสิทธิ์" : !isComplete ? "รอตรวจสอบ" : "Approve"}</span>
+                            </>
+                          )}
+                          {!auditLog && canVerify && isComplete && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                          )}
+                        </button>
+                      );
+                    }
 
-                  // 3. ถ้าเป็น Dew Point และไม่ได้เลือกลบ ก็ไม่ต้องแสดงปุ่มอะไรเลย
-                  return null;
-                })()}
-              </div>
-            )}
+                    // 3. ถ้าเป็น Dew Point และไม่ได้เลือกลบ ก็ไม่ต้องแสดงปุ่มอะไรเลย
+                    return null;
+                  })()}
+                </div>
+              )}
 
-            {/* ✅ Action Buttons สำหรับ Normal Mode (Save All / บันทึกข้อมูล) วางชิดตาราง / ฟอร์ม */}
-            {!isHistoryMode && (
-              <div className="flex justify-center animate-in fade-in duration-500 mt-4">
-                {isDewPoint ? (
-                  // ✅ ปุ่มบันทึกสำหรับ Dew Point
-                  (() => {
-                    const isFormIncomplete =
-                      !dpStatus ||
-                      ((dpStatus === "NORMAL" || dpStatus === "ABNORMAL") && (!dpSetPoint.trim() || !dpActual.trim() || !dpDewPoint.trim()));
+              {/* ✅ Action Buttons สำหรับ Normal Mode (Save All / บันทึกข้อมูล) วางชิดตาราง / ฟอร์ม */}
+              {!isHistoryMode && (
+                <div className="flex justify-center animate-in fade-in duration-500 mt-4">
+                  {isDewPoint ? (
+                    // ✅ ปุ่มบันทึกสำหรับ Dew Point
+                    (() => {
+                      const isFormIncomplete =
+                        !dpStatus ||
+                        ((dpStatus === "NORMAL" || dpStatus === "ABNORMAL") && (!dpSetPoint.trim() || !dpActual.trim() || !dpDewPoint.trim()));
 
-                    if (isFormIncomplete || isDpSaved) return null;
+                      if (isFormIncomplete || isDpSaved) return null;
 
-                    return (
+                      return (
+                        <button
+                          onClick={async () => {
+                            let extraFields = undefined;
+                            let finalRemark = dpRemark;
+
+                            if (dpStatus === "NORMAL" || dpStatus === "ABNORMAL") {
+                              extraFields = {
+                                set_point: dpSetPoint,
+                                actual: dpActual,
+                                dew_point_val: dpDewPoint,
+                                material_name: machine.material || "-"
+                              };
+                            } else if (dpStatus === "NA") {
+                              finalRemark = "";
+                            }
+
+                            setIsSavingDewPoint(true);
+                            await executeSave(dpStatus, finalRemark, false, null, extraFields);
+                            setIsSavingDewPoint(false);
+                          }}
+                          disabled={isSavingDewPoint}
+                          className="group relative px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl font-black uppercase tracking-[.1em] shadow-[0_10px_20px_rgba(37,99,235,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all border border-blue-400/20 overflow-hidden min-w-[150px]"
+                        >
+                          {isSavingDewPoint ? (
+                            <>
+                              <Loader2 className="animate-spin" size={16} />
+                              <span className="text-xs">Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Save size={16} />
+                              <span className="text-xs">บันทึกผลการตรวจ</span>
+                            </>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                        </button>
+                      );
+                    })()
+                  ) : (
+                    // ✅ ปุ่มบันทึกสำหรับ Daily Check
+                    Object.keys(pendingLogs).length > 0 ? (
                       <button
-                        onClick={async () => {
-                          let extraFields = undefined;
-                          let finalRemark = dpRemark;
-
-                          if (dpStatus === "NORMAL" || dpStatus === "ABNORMAL") {
-                            extraFields = {
-                              set_point: dpSetPoint,
-                              actual: dpActual,
-                              dew_point_val: dpDewPoint,
-                              material_name: machine.material || "-"
-                            };
-                          } else if (dpStatus === "NA") {
-                            finalRemark = "";
-                          }
-
-                          setIsSavingDewPoint(true);
-                          await executeSave(dpStatus, finalRemark, false, null, extraFields);
-                          setIsSavingDewPoint(false);
-                        }}
-                        disabled={isSavingDewPoint}
+                        onClick={handleSaveAll}
+                        disabled={isSavingAll}
                         className="group relative px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl font-black uppercase tracking-[.1em] shadow-[0_10px_20px_rgba(37,99,235,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all border border-blue-400/20 overflow-hidden min-w-[150px]"
                       >
-                        {isSavingDewPoint ? (
+                        {isSavingAll ? (
                           <>
                             <Loader2 className="animate-spin" size={16} />
                             <span className="text-xs">Saving...</span>
@@ -4322,40 +4344,17 @@ function ScanPage({
                         ) : (
                           <>
                             <Save size={16} />
-                            <span className="text-xs">บันทึกผลการตรวจ</span>
+                            <span className="text-xs">บันทึกข้อมูล ({Object.keys(pendingLogs).length})</span>
                           </>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
                       </button>
-                    );
-                  })()
-                ) : (
-                  // ✅ ปุ่มบันทึกสำหรับ Daily Check
-                  Object.keys(pendingLogs).length > 0 ? (
-                    <button
-                      onClick={handleSaveAll}
-                      disabled={isSavingAll}
-                      className="group relative px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl font-black uppercase tracking-[.1em] shadow-[0_10px_20px_rgba(37,99,235,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all border border-blue-400/20 overflow-hidden min-w-[150px]"
-                    >
-                      {isSavingAll ? (
-                        <>
-                          <Loader2 className="animate-spin" size={16} />
-                          <span className="text-xs">Saving...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save size={16} />
-                          <span className="text-xs">บันทึกข้อมูล ({Object.keys(pendingLogs).length})</span>
-                        </>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-                    </button>
-                  ) : null
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                    ) : null
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -5359,6 +5358,7 @@ const MachineHistoryRow = ({
   machine,
   logs,
   auditLogs,
+  approvals,
   user,
   isAdmin,
   month,
@@ -5366,6 +5366,178 @@ const MachineHistoryRow = ({
 }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [page, setPage] = useState<1 | 2>(1); // 1 = 1-15, 2 = 16-End
+
+  const isSuper = user?.username === "Bank" || user?.role === "super_admin";
+  const canApprove =
+    isSuper ||
+    user?.role === "admin" ||
+    user?.allowedActions?.includes("daily_approve") ||
+    user?.permissions?.includes("daily_approve");
+
+  const currentApproval = approvals?.[machine.id];
+  const isApproved = !!currentApproval?.approvedBy;
+
+  // ตรวจสอบความสมบูรณ์ของข้อมูลก่อนอนุมัติ (ต้องครบ 30/31 วันตามปฏิทิน, ตรวจครบทุกหัวข้อ, และผู้ตรวจสอบยืนยันครบทุกกะ)
+  const validateCanApprove = () => {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const machineLogs = (logs || []).filter((l: any) => l.mid === machine.id);
+    if (machineLogs.length === 0) {
+      return {
+        can: false,
+        reason: `ยังไม่มีข้อมูลการตรวจเช็คของเครื่องจักรนี้ในเดือนที่เลือก (ต้องครบ ${daysInMonth} วัน)`,
+      };
+    }
+
+    const isDewPoint = machine.systemMode === "DEW_POINT";
+
+    // 1. ตรวจสอบว่ามีข้อมูลการตรวจครบ 30 หรือ 31 วันตามจำนวนวันจริงของเดือนนั้นหรือไม่
+    const inspectedDays = new Set<number>();
+    machineLogs.forEach((l: any) => {
+      const hasValidData = isDewPoint ? hasDpData(l) : !!l.result;
+      if (l.date && hasValidData) {
+        const dNum = parseInt(l.date.split("-")[2], 10);
+        if (!isNaN(dNum)) inspectedDays.add(dNum);
+      }
+    });
+
+    const missingDays: number[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      if (!inspectedDays.has(d)) {
+        missingDays.push(d);
+      }
+    }
+
+    if (missingDays.length > 0) {
+      return {
+        can: false,
+        reason: `ข้อมูลการตรวจเช็คยังไม่ครบทั้งเดือน (ต้องครบ ${daysInMonth} วัน) ยังขาดวันที่: ${missingDays.length <= 8
+          ? missingDays.join(", ")
+          : `${missingDays.slice(0, 8).join(", ")} ... (ขาดทั้งหมด ${missingDays.length} วัน)`
+          }`,
+      };
+    }
+
+    const checklist = machine.checklist || [];
+    // รวมวันที่และกะทั้งหมดที่มีการตรวจเช็ค
+    const dateShiftMap = new Map<string, any[]>();
+    machineLogs.forEach((l: any) => {
+      if (l.date && l.shift) {
+        const key = `${l.date}___${l.shift}`;
+        if (!dateShiftMap.has(key)) dateShiftMap.set(key, []);
+        dateShiftMap.get(key)!.push(l);
+      }
+    });
+
+    for (const [key, shiftLogs] of Array.from(dateShiftMap.entries())) {
+      const [dStr, shift] = key.split("___");
+      const dayNum = parseInt(dStr.split("-")[2], 10);
+
+      // 2. ผู้ตรวจสอบยืนยันหรือยัง (audit_logs)
+      const isAudited = (auditLogs || []).some(
+        (a: any) =>
+          a.mid === machine.id &&
+          a.year === year &&
+          a.month === month &&
+          a.day === dayNum &&
+          a.shift === shift &&
+          !!a.auditor
+      );
+      if (!isAudited) {
+        return {
+          can: false,
+          reason: `ผู้ตรวจสอบยังไม่ยืนยันความถูกต้องของ วันที่ ${dayNum} กะ ${shift}`,
+        };
+      }
+
+      // 3. ตรวจเช็คครบทุกหัวข้อหรือไม่
+      if (!isDewPoint && checklist.length > 0) {
+        for (const item of checklist) {
+          const hasLog = shiftLogs.some(
+            (l: any) => l.checklist_item === item.detail && !!l.result
+          );
+          if (!hasLog) {
+            return {
+              can: false,
+              reason: `รายการตรวจเช็คยังไม่ครบทุกหัวข้อ (วันที่ ${dayNum} กะ ${shift} ขาดหัวข้อ "${item.detail}")`,
+            };
+          }
+        }
+      } else if (isDewPoint) {
+        const hasValidDpLog = shiftLogs.some((l: any) => hasDpData(l));
+        if (!hasValidDpLog) {
+          return {
+            can: false,
+            reason: `ยังไม่มีข้อมูลการตรวจวัด Dew Point (วันที่ ${dayNum} กะ ${shift})`,
+          };
+        }
+      }
+    }
+
+    return { can: true, reason: "" };
+  };
+
+  const validation = useMemo(
+    () => validateCanApprove(),
+    [logs, auditLogs, machine, month, year]
+  );
+  const isReadyToApprove = validation.can;
+
+  const handleToggleApprove = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const approvalId = `${machine.id}_${year}_${month}`;
+
+    if (isApproved) {
+      if (!canApprove) {
+        alert("⛔️ คุณไม่มีสิทธิ์ยกเลิกการอนุมัติ (ต้องมีสิทธิ์ 'daily_approve')");
+        return;
+      }
+      if (
+        !confirm(
+          `เครื่องจักร "${machine.name}" ได้รับการอนุมัติโดย "${currentApproval.approvedBy}" แล้ว\nคุณต้องการ "ยกเลิกการอนุมัติ (Unapprove)" ใช่หรือไม่?`
+        )
+      ) {
+        return;
+      }
+      try {
+        await deleteDoc(doc(db, "daily_approvals", approvalId));
+      } catch (err: any) {
+        console.error("Unapprove error:", err);
+        alert("เกิดข้อผิดพลาดในการยกเลิก: " + err.message);
+      }
+    } else {
+      if (!canApprove) {
+        alert("⛔️ คุณไม่มีสิทธิ์อนุมัติรายงาน (ต้องมีสิทธิ์ 'daily_approve')");
+        return;
+      }
+      const val = validateCanApprove();
+      if (!val.can) {
+        alert(`⛔️ ไม่สามารถอนุมัติได้:\n${val.reason}`);
+        return;
+      }
+      const approverName = user?.fullname || user?.username || "Admin";
+      if (
+        !confirm(
+          `ยืนยันการอนุมัติรายงานประจำเดือน ${month}/${year} ของเครื่องจักร "${machine.name}"\nโดยผู้อนุมัติ: ${approverName}?`
+        )
+      ) {
+        return;
+      }
+      try {
+        await setDoc(doc(db, "daily_approvals", approvalId), {
+          mid: machine.id,
+          year: year,
+          month: month,
+          approvedBy: approverName,
+          approvedByUsername: user?.username || "",
+          approvedAt: serverTimestamp(),
+        });
+      } catch (err: any) {
+        console.error("Approve error:", err);
+        alert("เกิดข้อผิดพลาดในการอนุมัติ: " + err.message);
+      }
+    }
+  };
 
   return (
     <div
@@ -5391,7 +5563,50 @@ const MachineHistoryRow = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3" onClick={(e) => e.stopPropagation()}>
+          {/* ปุ่ม Approve ไว้หน้าปุ่มเลือกวันที่ 1-15 */}
+          {isApproved ? (
+            <button
+              onClick={handleToggleApprove}
+              title={canApprove ? "คลิกเพื่อยกเลิกการอนุมัติ (Unapprove)" : `อนุมัติแล้วโดย ${currentApproval.approvedBy}`}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 transition-all shadow-sm ${canApprove ? "hover:bg-emerald-500/30 active:scale-95 cursor-pointer" : "cursor-default"
+                }`}
+            >
+              <CheckCircle2 size={13} className="text-emerald-400" />
+              <span>Approved: {currentApproval.approvedBy}</span>
+            </button>
+          ) : !isReadyToApprove ? (
+            /* กรณีข้อมูลยังไม่ครบทั้งเดือน (ยังไม่ครบ 30/31 วัน หรือตรวจ/ยืนยันไม่ครบ) -> สีเทา กดไม่ได้ */
+            <button
+              disabled={true}
+              title={`ไม่สามารถอนุมัติได้: ${validation.reason}`}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-slate-700/50 text-slate-400 border border-slate-600/50 cursor-not-allowed opacity-75 shadow-none select-none"
+            >
+              <CheckCircle2 size={13} className="text-slate-500" />
+              <span>Approve</span>
+            </button>
+          ) : !canApprove ? (
+            /* กรณีข้อมูลครบแล้ว แต่ผู้ใช้ไม่มีสิทธิ์ daily_approve */
+            <button
+              disabled={true}
+              title="ข้อมูลครบถ้วนแล้ว แต่คุณไม่มีสิทธิ์อนุมัติ (ต้องการสิทธิ์ 'daily_approve')"
+              className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-slate-700/50 text-slate-400 border border-slate-600/50 cursor-not-allowed opacity-75 shadow-none select-none"
+            >
+              <CheckCircle2 size={13} className="text-slate-500" />
+              <span>Approve</span>
+            </button>
+          ) : (
+            /* กรณีข้อมูลครบถ้วนทั้ง 30/31 วัน และมีสิทธิ์ Approve -> ปุ่มสีน้ำเงิน กดได้ */
+            <button
+              onClick={handleToggleApprove}
+              title="ข้อมูลครบถ้วนทั้งเดือนแล้ว คลิกเพื่ออนุมัติรายงานประจำเดือนนี้"
+              className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white active:scale-95 border border-blue-500 cursor-pointer shadow-md shadow-blue-500/20 transition-all"
+            >
+              <CheckCircle2 size={13} />
+              <span>Approve</span>
+            </button>
+          )}
+
           {/* ปุ่มสลับหน้า (โชว์เฉพาะตอนเปิด) */}
           {isOpen && (
             <div
@@ -5461,6 +5676,7 @@ function DataView({ machines, user }: { machines: Machine[]; user: User }) {
 
   const [viewMonth, setViewMonth] = useState(new Date().getMonth() + 1);
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
+  const [approvals, setApprovals] = useState<Record<string, any>>({});
 
   useEffect(() => {
     const mStr = String(viewMonth).padStart(2, "0");
@@ -5481,6 +5697,11 @@ function DataView({ machines, user }: { machines: Machine[]; user: User }) {
       where("year", "==", viewYear),
       where("month", "==", viewMonth)
     );
+    const qApprovals = query(
+      collection(db, "daily_approvals"),
+      where("year", "==", viewYear),
+      where("month", "==", viewMonth)
+    );
 
     const unsubL = onSnapshot(qLogs, (snap) =>
       setLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as LogEntry)))
@@ -5490,10 +5711,19 @@ function DataView({ machines, user }: { machines: Machine[]; user: User }) {
         snap.docs.map((d) => ({ id: d.id, ...d.data() } as AuditLog))
       )
     );
+    const unsubApp = onSnapshot(qApprovals, (snap) => {
+      const map: Record<string, any> = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.mid) map[data.mid] = data;
+      });
+      setApprovals(map);
+    });
 
     return () => {
       unsubL();
       unsubA();
+      unsubApp();
     };
   }, [viewMonth, viewYear]);
 
@@ -5579,6 +5809,7 @@ function DataView({ machines, user }: { machines: Machine[]; user: User }) {
             machine={m}
             logs={logs}
             auditLogs={auditLogs}
+            approvals={approvals}
             user={user}
             isAdmin={isAdmin}
             month={viewMonth}
@@ -5621,6 +5852,9 @@ function DashboardView({
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showExportPDFModal, setShowExportPDFModal] = useState(false);
+  const [exportAuditLogs, setExportAuditLogs] = useState<AuditLog[]>([]);
+  const [exportTargetMachineId, setExportTargetMachineId] = useState<string>("");
 
   // ✅ Validation States
   const [filterMode, setFilterMode] = useState<"ALL" | "ABNORMAL" | "MISSING">(
@@ -5951,6 +6185,27 @@ function DashboardView({
     }
   };
 
+  const handleOpenExportPDF = async (targetMachineId?: string) => {
+    if (allLogs.length === 0) {
+      await fetchReport();
+    }
+    try {
+      const qAudit = query(
+        collection(db, "audit_logs"),
+        where("year", "==", selectedYear),
+        where("month", "==", selectedMonth)
+      );
+      const snap = await getDocs(qAudit);
+      setExportAuditLogs(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() } as AuditLog))
+      );
+    } catch (e) {
+      console.error("Error fetching audit logs for PDF:", e);
+    }
+    setExportTargetMachineId(targetMachineId || selectedMachineId);
+    setShowExportPDFModal(true);
+  };
+
   const handleCardClick = (row: any) => {
     setDetailMachine(row);
     setSelectedDayInfo(null);
@@ -6084,6 +6339,16 @@ function DashboardView({
                   No Data
                 </span>
               </div>
+
+              {/* ✅ ปุ่ม Export ต่อท้ายหลัง No Data */}
+              <button
+                onClick={() => handleOpenExportPDF(detailMachine.id)}
+                className="ml-auto bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+                title="Export PDF รวมใบมาตรฐาน (ครึ่งบน) + ข้อมูลตรวจเช็ค (ครึ่งล่าง)"
+              >
+                <FileText size={12} />
+                <span>Export</span>
+              </button>
             </div>
           </div>
 
@@ -6349,7 +6614,7 @@ function DashboardView({
             <button
               onClick={handleExportCSV}
               disabled={allLogs.length === 0 || isLoadingReport || isExporting}
-              className="bg-emerald-600 text-white px-6 rounded-lg font-bold h-[42px] text-[11px] shadow-lg disabled:opacity-50 w-fit min-w-[120px] flex items-center justify-center gap-2 active:scale-95"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 rounded-lg font-bold h-[42px] text-[11px] shadow-lg disabled:opacity-50 w-fit min-w-[110px] flex items-center justify-center gap-2 active:scale-95 transition-all"
             >
               {isExporting ? (
                 <>
@@ -6359,6 +6624,17 @@ function DashboardView({
               ) : (
                 "Excel"
               )}
+            </button>
+
+            {/* ปุ่ม Export PDF */}
+            <button
+              onClick={() => handleOpenExportPDF(selectedMachineId !== "All" ? selectedMachineId : undefined)}
+              disabled={isLoadingReport || isExporting}
+              className="bg-rose-600 hover:bg-rose-500 text-white px-5 rounded-lg font-bold h-[42px] text-[11px] shadow-lg disabled:opacity-50 w-fit min-w-[110px] flex items-center justify-center gap-2 active:scale-95 transition-all"
+              title="เปิดหน้าต่างพรีวิวและดาวน์โหลดเอกสาร PDF (สามารถเลือกเปลี่ยนเครื่องในหน้าต่างพรีวิวได้)"
+            >
+              <FileText size={15} />
+              <span>Export</span>
             </button>
           </div>
         </div>
@@ -6483,6 +6759,19 @@ function DashboardView({
       </div>
 
       <MachineDetailModal />
+
+      {showExportPDFModal && (
+        <DailyCheckPDFExportModal
+          isOpen={showExportPDFModal}
+          onClose={() => setShowExportPDFModal(false)}
+          machines={machines}
+          initialMachineId={exportTargetMachineId || selectedMachineId}
+          month={selectedMonth}
+          year={selectedYear}
+          logs={allLogs}
+          auditLogs={exportAuditLogs}
+        />
+      )}
     </div>
   );
 }
@@ -6529,6 +6818,53 @@ function MachineSettingsView({
   }, [initialMode, editingId]);
   const [isUploading, setIsUploading] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+
+  // --- ตั้งค่ารหัสเอกสารควบคุม (Document Control / Revision) ใน Firebase ---
+  const [docControlCode, setDocControlCode] = useState("FM-PE-004 Rev.02 (06-Apr-20)");
+  const [tempDocCode, setTempDocCode] = useState("FM-PE-004 Rev.02 (06-Apr-20)");
+  const [isEditingDocCode, setIsEditingDocCode] = useState(false);
+  const [isSavingDocCode, setIsSavingDocCode] = useState(false);
+  const [docCodeSaved, setDocCodeSaved] = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "daily_settings", "document_control"), (snap) => {
+      if (snap.exists() && snap.data()?.formCode) {
+        setDocControlCode(snap.data().formCode);
+        if (!isEditingDocCode) {
+          setTempDocCode(snap.data().formCode);
+        }
+      }
+    });
+    return () => unsub();
+  }, [isEditingDocCode]);
+
+  const handleSaveDocCode = async () => {
+    if (!tempDocCode.trim()) {
+      alert("กรุณาระบุรหัสเอกสารควบคุม");
+      return;
+    }
+    try {
+      setIsSavingDocCode(true);
+      await setDoc(
+        doc(db, "daily_settings", "document_control"),
+        {
+          formCode: tempDocCode.trim(),
+          updatedAt: serverTimestamp(),
+          updatedBy: user?.fullname || user?.username || "Admin",
+        },
+        { merge: true }
+      );
+      setDocControlCode(tempDocCode.trim());
+      setIsEditingDocCode(false);
+      setDocCodeSaved(true);
+      setTimeout(() => setDocCodeSaved(false), 2500);
+    } catch (err: any) {
+      console.error("Error saving document control code:", err);
+      alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message);
+    } finally {
+      setIsSavingDocCode(false);
+    }
+  };
 
   // ✅ 1. เพิ่ม State สำหรับ Password Guard
   const [showGuard, setShowGuard] = useState(false);
@@ -6812,6 +7148,99 @@ function MachineSettingsView({
         message={`คุณต้องการลบเครื่องจักร "${confirmModal.targetM?.name}" และข้อมูลการตรวจเช็คทั้งหมด ใช่หรือไม่?`}
         currentUser={user}
       />
+
+      {/* 📄 ส่วนตั้งค่ารหัสเอกสารควบคุม (Document Control / Form Revision) */}
+      <div className="bg-[#1E293B] rounded-xl shadow-lg border border-slate-700 p-5 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20 shrink-0">
+              <FileText size={22} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                รหัสเอกสารควบคุมใต้กระดาษ (Document Control / Form Revision)
+              </h3>
+              <p className="text-xs text-slate-400">
+                กำหนดข้อความรหัสแบบฟอร์มด้านล่างสุดของเอกสาร Daily Checked Sheet (มีผลกับเครื่องจักรทุกเครื่องในระบบ)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            {isEditingDocCode ? (
+              <input
+                type="text"
+                value={tempDocCode}
+                onChange={(e) => setTempDocCode(e.target.value)}
+                placeholder="เช่น FM-PE-004 Rev.02 (06-Apr-20)"
+                autoFocus
+                className="bg-[#0F172A] border-2 border-blue-500 ring-2 ring-blue-500/20 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none min-w-[280px] flex-1 md:flex-initial shadow-inner font-mono"
+              />
+            ) : (
+              <div
+                title="คลิกปุ่ม 'แก้ไข' เพื่อเปลี่ยนข้อความ"
+                className="bg-slate-800/90 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-300 min-w-[280px] flex-1 md:flex-initial font-mono select-all cursor-default flex items-center shadow-inner"
+              >
+                {docControlCode}
+              </div>
+            )}
+
+            {isEditingDocCode ? (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={handleSaveDocCode}
+                  disabled={isSavingDocCode}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all shadow-md ${docCodeSaved
+                    ? "bg-emerald-600 text-white"
+                    : "bg-blue-600 hover:bg-blue-500 text-white active:scale-95"
+                    } ${isSavingDocCode ? "opacity-70 cursor-not-allowed" : ""}`}
+                >
+                  {isSavingDocCode ? (
+                    <>
+                      <Loader2 className="animate-spin" size={16} /> บันทึก...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} /> บันทึก
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempDocCode(docControlCode);
+                    setIsEditingDocCode(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-sm bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 transition-colors"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setTempDocCode(docControlCode);
+                  setIsEditingDocCode(true);
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 shrink-0 transition-all shadow-md ${docCodeSaved
+                  ? "bg-emerald-600 text-white"
+                  : "bg-amber-600 hover:bg-amber-500 text-white active:scale-95"
+                  }`}
+              >
+                {docCodeSaved ? (
+                  <>
+                    <CheckCircle size={16} /> บันทึกแล้ว
+                  </>
+                ) : (
+                  <>
+                    <Pencil size={16} /> แก้ไข
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="bg-[#1E293B] rounded-xl shadow-lg border border-slate-700 p-6">
         <div className="flex justify-between items-center mb-6">
