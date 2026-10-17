@@ -4,6 +4,7 @@ export const ALL_PERMISSIONS = [
   // --- Daily Check (ตรวจเครื่อง) ---
   { id: "daily_record", label: "บันทึกผลตรวจ (Inspect)", app: "Daily Check" },
   { id: "daily_verify", label: "ผู้ตรวจสอบ (Audit)", app: "Daily Check" },
+  { id: "daily_approve", label: "ผู้อนุมัติรายงาน (Approve)", app: "Daily Check" },
   { id: "daily_delete", label: "ลบประวัติการตรวจ", app: "Daily Check" },
   {
     id: "daily_select_date",
