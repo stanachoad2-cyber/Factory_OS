@@ -192,16 +192,20 @@ export function DailyCheckPDFExportModal({
   const currentMachine =
     machines.find((m) => m.id === selectedMachineId) || machines[0];
 
+  const isDewPoint = currentMachine?.systemMode === "DEW_POINT";
+
   const daysInMonth = new Date(year, month, 0).getDate();
   const monthNameEn = MONTH_NAMES_EN[month - 1] || `MONTH ${month}`;
 
   // หน้า 1: วันที่ 1 - 16 (ตามแบบฟอร์มต้นฉบับ EXT-FM-PE-004 เป๊ะๆ)
-  // หน้า 2: วันที่ 17 - สิ้นเดือน (17-28/29/30/31)
+  // หน้า 2: วันที่ 17 - สิ้นเดือน (สำหรับ Dew Point แสดงโครงฟอร์มถึงวันที่ 31 เสมอ)
   const daysPage1 = Array.from({ length: 16 }, (_, i) => i + 1);
-  const daysPage2 = Array.from(
-    { length: Math.max(0, daysInMonth - 16) },
-    (_, i) => 17 + i
-  );
+  const daysPage2 = isDewPoint
+    ? Array.from({ length: 15 }, (_, i) => 17 + i)
+    : Array.from(
+        { length: Math.max(0, daysInMonth - 16) },
+        (_, i) => 17 + i
+      );
 
   // แปลงรูปภาพเป็น Base64 ล่วงหน้า เพื่อป้องกันปัญหา CORS ตอนทำ PDF
   useEffect(() => {
@@ -243,9 +247,32 @@ export function DailyCheckPDFExportModal({
 
   if (!isOpen || !currentMachine) return null;
 
+  const hasDpData = (log: any) => {
+    if (!log) return false;
+    const fields = ["result", "set_point", "actual", "dew_point_val", "problem_detail"];
+    return fields.some(
+      (f) => log[f] !== undefined && log[f] !== null && String(log[f]).trim() !== ""
+    );
+  };
+
+  const formatTime = (ts: any) => {
+    if (!ts) return "";
+    try {
+      const date = ts.toDate ? ts.toDate() : new Date(ts);
+      if (isNaN(date.getTime())) return "";
+      return date.toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "";
+    }
+  };
+
   // สร้าง Map สำหรับ O(1) Lookup ข้อมูล เพิ่มความลื่นไหลในการเรนเดอร์ พรีวิวได้ทันทีไม่กระตุก
-  const { logMap, inspectorMap, auditMap } = useMemo(() => {
+  const { logMap, dpLogMap, inspectorMap, auditMap } = useMemo(() => {
     const lMap = new Map<string, LogEntry>();
+    const dpMap = new Map<string, LogEntry>();
     const iMap = new Map<string, string>();
     const aMap = new Map<string, string>();
 
@@ -253,6 +280,9 @@ export function DailyCheckPDFExportModal({
       for (const l of logs) {
         if (l.mid === currentMachine.id) {
           lMap.set(`${l.date}_${l.shift}_${l.checklist_item}`, l);
+          if (!dpMap.has(`${l.date}_${l.shift}`) || hasDpData(l)) {
+            dpMap.set(`${l.date}_${l.shift}`, l);
+          }
           if (l.inspector && !iMap.has(`${l.date}_${l.shift}`)) {
             iMap.set(`${l.date}_${l.shift}`, l.inspector);
           }
@@ -265,7 +295,7 @@ export function DailyCheckPDFExportModal({
       }
     }
 
-    return { logMap: lMap, inspectorMap: iMap, auditMap: aMap };
+    return { logMap: lMap, dpLogMap: dpMap, inspectorMap: iMap, auditMap: aMap };
   }, [logs, auditLogs, currentMachine?.id, year, month]);
 
   const getLog = (d: number, shift: string, itemDetail: string) => {
@@ -273,6 +303,15 @@ export function DailyCheckPDFExportModal({
       d
     ).padStart(2, "0")}`;
     return logMap.get(`${dateStr}_${shift}_${itemDetail}`);
+  };
+
+  const getDpLog = (d: number, shift: string) => {
+    if (d > daysInMonth) return undefined;
+    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(
+      d
+    ).padStart(2, "0")}`;
+    const found = dpLogMap.get(`${dateStr}_${shift}`);
+    return found && hasDpData(found) ? found : undefined;
   };
 
   const getInspector = (d: number, shift: string) => {
@@ -294,9 +333,591 @@ export function DailyCheckPDFExportModal({
     if (log.result === "FILTER") return "△";
   };
 
+  // เรนเดอร์ 1 หน้า A4 Portrait สำหรับโหมด Dew Point (Check Sheet for Dryer)
+  const renderDewPointPage = (pageNumber: 1 | 2, daysList: number[]) => {
+    const dpMaterial =
+      currentMachine.material ||
+      logs.find(
+        (l) =>
+          l.mid === currentMachine.id &&
+          l.material_name &&
+          l.material_name !== "-"
+      )?.material_name ||
+      "";
+
+    const mmStr = String(month).padStart(2, "0");
+    const yyStr = String(year).slice(-2);
+
+    const renderStatusCheckbox = (checked: boolean, label: string, isAlert = false) => (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "3px",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "9.5px",
+            height: "9.5px",
+            border: "1px solid #000000",
+            fontSize: "8px",
+            fontWeight: "bold",
+            lineHeight: 1,
+            color: checked && isAlert ? "#dc2626" : "#000000",
+            boxSizing: "border-box",
+          }}
+        >
+          {checked ? "✓" : ""}
+        </span>
+        <span style={{ fontSize: "8.5px" }}>{label}</span>
+      </span>
+    );
+
+    const renderShiftCells = (shiftCode: "D" | "N", log?: LogEntry) => {
+      const shiftLabel = shiftCode === "D" ? "DS" : "NS";
+      const timeStr = log && log.result !== "NA" ? formatTime(log.timestamp) : "";
+      const [hh, mm] =
+        timeStr && timeStr.includes(":") ? timeStr.split(":") : ["", ""];
+
+      const isNotRun = log?.result === "NA";
+      const isNormal = log?.result === "NORMAL";
+      const isAbnormal = log?.result === "ABNORMAL";
+
+      return (
+        <>
+          {/* คอลัมน์ 2: DS / NS + เวลา */}
+          <td
+            style={{
+              border: "1px solid #000000",
+              padding: "1px 4px",
+              verticalAlign: "middle",
+              fontSize: "8.5px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span>{shiftLabel}: </span>
+            <span
+              style={{
+                display: "inline-block",
+                minWidth: "20px",
+                borderBottom: "1px solid #000000",
+                textAlign: "center",
+                fontWeight: hh ? "bold" : "normal",
+                lineHeight: "1.05",
+              }}
+            >
+              {hh || "\u00A0"}
+            </span>
+            <span>:</span>
+            <span
+              style={{
+                display: "inline-block",
+                minWidth: "20px",
+                borderBottom: "1px solid #000000",
+                textAlign: "center",
+                fontWeight: mm ? "bold" : "normal",
+                lineHeight: "1.05",
+              }}
+            >
+              {mm || "\u00A0"}
+            </span>
+          </td>
+
+          {/* คอลัมน์ 3: SET Point */}
+          <td
+            style={{
+              border: "1px solid #000000",
+              textAlign: "center",
+              verticalAlign: "middle",
+              padding: "1px 2px",
+              fontSize: "8.5px",
+              fontWeight: "bold",
+            }}
+          >
+            {log ? (isNotRun ? "-" : log.set_point || "") : ""}
+          </td>
+
+          {/* คอลัมน์ 4: Actual */}
+          <td
+            style={{
+              border: "1px solid #000000",
+              textAlign: "center",
+              verticalAlign: "middle",
+              padding: "1px 2px",
+              fontSize: "8.5px",
+              fontWeight: "bold",
+            }}
+          >
+            {log ? (isNotRun ? "-" : log.actual || "") : ""}
+          </td>
+
+          {/* คอลัมน์ 5: Dew Point (°F) */}
+          <td
+            style={{
+              border: "1px solid #000000",
+              textAlign: "center",
+              verticalAlign: "middle",
+              padding: "1px 2px",
+              fontSize: "8.5px",
+              fontWeight: "bold",
+            }}
+          >
+            {log ? (isNotRun ? "-" : log.dew_point_val || "") : ""}
+          </td>
+
+          {/* คอลัมน์ 6: Machine status */}
+          <td
+            style={{
+              border: "1px solid #000000",
+              padding: "1px 5px",
+              verticalAlign: "middle",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "4px",
+              }}
+            >
+              {renderStatusCheckbox(!!isNotRun, "Not RUN")}
+              {renderStatusCheckbox(!!isNormal, "ปกติ")}
+              {renderStatusCheckbox(!!isAbnormal, "ผิดปกติ", true)}
+            </div>
+          </td>
+
+          {/* คอลัมน์ 7: Checked by -> Name */}
+          <td
+            style={{
+              border: "1px solid #000000",
+              textAlign: "center",
+              verticalAlign: "middle",
+              padding: "1px 3px",
+              fontSize: "8px",
+              fontWeight: 500,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {log?.inspector || ""}
+          </td>
+
+          {/* คอลัมน์ 8: REMARK */}
+          <td
+            style={{
+              border: "1px solid #000000",
+              padding: "1px 4px",
+              verticalAlign: "middle",
+              fontSize: "8px",
+              color: isAbnormal ? "#dc2626" : "#000000",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={log?.problem_detail || ""}
+          >
+            {log ? (isNotRun ? "-" : log.problem_detail || "") : ""}
+          </td>
+        </>
+      );
+    };
+
+    return (
+      <div
+        className="pdf-page bg-white text-black mx-auto flex flex-col justify-between"
+        style={{
+          width: "200mm",
+          height: "287mm",
+          maxHeight: "287mm",
+          boxSizing: "border-box",
+          padding: "4mm 6mm 4mm 6mm",
+          pageBreakAfter: pageNumber === 1 ? "always" : "auto",
+          fontFamily: "'Tahoma', 'Leelawadee UI', 'Segoe UI', Arial, sans-serif",
+          fontSize: "9px",
+          color: "#000000",
+          backgroundColor: "#ffffff",
+        }}
+      >
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", flex: 1 }}>
+          {/* ชื่อฟอร์มตรงกลางด้านบน */}
+          <div
+            style={{
+              textAlign: "center",
+              fontWeight: "bold",
+              fontSize: "15px",
+              marginBottom: "4px",
+              letterSpacing: "0.3px",
+            }}
+          >
+            Check Sheet for Dryer
+          </div>
+
+          {/* ตารางหลัก */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+              fontSize: "9px",
+            }}
+          >
+            <colgroup>
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ width: "8.5%" }} />
+              <col style={{ width: "8.5%" }} />
+              <col style={{ width: "8.5%" }} />
+              <col style={{ width: "24.5%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "14%" }} />
+            </colgroup>
+            <thead>
+              {/* แถวหัวที่ 1: Line & Material */}
+              <tr style={{ height: "20px" }}>
+                <th
+                  colSpan={2}
+                  style={{
+                    border: "none",
+                    textAlign: "left",
+                    verticalAlign: "bottom",
+                    padding: "0 0 4px 2px",
+                    fontWeight: "normal",
+                    fontSize: "10px",
+                  }}
+                >
+                  <span>Line: </span>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      minWidth: "65px",
+                      borderBottom: "1px solid #000000",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      padding: "0 4px",
+                    }}
+                  >
+                    {currentMachine.process || "\u00A0"}
+                  </span>
+                </th>
+                <th
+                  colSpan={6}
+                  style={{
+                    border: "none",
+                    textAlign: "left",
+                    verticalAlign: "bottom",
+                    padding: "0 0 4px 0",
+                    fontWeight: "normal",
+                    fontSize: "10px",
+                  }}
+                >
+                  <span>Material: </span>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      minWidth: "130px",
+                      borderBottom: "1px solid #000000",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      padding: "0 6px",
+                    }}
+                  >
+                    {dpMaterial || "\u00A0"}
+                  </span>
+                </th>
+              </tr>
+
+              {/* แถวหัวที่ 2: Dryer #, Temperature °F, Dew Point, Checked by */}
+              <tr style={{ height: "28px" }}>
+                <th
+                  colSpan={2}
+                  style={{
+                    borderTop: "none",
+                    borderLeft: "none",
+                    borderBottom: "none",
+                    borderRight: "1px solid #000000",
+                    textAlign: "left",
+                    verticalAlign: "bottom",
+                    padding: "0 0 3px 2px",
+                    fontWeight: "normal",
+                    fontSize: "10px",
+                  }}
+                >
+                  <span>Dryer #: </span>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      minWidth: "90px",
+                      borderBottom: "1px solid #000000",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      padding: "0 4px",
+                    }}
+                  >
+                    {currentMachine.name || "\u00A0"}
+                  </span>
+                </th>
+                <th
+                  colSpan={2}
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                    fontWeight: "normal",
+                    fontSize: "9.5px",
+                    lineHeight: "1.2",
+                    padding: "2px",
+                  }}
+                >
+                  Temperature
+                  <br />° F
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                    fontWeight: "normal",
+                    fontSize: "9.5px",
+                    lineHeight: "1.2",
+                    padding: "2px",
+                  }}
+                >
+                  Dew
+                  <br />
+                  Point
+                </th>
+                <th
+                  style={{
+                    borderTop: "none",
+                    borderLeft: "1px solid #000000",
+                    borderRight: "1px solid #000000",
+                    borderBottom: "1px solid #000000",
+                  }}
+                />
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "center",
+                    verticalAlign: "bottom",
+                    fontWeight: "normal",
+                    fontSize: "9.5px",
+                    padding: "2px 2px 3px 2px",
+                  }}
+                >
+                  Checked by
+                </th>
+                <th
+                  style={{
+                    borderTop: "none",
+                    borderLeft: "1px solid #000000",
+                    borderRight: "none",
+                    borderBottom: "1px solid #000000",
+                  }}
+                />
+              </tr>
+
+              {/* แถวหัวที่ 3: SET Point, Actual, °F, Machine status, Name, REMARK */}
+              <tr style={{ height: "26px" }}>
+                <th
+                  colSpan={2}
+                  style={{
+                    borderTop: "none",
+                    borderLeft: "none",
+                    borderRight: "1px solid #000000",
+                    borderBottom: "1px solid #000000",
+                  }}
+                />
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                    fontWeight: "normal",
+                    fontSize: "8.5px",
+                    lineHeight: "1.15",
+                    padding: "1px",
+                  }}
+                >
+                  SET
+                  <br />
+                  Point
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "center",
+                    verticalAlign: "bottom",
+                    fontWeight: "normal",
+                    fontSize: "8.5px",
+                    padding: "2px 1px 3px 1px",
+                  }}
+                >
+                  Actual
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "center",
+                    verticalAlign: "bottom",
+                    fontWeight: "normal",
+                    fontSize: "9px",
+                    padding: "2px 1px 3px 1px",
+                  }}
+                >
+                  ° F
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "left",
+                    verticalAlign: "bottom",
+                    fontWeight: "normal",
+                    fontSize: "9.5px",
+                    padding: "2px 6px 3px 6px",
+                  }}
+                >
+                  Machine status
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "center",
+                    verticalAlign: "bottom",
+                    fontWeight: "normal",
+                    fontSize: "9px",
+                    padding: "2px 2px 3px 2px",
+                  }}
+                >
+                  Name
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    textAlign: "center",
+                    verticalAlign: "bottom",
+                    fontWeight: "normal",
+                    fontSize: "9px",
+                    padding: "2px 2px 3px 2px",
+                  }}
+                >
+                  REMARK
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {daysList.map((d) => {
+                const logD = getDpLog(d, "D");
+                const logN = getDpLog(d, "N");
+                const hasAnyDayData = !!(logD || logN);
+
+                return (
+                  <React.Fragment key={d}>
+                    {/* แถวกะกลางวัน (DS) */}
+                    <tr style={{ height: "28px" }}>
+                      <td
+                        rowSpan={2}
+                        style={{
+                          border: "1px solid #000000",
+                          textAlign: "center",
+                          verticalAlign: "middle",
+                          padding: "2px 3px",
+                          fontSize: "9.5px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <span>{d} /</span>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            minWidth: "18px",
+                            borderBottom: "1px solid #000000",
+                            textAlign: "center",
+                            fontWeight: hasAnyDayData ? "bold" : "normal",
+                            lineHeight: "1.05",
+                          }}
+                        >
+                          {hasAnyDayData ? mmStr : "\u00A0"}
+                        </span>
+                        <span>/</span>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            minWidth: "18px",
+                            borderBottom: "1px solid #000000",
+                            textAlign: "center",
+                            fontWeight: hasAnyDayData ? "bold" : "normal",
+                            lineHeight: "1.05",
+                          }}
+                        >
+                          {hasAnyDayData ? yyStr : "\u00A0"}
+                        </span>
+                      </td>
+                      {renderShiftCells("D", logD)}
+                    </tr>
+
+                    {/* แถวกะกลางคืน (NS) */}
+                    <tr style={{ height: "28px" }}>
+                      {renderShiftCells("N", logN)}
+                    </tr>
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ส่วนท้ายกระดาษ: Approved by */}
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            paddingTop: "6px",
+            paddingBottom: "2px",
+            fontSize: "10px",
+            fontWeight: "bold",
+            color: "#000000",
+            boxSizing: "border-box",
+          }}
+        >
+          {approvals[currentMachine?.id]?.approvedBy ? (
+            <span>
+              Approved by:{" "}
+              <span
+                style={{
+                  display: "inline-block",
+                  minWidth: "140px",
+                  borderBottom: "1px solid #000000",
+                  textAlign: "center",
+                  padding: "0 8px",
+                }}
+              >
+                {approvals[currentMachine.id].approvedBy}
+              </span>
+            </span>
+          ) : (
+            <span>Approved by: ....................................................</span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
 
   // เรนเดอร์ 1 หน้า A4 Landscape ตามแบบฟอร์ม EXT-FM-PE-004 Rev.02
   const renderSinglePage = (pageNumber: 1 | 2, daysList: number[]) => {
+    if (isDewPoint) {
+      return renderDewPointPage(pageNumber, daysList);
+    }
     const checklist = currentMachine.checklist || [];
     const totalMasterRows = Math.max(7, checklist.length);
     const masterRows = Array.from({ length: totalMasterRows }, (_, i) => checklist[i] || null);
@@ -1292,7 +1913,9 @@ export function DailyCheckPDFExportModal({
           </div>
           <div>
             <h2 className="text-white font-bold text-sm flex items-center gap-2">
-              แบบฟอร์มตรวจสอบเครื่องจักรประจำวัน ({docControlCode})
+              {isDewPoint
+                ? "แบบฟอร์มตรวจสอบค่า Dew Point (Check Sheet for Dryer)"
+                : `แบบฟอร์มตรวจสอบเครื่องจักรประจำวัน (${docControlCode})`}
             </h2>
             <p className="text-[11px] text-slate-400">
               {currentMachine.name} • {monthNameEn} {year}
@@ -1336,7 +1959,7 @@ export function DailyCheckPDFExportModal({
                 : "text-slate-400 hover:text-white"
                 }`}
             >
-              แผ่นที่ 2 (วันที่ 17-{daysInMonth})
+              แผ่นที่ 2 (วันที่ 17-{isDewPoint ? 31 : daysInMonth})
             </button>
           </div>
 
@@ -1377,7 +2000,7 @@ export function DailyCheckPDFExportModal({
           position: "fixed",
           top: 0,
           left: 0,
-          width: "287mm",
+          width: isDewPoint ? "200mm" : "287mm",
           zIndex: -100,
           pointerEvents: "none",
           backgroundColor: "#ffffff",
@@ -1387,7 +2010,11 @@ export function DailyCheckPDFExportModal({
           <div
             id="pdf-capture-page-1"
             className={printMode === "all" ? "print-page-break" : ""}
-            style={{ width: "287mm", backgroundColor: "#ffffff", boxSizing: "border-box" }}
+            style={{
+              width: isDewPoint ? "200mm" : "287mm",
+              backgroundColor: "#ffffff",
+              boxSizing: "border-box",
+            }}
           >
             {renderSinglePage(1, daysPage1)}
           </div>
@@ -1396,7 +2023,7 @@ export function DailyCheckPDFExportModal({
           <div
             id="pdf-capture-page-2"
             style={{
-              width: "287mm",
+              width: isDewPoint ? "200mm" : "287mm",
               backgroundColor: "#ffffff",
               boxSizing: "border-box",
               marginTop: printMode === "all" ? "20px" : "0px",
@@ -1411,13 +2038,13 @@ export function DailyCheckPDFExportModal({
       <style>{`
         @media print {
           @page {
-            size: A4 landscape;
+            size: ${isDewPoint ? "A4 portrait" : "A4 landscape"};
             margin: 0mm;
           }
 
           html, body {
-            width: 297mm !important;
-            height: 210mm !important;
+            width: ${isDewPoint ? "210mm" : "297mm"} !important;
+            height: ${isDewPoint ? "297mm" : "210mm"} !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
@@ -1453,7 +2080,7 @@ export function DailyCheckPDFExportModal({
             position: static !important;
             left: 0 !important;
             top: 0 !important;
-            width: 297mm !important;
+            width: ${isDewPoint ? "210mm" : "297mm"} !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
@@ -1464,9 +2091,9 @@ export function DailyCheckPDFExportModal({
           #pdf-capture-page-2 {
             display: flex !important;
             visibility: visible !important;
-            width: 297mm !important;
-            height: 210mm !important;
-            max-height: 210mm !important;
+            width: ${isDewPoint ? "210mm" : "297mm"} !important;
+            height: ${isDewPoint ? "297mm" : "210mm"} !important;
+            max-height: ${isDewPoint ? "297mm" : "210mm"} !important;
             box-sizing: border-box !important;
             align-items: center !important;
             justify-content: center !important;
@@ -1482,9 +2109,9 @@ export function DailyCheckPDFExportModal({
 
           .pdf-page {
             box-shadow: none !important;
-            width: 287mm !important;
-            height: 198mm !important;
-            max-height: 198mm !important;
+            width: ${isDewPoint ? "200mm" : "287mm"} !important;
+            height: ${isDewPoint ? "287mm" : "198mm"} !important;
+            max-height: ${isDewPoint ? "287mm" : "198mm"} !important;
             margin: 0 auto !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;

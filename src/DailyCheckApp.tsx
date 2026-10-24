@@ -4454,6 +4454,116 @@ const MachineHistory = React.memo(function MachineHistory({
     shift: string;
   } | null>(null);
 
+  // ✅ State สำหรับดับเบิ้ลคลิกแก้ไขเวลาในแถว Time (โหมด Dew Point)
+  const [editingTimeCell, setEditingTimeCell] = useState<{
+    day: number;
+    shift: "D" | "N";
+    log: LogEntry;
+    currentTime: string;
+  } | null>(null);
+  const [editingTimeValue, setEditingTimeValue] = useState("");
+  const cancelTimeEditRef = useRef(false);
+  const [pendingTimeUpdate, setPendingTimeUpdate] = useState<{
+    day: number;
+    shift: "D" | "N";
+    log: LogEntry;
+    oldTime: string;
+    newTime: string;
+    hours: number;
+    minutes: number;
+  } | null>(null);
+
+  const handleStartEditTime = (d: number, shift: "D" | "N", log?: LogEntry) => {
+    if (!log || !hasDpData(log) || log.result === "NA") return;
+    const cur = formatTime(log.timestamp) || "";
+    cancelTimeEditRef.current = false;
+    setEditingTimeCell({ day: d, shift, log, currentTime: cur });
+    setEditingTimeValue(cur);
+  };
+
+  const handleCommitTimeEdit = () => {
+    if (cancelTimeEditRef.current) {
+      cancelTimeEditRef.current = false;
+      setEditingTimeCell(null);
+      return;
+    }
+    if (!editingTimeCell) return;
+
+    const currentCell = editingTimeCell;
+    const raw = editingTimeValue.trim().replace(/\./g, ":");
+
+    if (!raw || raw === currentCell.currentTime) {
+      setEditingTimeCell(null);
+      return;
+    }
+
+    let formatted = raw;
+    if (/^\d{3,4}$/.test(raw)) {
+      const padded = raw.padStart(4, "0");
+      formatted = `${padded.slice(0, 2)}:${padded.slice(2, 4)}`;
+    }
+
+    const match = formatted.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) {
+      alert("⚠️ รูปแบบเวลาไม่ถูกต้อง กรุณาระบุเป็น HH:mm (เช่น 08:30)");
+      setEditingTimeCell(null);
+      return;
+    }
+
+    const hh = parseInt(match[1], 10);
+    const mm = parseInt(match[2], 10);
+    if (isNaN(hh) || isNaN(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+      alert("⚠️ เวลาไม่ถูกต้อง (ชั่วโมง 00-23, นาที 00-59)");
+      setEditingTimeCell(null);
+      return;
+    }
+
+    const normalizedTime = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    if (normalizedTime === currentCell.currentTime) {
+      setEditingTimeCell(null);
+      return;
+    }
+
+    setEditingTimeCell(null);
+    setPendingTimeUpdate({
+      day: currentCell.day,
+      shift: currentCell.shift,
+      log: currentCell.log,
+      oldTime: currentCell.currentTime || "-",
+      newTime: normalizedTime,
+      hours: hh,
+      minutes: mm,
+    });
+  };
+
+  const handleExecuteTimeUpdate = async () => {
+    if (!pendingTimeUpdate) return;
+    try {
+      const targetLog = pendingTimeUpdate.log;
+      let baseDate: Date;
+      if (targetLog.timestamp) {
+        const parsed = targetLog.timestamp.toDate
+          ? targetLog.timestamp.toDate()
+          : new Date(targetLog.timestamp);
+        baseDate = !isNaN(parsed.getTime())
+          ? new Date(parsed)
+          : new Date(`${targetLog.date}T00:00:00`);
+      } else {
+        baseDate = new Date(`${targetLog.date}T00:00:00`);
+      }
+      baseDate.setHours(pendingTimeUpdate.hours, pendingTimeUpdate.minutes, 0, 0);
+
+      await updateDoc(doc(db, "logs", targetLog.id), {
+        timestamp: Timestamp.fromDate(baseDate),
+      });
+    } catch (err) {
+      console.error("Update time error:", err);
+      alert("เกิดข้อผิดพลาดในการบันทึกเวลาใหม่");
+    } finally {
+      setPendingTimeUpdate(null);
+    }
+  };
+
   const daysInMonth = new Date(year, month, 0).getDate();
   const startDay = page === 1 ? 1 : 16;
   const endDay = page === 1 ? 15 : daysInMonth;
@@ -4771,13 +4881,76 @@ const MachineHistory = React.memo(function MachineHistory({
                   {daysToShow.map((d) => {
                     const lD = getLogsForDateShift(d, "D", dpItemName || "");
                     const lN = getLogsForDateShift(d, "N", dpItemName || "");
+                    const canEditD = !!(lD && hasDpData(lD) && lD.result !== "NA");
+                    const canEditN = !!(lN && hasDpData(lN) && lN.result !== "NA");
+                    const isEditingD =
+                      editingTimeCell?.day === d && editingTimeCell?.shift === "D";
+                    const isEditingN =
+                      editingTimeCell?.day === d && editingTimeCell?.shift === "N";
+
                     return (
                       <React.Fragment key={d}>
-                        <td className="border-r border-slate-200 p-0 text-center align-middle h-7 text-[9px] text-slate-500 font-bold">
-                          {lD && hasDpData(lD) && lD.result !== "NA" ? formatTime(lD.timestamp) : ""}
+                        <td
+                          onDoubleClick={() => handleStartEditTime(d, "D", lD)}
+                          title={canEditD ? "ดับเบิ้ลคลิกเพื่อแก้ไขเวลา" : undefined}
+                          className={`border-r border-slate-200 p-0 text-center align-middle h-7 text-[9px] text-slate-500 font-bold select-none ${
+                            canEditD ? "cursor-pointer hover:bg-blue-50 hover:text-blue-600" : ""
+                          }`}
+                        >
+                          {isEditingD ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editingTimeValue}
+                              onChange={(e) => setEditingTimeValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  (e.currentTarget as HTMLInputElement).blur();
+                                } else if (e.key === "Escape") {
+                                  cancelTimeEditRef.current = true;
+                                  setEditingTimeCell(null);
+                                }
+                              }}
+                              onBlur={handleCommitTimeEdit}
+                              className="w-full h-full text-center text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-500 outline-none p-0"
+                            />
+                          ) : canEditD ? (
+                            formatTime(lD?.timestamp)
+                          ) : (
+                            ""
+                          )}
                         </td>
-                        <td className="border-r border-slate-300 p-0 text-center align-middle h-7 text-[9px] text-slate-500 font-bold bg-slate-50/50">
-                          {lN && hasDpData(lN) && lN.result !== "NA" ? formatTime(lN.timestamp) : ""}
+                        <td
+                          onDoubleClick={() => handleStartEditTime(d, "N", lN)}
+                          title={canEditN ? "ดับเบิ้ลคลิกเพื่อแก้ไขเวลา" : undefined}
+                          className={`border-r border-slate-300 p-0 text-center align-middle h-7 text-[9px] text-slate-500 font-bold bg-slate-50/50 select-none ${
+                            canEditN ? "cursor-pointer hover:bg-blue-50 hover:text-blue-600" : ""
+                          }`}
+                        >
+                          {isEditingN ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editingTimeValue}
+                              onChange={(e) => setEditingTimeValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  (e.currentTarget as HTMLInputElement).blur();
+                                } else if (e.key === "Escape") {
+                                  cancelTimeEditRef.current = true;
+                                  setEditingTimeCell(null);
+                                }
+                              }}
+                              onBlur={handleCommitTimeEdit}
+                              className="w-full h-full text-center text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-500 outline-none p-0"
+                            />
+                          ) : canEditN ? (
+                            formatTime(lN?.timestamp)
+                          ) : (
+                            ""
+                          )}
                         </td>
                       </React.Fragment>
                     );
@@ -5062,6 +5235,19 @@ const MachineHistory = React.memo(function MachineHistory({
           onClose={() => setDeleteTarget(null)}
         />
       )}
+
+      <ConfirmActionModal
+        isOpen={!!pendingTimeUpdate}
+        onClose={() => setPendingTimeUpdate(null)}
+        onConfirm={handleExecuteTimeUpdate}
+        title="ยืนยันการแก้ไขเวลา"
+        message={
+          pendingTimeUpdate
+            ? `แก้ไขเวลาตรวจวันที่ ${pendingTimeUpdate.day}/${month}/${year} (กะ ${pendingTimeUpdate.shift})\nจาก ${pendingTimeUpdate.oldTime} น. เป็น ${pendingTimeUpdate.newTime} น.`
+            : ""
+        }
+        currentUser={user}
+      />
     </>
   );
 });
@@ -5415,6 +5601,11 @@ const MachineHistoryRow = ({
           : `${missingDays.slice(0, 8).join(", ")} ... (ขาดทั้งหมด ${missingDays.length} วัน)`
           }`,
       };
+    }
+
+    // สำหรับโหมด Dew Point ขอแค่ลงข้อมูลครบทุกวันในเดือนก็สามารถกด Approve ได้เลย
+    if (isDewPoint) {
+      return { can: true, reason: "" };
     }
 
     const checklist = machine.checklist || [];
