@@ -38,9 +38,10 @@ const MonthlySummaryReport: React.FC<MonthlySummaryReportProps> = ({
   const monthInt = parseInt(month) || 1;
   const monthName = THAI_MONTHS[monthInt - 1] || month;
 
-  const checklistImages = (machine?.checklist || []).map(
-    (item: any) => item.image_url || null
-  );
+  const checklistImages = (machine?.checklist || [])
+    .filter((item: any) => Boolean(item?.image_url))
+    .map((item: any) => item.image_url)
+    .slice(0, 6);
 
   const formattedList = (
     masterList.length > 0 ? masterList : machine?.checklist || []
@@ -177,7 +178,7 @@ const MonthlySummaryReport: React.FC<MonthlySummaryReportProps> = ({
             {[0, 1, 2, 3, 4, 5].map((idx) => (
               <div
                 key={idx}
-                className="flex-1 border-r border-black last:border-r-0 flex items-center justify-center p-1"
+                className="w-[16.666%] flex-none border-r border-black last:border-r-0 flex items-center justify-center p-1"
               >
                 {checklistImages[idx] && (
                   <img

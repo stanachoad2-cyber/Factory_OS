@@ -1143,7 +1143,7 @@ export function DailyCheckPDFExportModal({
           </div>
 
           {/* ======================================================== */}
-          {/* 2. แถบรูปภาพ (PHOTOS STRIP) — แสดงรูปจริง ไม่ยืด อัตราส่วนสมบูรณ์ และมีกรอบครบ 4 ด้าน */}
+          {/* 2. แถบรูปภาพ (PHOTOS STRIP) — แสดงสูงสุด 6 รูป ขนาดคงที่เท่ากันทุกเครื่อง ไม่ขยายตามจำนวนรูป */}
           {/* ======================================================== */}
           <div
             style={{
@@ -1155,45 +1155,49 @@ export function DailyCheckPDFExportModal({
             }}
           >
             <div style={{ flex: 1, display: "flex", overflow: "hidden", height: "100%" }}>
-              {Array.from({ length: 4 }).map((_, idx) => {
-                const item = checklist[idx];
-                const imgUrl = item?.image_url
-                  ? base64Images[item.image_url] || item.image_url
-                  : null;
-                return (
-                  <div
-                    key={idx}
-                    style={{
-                      flex: 1,
-                      borderRight: idx < 3 ? "1px solid #000000" : "none",
-                      padding: "4px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: "#ffffff",
-                      height: "100%",
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    {imgUrl ? (
-                      <img
-                        src={imgUrl}
-                        alt={`Point ${idx + 1}`}
-                        style={{
-                          maxWidth: "100%",
-                          maxHeight: "100%",
-                          width: "auto",
-                          height: "auto",
-                          objectFit: "contain",
-                          display: "block",
-                        }}
-                      />
-                    ) : (
-                      <div style={{ color: "#d1d5db", fontSize: "8.5px" }}>ไม่มีรูป</div>
-                    )}
-                  </div>
-                );
-              })}
+              {(() => {
+                const imageItems = checklist.filter((item) => Boolean(item?.image_url)).slice(0, 6);
+                return Array.from({ length: 6 }).map((_, idx) => {
+                  const item = imageItems[idx];
+                  const imgUrl = item?.image_url
+                    ? base64Images[item.image_url] || item.image_url
+                    : null;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        width: "calc(100% / 6)",
+                        flex: "0 0 calc(100% / 6)",
+                        borderRight: idx < 5 ? "1px solid #000000" : "none",
+                        padding: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "#ffffff",
+                        height: "100%",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {imgUrl ? (
+                        <img
+                          src={imgUrl}
+                          alt={`Point ${idx + 1}`}
+                          style={{
+                            maxWidth: "100%",
+                            maxHeight: "100%",
+                            width: "auto",
+                            height: "auto",
+                            objectFit: "contain",
+                            display: "block",
+                          }}
+                        />
+                      ) : imageItems.length === 0 && idx === 0 ? (
+                        <div style={{ color: "#d1d5db", fontSize: "8.5px" }}>ไม่มีรูป</div>
+                      ) : null}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
 
