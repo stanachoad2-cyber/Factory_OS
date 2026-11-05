@@ -1,8 +1,26 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, FileText, Printer } from "lucide-react";
+import {
+  X,
+  FileText,
+  Printer,
+  Check,
+  ChevronDown,
+  SkipForward,
+  RotateCcw,
+} from "lucide-react";
 import { db } from "./firebase";
-import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
+import {
+  doc,
+  onSnapshot,
+  collection,
+  query,
+  where,
+  setDoc,
+  deleteDoc,
+  writeBatch,
+  serverTimestamp,
+} from "firebase/firestore";
 
 interface ChecklistItem {
   detail: string;
@@ -62,6 +80,7 @@ interface DailyCheckPDFExportModalProps {
   year: number;
   logs: LogEntry[];
   auditLogs?: AuditLog[];
+  currentUser?: any;
 }
 
 const MONTH_NAMES_EN = [
@@ -120,6 +139,7 @@ export function DailyCheckPDFExportModal({
   year,
   logs = [],
   auditLogs = [],
+  currentUser,
 }: DailyCheckPDFExportModalProps) {
   const [selectedMachineId, setSelectedMachineId] = useState<string>(
     initialMachineId && initialMachineId !== "All"
@@ -131,9 +151,124 @@ export function DailyCheckPDFExportModal({
   const [base64Images, setBase64Images] = useState<Record<string, string>>({});
   const [printMode, setPrintMode] = useState<"all" | 1 | 2>("all");
 
+  // ✅ สถานะการดาวน์โหลด PDF แบบ Real-time จาก Firebase (ช่วยกันโหลดหลายเครื่องได้)
+  const [downloadedMap, setDownloadedMap] = useState<
+    Record<string, { downloadedBy: string; docId: string }>
+  >({});
+  const [isMachineMenuOpen, setIsMachineMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const selectedItemRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "daily_pdf_downloads"),
+      where("year", "==", year),
+      where("month", "==", month)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const map: Record<string, { downloadedBy: string; docId: string }> = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.mid) {
+          map[data.mid] = {
+            downloadedBy: data.downloadedBy || "User",
+            docId: d.id,
+          };
+        }
+      });
+      setDownloadedMap(map);
+    });
+    return () => unsub();
+  }, [year, month]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsMachineMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isMachineMenuOpen && selectedItemRef.current) {
+      selectedItemRef.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [isMachineMenuOpen]);
+
+  const markMachineDownloaded = async (mid: string) => {
+    if (!mid) return;
+    const docId = `${mid}_${year}_${month}`;
+    const userName =
+      currentUser?.fullname || currentUser?.username || "ผู้ใช้งาน";
+    try {
+      await setDoc(
+        doc(db, "daily_pdf_downloads", docId),
+        {
+          mid,
+          year,
+          month,
+          downloadedBy: userName,
+          downloadedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error("Error marking machine downloaded:", err);
+    }
+  };
+
+  const unmarkMachineDownloaded = async (mid: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const docId = `${mid}_${year}_${month}`;
+    try {
+      await deleteDoc(doc(db, "daily_pdf_downloads", docId));
+    } catch (err) {
+      console.error("Error unmarking machine downloaded:", err);
+    }
+  };
+
+  const handleResetAllDownloads = async () => {
+    const targetMachines = machines.filter((m) => !!downloadedMap[m.id]);
+    if (targetMachines.length === 0) return;
+    if (
+      !window.confirm(
+        `ต้องการล้างสถานะการดาวน์โหลดทั้งหมด (${targetMachines.length} เครื่อง) ของเดือน ${monthNameEn} ${year} ใช่หรือไม่?`
+      )
+    ) {
+      return;
+    }
+    try {
+      const batch = writeBatch(db);
+      targetMachines.forEach((m) => {
+        const docId = `${m.id}_${year}_${month}`;
+        batch.delete(doc(db, "daily_pdf_downloads", docId));
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Error resetting downloads:", err);
+    }
+  };
+
+  const handleJumpNextUndownloaded = () => {
+    if (machines.length === 0) return;
+    const curIdx = machines.findIndex((m) => m.id === selectedMachineId);
+    for (let i = 1; i <= machines.length; i++) {
+      const candidate = machines[(curIdx + i) % machines.length];
+      if (!downloadedMap[candidate.id]) {
+        setSelectedMachineId(candidate.id);
+        return;
+      }
+    }
+  };
+
   // 🖨️ สั่งพิมพ์ / บันทึก PDF ด้วยระบบของเบราว์เซอร์ (Vector แท้ ตรงตามพรีวิว 100%)
   const handlePrintToPDF = () => {
     setPrintMode("all");
+    if (currentMachine?.id) {
+      markMachineDownloaded(currentMachine.id);
+    }
     const originalTitle = document.title;
     const safeMachineName = (currentMachine?.name || "Machine").replace(/[/\\?%*:|"<>]/g, "_");
     document.title = `${safeMachineName}_${monthNameEn}_${year}`;
@@ -1929,20 +2064,103 @@ export function DailyCheckPDFExportModal({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* เลือกดูเครื่อง */}
+          {/* เลือกดูเครื่อง (Custom Dropdown พร้อมแถบสีสถานะการโหลด Real-time) */}
           <div className="flex items-center gap-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700">
-            <span className="text-xs text-slate-300 font-bold whitespace-nowrap">เลือกเครื่อง:</span>
-            <select
-              value={selectedMachineId}
-              onChange={(e) => setSelectedMachineId(e.target.value)}
-              className="bg-slate-900 text-white text-xs rounded px-2.5 py-1 border border-slate-600 focus:outline-none focus:border-blue-500 font-semibold cursor-pointer max-w-[200px]"
-            >
-              {machines.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <span className="text-xs text-slate-300 font-bold whitespace-nowrap">
+              เลือกเครื่อง:
+            </span>
+
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsMachineMenuOpen((prev) => !prev)}
+                className={`flex items-center justify-between gap-2 text-xs rounded px-2.5 py-1 border font-semibold cursor-pointer min-w-[210px] max-w-[260px] transition-all ${
+                  downloadedMap[currentMachine.id]
+                    ? "bg-emerald-700/60 text-white border-emerald-500/80 hover:border-emerald-400"
+                    : "bg-slate-900 text-white border-slate-600 hover:border-blue-500"
+                }`}
+              >
+                <span className="truncate">{currentMachine.name}</span>
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 transition-transform ${
+                    isMachineMenuOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {isMachineMenuOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-[260px] max-h-[65vh] overflow-y-auto bg-[#0F172A] border border-slate-600 rounded-lg shadow-2xl z-[300] py-1 custom-scrollbar">
+                  {machines.map((m) => {
+                    const isSelected = m.id === selectedMachineId;
+                    const isDownloaded = !!downloadedMap[m.id];
+
+                    return (
+                      <div
+                        key={m.id}
+                        ref={isSelected ? selectedItemRef : null}
+                        onClick={() => {
+                          setSelectedMachineId(m.id);
+                          setIsMachineMenuOpen(false);
+                        }}
+                        className={`flex items-center justify-between gap-2 px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+                          isSelected
+                            ? isDownloaded
+                              ? "bg-emerald-600 text-white font-bold"
+                              : "bg-blue-600 text-white font-bold"
+                            : isDownloaded
+                            ? "bg-emerald-600/35 hover:bg-emerald-600/50 text-emerald-100 font-semibold border-l-4 border-l-emerald-400"
+                            : "text-slate-200 hover:bg-slate-800"
+                        }`}
+                      >
+                        <span className="truncate">{m.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ตัวนับจำนวนที่โหลดแล้วแบบ Real-time */}
+            {(() => {
+              const dlCount = machines.filter((m) => !!downloadedMap[m.id]).length;
+              return (
+                <div className="flex items-center gap-1">
+                  <span
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded border whitespace-nowrap ${
+                      dlCount > 0
+                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                        : "bg-slate-900 text-slate-400 border-slate-700"
+                    }`}
+                    title="จำนวนเครื่องที่กดพิมพ์/บันทึก PDF แล้วในเดือนนี้ (ซิงค์ข้อมูลร่วมกันทุกเครื่องแบบ Real-time)"
+                  >
+                    ✓ {dlCount}/{machines.length}
+                  </span>
+
+                  {dlCount < machines.length && (
+                    <button
+                      type="button"
+                      onClick={handleJumpNextUndownloaded}
+                      className="p-1 rounded bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white transition-colors"
+                      title="ข้ามไปเครื่องถัดไปที่ยังไม่ได้โหลด"
+                    >
+                      <SkipForward size={13} />
+                    </button>
+                  )}
+
+                  {dlCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleResetAllDownloads}
+                      className="p-1 rounded bg-slate-700 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors"
+                      title="ล้างสถานะการดาวน์โหลดทั้งหมดของเดือนนี้"
+                    >
+                      <RotateCcw size={13} />
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* สลับดูหน้า Preview */}

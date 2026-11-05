@@ -583,16 +583,19 @@ const SearchableSelect = ({
 }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value || "");
+  const [isTyping, setIsTyping] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setInputValue(value || "");
+    setIsTyping(false);
   }, [value]);
 
   useEffect(() => {
     function handleClickOutside(event: any) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
+        setIsTyping(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -603,20 +606,21 @@ const SearchableSelect = ({
     setTimeout(() => {
       const match = (options || []).find((item: any) => {
         const label = typeof item === "string" ? item : item.name;
-        return label.toLowerCase() === inputValue.toLowerCase();
+        return label.toLowerCase() === inputValue.trim().toLowerCase();
       });
       if (!match) {
-        setInputValue("");
-        onChange("");
+        setInputValue(value || "");
       } else {
         const label = typeof match === "string" ? match : match.name;
         setInputValue(label);
         onChange(label);
       }
+      setIsTyping(false);
     }, 200);
   };
 
   const filteredOptions = (options || []).filter((item: any) => {
+    if (!isTyping || !inputValue) return true;
     const label = typeof item === "string" ? item : item.name;
     const code = typeof item === "string" ? "" : item.sku || item.code || ""; // รองรับ SKU
     const searchText = inputValue.toLowerCase();
@@ -629,39 +633,68 @@ const SearchableSelect = ({
 
   return (
     <div className="relative w-full h-full" ref={wrapperRef}>
-      <div className="flex h-full items-center">
-        <input
-          type="text"
-          disabled={disabled}
-          // ✅ ใช้ className ที่ส่งมา หรือใช้ Default ถ้าไม่ส่งมา (แก้ปัญหาขอบซ้อน)
-          className={
-            className ||
-            "w-full bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 pl-3 pr-10 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors placeholder-slate-500"
-          }
-          placeholder={placeholder}
-          value={inputValue}
-          onChange={(e) => {
-            setInputValue(e.target.value);
-            onChange(e.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-          onBlur={handleBlur}
-        />
-
-        {/* ไอคอนลูกศร */}
-        <div className="absolute right-0 top-0 h-full w-10 flex items-center justify-center cursor-pointer pointer-events-none">
-          <ChevronDown
-            size={16}
-            className={`text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""
-              }`}
+      <div className="flex gap-2 h-full items-center">
+        <div className="relative flex-1 h-full flex items-center">
+          <input
+            type="text"
+            disabled={disabled}
+            // ✅ ใช้ className ที่ส่งมา หรือใช้ Default ถ้าไม่ส่งมา (แก้ปัญหาขอบซ้อน)
+            className={
+              className ||
+              "w-full bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 pl-3 pr-10 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors placeholder-slate-500"
+            }
+            placeholder={placeholder}
+            value={inputValue}
+            onClick={() => {
+              if (!disabled) {
+                setIsOpen(true);
+                setIsTyping(false);
+              }
+            }}
+            onChange={(e) => {
+              setInputValue(e.target.value);
+              setIsTyping(true);
+              setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            onBlur={handleBlur}
           />
+
+          {/* ไอคอนลูกศร */}
+          <div
+            className="absolute right-0 top-0 h-full w-10 flex items-center justify-center cursor-pointer"
+            onClick={() => {
+              if (!disabled) {
+                setIsOpen(!isOpen);
+                setIsTyping(false);
+              }
+            }}
+          >
+            <ChevronDown
+              size={16}
+              className={`text-slate-500 transition-transform ${
+                isOpen ? "rotate-180" : ""
+              }`}
+            />
+          </div>
         </div>
+
+        {onAddNew && (
+          <button
+            type="button"
+            onClick={() => onAddNew(isTyping ? inputValue.trim() : "")}
+            disabled={disabled}
+            title="เพิ่มรายการใหม่"
+            className="bg-blue-600 hover:bg-blue-500 text-white w-[42px] h-[42px] rounded-lg transition-colors flex items-center justify-center shrink-0 disabled:opacity-50 shadow-lg"
+          >
+            <Plus size={18} strokeWidth={3} />
+          </button>
+        )}
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-[#1E293B] border border-slate-700 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
-          <div className="overflow-y-auto custom-scrollbar flex-1 p-1">
+        <div className="absolute z-[200] w-full mt-1 bg-[#1E293B] border border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
+          <div className="overflow-y-auto no-scrollbar flex-1 p-1">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option: any, idx: number) => {
                 const label = typeof option === "string" ? option : option.name;
@@ -679,6 +712,7 @@ const SearchableSelect = ({
                       onChange(label);
                       setInputValue(label);
                       setIsOpen(false);
+                      setIsTyping(false);
                     }}
                   >
                     <span>{label}</span>
@@ -692,8 +726,22 @@ const SearchableSelect = ({
                 );
               })
             ) : (
-              <div className="p-4 text-center text-xs text-slate-500">
-                ไม่พบข้อมูล "{inputValue}"
+              <div className="p-3 text-center text-xs text-slate-500 space-y-2">
+                <div>ไม่พบข้อมูล "{inputValue}"</div>
+                {onAddNew && inputValue.trim() && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setIsOpen(false);
+                      onAddNew(inputValue.trim());
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 shadow"
+                  >
+                    <Plus size={14} />
+                    <span>เพิ่ม "{inputValue.trim()}" เป็นรายการมาตรฐาน</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1330,7 +1378,7 @@ function TicketCard({ ticket, onClick }: any) {
         </span>
       </div>
 
-      {/* Date/Time on second line */}
+      {/* Date/Time & Ticket ID on second line */}
       <div className="flex items-center gap-1.5 text-white">
         <Clock size={10} className="text-white/70" />
         <span className="text-[9px] font-mono font-medium">
@@ -1343,6 +1391,14 @@ function TicketCard({ ticket, onClick }: any) {
               })
             : "-"}
         </span>
+        {ticket.id && (
+          <>
+            <span className="text-slate-600 text-[9px]">•</span>
+            <span className="text-[12px] font-mono font-bold text-blue-400">
+              {ticket.id}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -2896,13 +2952,16 @@ function CreateTicketModal({
   }, [editData, jobOptions, sal01Options, sal02Options]);
 
   // ✅ ฟังก์ชันเพิ่มเครื่องใหม่ (บังคับลง Assets เพื่อความปลอดภัย)
-  const handleAddMachine = async () => {
-    const newMachineName = prompt("ระบุชื่อเครื่องจักร/ทรัพย์สินใหม่:");
+  const handleAddMachine = async (prefill?: string) => {
+    const newMachineName = prompt(
+      "ระบุชื่อเครื่องจักร/ทรัพย์สินใหม่:",
+      typeof prefill === "string" ? prefill : ""
+    );
     if (!newMachineName || !newMachineName.trim()) return;
 
     if (
       !window.confirm(
-        `คุณต้องการเพิ่ม "${newMachineName}" ลงในรายการทรัพย์สินทั่วไป ใช่หรือไม่?`
+        `คุณต้องการเพิ่ม "${newMachineName.trim()}" ลงในรายการทรัพย์สินทั่วไป ใช่หรือไม่?`
       )
     )
       return;
@@ -2919,10 +2978,44 @@ function CreateTicketModal({
 
       // บันทึกเสร็จแล้ว onSnapshot จะทำงานเอง และอัปเดต dropdown ให้
       setMachineName(newMachineName.trim());
-      alert(`เพิ่ม "${newMachineName}" เรียบร้อยแล้ว`);
+      alert(`เพิ่ม "${newMachineName.trim()}" เรียบร้อยแล้ว`);
     } catch (error) {
       console.error(error);
       alert("เกิดข้อผิดพลาดในการเพิ่มข้อมูล");
+    }
+  };
+
+  // ✅ ฟังก์ชันเพิ่มรายการอาการเสียมาตรฐานใหม่ (Issue Detail)
+  const handleAddIssue = async (prefill?: string) => {
+    const newIssueName = prompt(
+      "ระบุรายการปัญหา / อาการเสียมาตรฐานใหม่:",
+      typeof prefill === "string" ? prefill : ""
+    );
+    if (!newIssueName || !newIssueName.trim()) return;
+
+    const cleanName = newIssueName.trim();
+    if (
+      !window.confirm(
+        `คุณต้องการเพิ่ม "${cleanName}" ลงในรายการอาการเสียมาตรฐาน ใช่หรือไม่?`
+      )
+    )
+      return;
+
+    try {
+      const docRef = doc(db, "maintenance_settings", "issue_items");
+      await setDoc(
+        docRef,
+        {
+          list: arrayUnion({ name: cleanName }),
+        },
+        { merge: true }
+      );
+
+      setIssueItem(cleanName);
+      alert(`เพิ่มอาการเสีย "${cleanName}" เรียบร้อยแล้ว`);
+    } catch (error) {
+      console.error(error);
+      alert("เกิดข้อผิดพลาดในการเพิ่มอาการเสีย");
     }
   };
 
@@ -3091,8 +3184,8 @@ function CreateTicketModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[11000] flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-[#1E293B] w-full max-w-md rounded-2xl shadow-2xl border border-slate-700/50 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="px-5 py-4 border-b border-slate-700/50 flex justify-between items-center bg-[#1E293B]">
+      <div className="bg-[#1E293B] w-full max-w-md rounded-2xl shadow-2xl border border-slate-700/50 flex flex-col overflow-visible animate-in zoom-in-95 duration-200">
+        <div className="px-5 py-4 border-b border-slate-700/50 flex justify-between items-center bg-[#1E293B] rounded-t-2xl">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></span>{" "}
             {editData ? "Edit Ticket" : "New Ticket"}
@@ -3104,7 +3197,7 @@ function CreateTicketModal({
             <X size={18} />
           </button>
         </div>
-        <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar max-h-[70vh]">
+        <div className="p-5 space-y-4 overflow-visible">
           {editData && (
             <div>
               <label className={`${labelClass} text-yellow-500`}>
@@ -3169,7 +3262,6 @@ function CreateTicketModal({
               value={machineName}
               onChange={(val: string) => setMachineName(val)}
               placeholder="ค้นหาเครื่องจักร/ทรัพย์สิน..."
-              onAddNew={handleAddMachine}
             />
             <p className="text-[9px] text-slate-500 mt-1">
               * รวมรายการจาก Daily Check และ ทรัพย์สินทั่วไป
@@ -3234,7 +3326,7 @@ function CreateTicketModal({
             )}
           </div>
         </div>
-        <div className="p-4 border-t border-slate-700/50 bg-[#161E2E]">
+        <div className="p-4 border-t border-slate-700/50 bg-[#161E2E] rounded-b-2xl">
           <button
             onClick={handleSubmit}
             disabled={creating}

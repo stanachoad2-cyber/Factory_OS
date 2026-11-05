@@ -6027,20 +6027,49 @@ function DataView({ machines, user }: { machines: Machine[]; user: User }) {
   );
 }
 
+interface DashboardCacheEntry {
+  selectedMonth: number;
+  selectedYear: number;
+  selectedProcess: string;
+  selectedMachineId: string;
+  reportData: any[];
+  allLogs: LogEntry[];
+  filterMode: "ALL" | "ABNORMAL" | "MISSING";
+  stats: { total: number; abnormal: number; missing: number };
+}
+
+const dashboardReportCache: Partial<Record<SystemModeId, DashboardCacheEntry>> = {};
+
 function DashboardView({
   machines,
   user,
+  systemMode = "DAILY",
 }: {
   machines: Machine[];
   user: User;
+  systemMode?: SystemModeId;
 }) {
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedProcess, setSelectedProcess] = useState("All");
-  const [selectedMachineId, setSelectedMachineId] = useState("All");
+  const cached = dashboardReportCache[systemMode];
 
-  const [reportData, setReportData] = useState<any[]>([]);
-  const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => cached?.selectedMonth ?? new Date().getMonth() + 1
+  );
+  const [selectedYear, setSelectedYear] = useState(
+    () => cached?.selectedYear ?? new Date().getFullYear()
+  );
+  const [selectedProcess, setSelectedProcess] = useState(
+    () => cached?.selectedProcess ?? "All"
+  );
+  const [selectedMachineId, setSelectedMachineId] = useState(
+    () => cached?.selectedMachineId ?? "All"
+  );
+
+  const [reportData, setReportData] = useState<any[]>(
+    () => cached?.reportData ?? []
+  );
+  const [allLogs, setAllLogs] = useState<LogEntry[]>(
+    () => cached?.allLogs ?? []
+  );
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
@@ -6049,11 +6078,59 @@ function DashboardView({
 
   // ✅ Validation States
   const [filterMode, setFilterMode] = useState<"ALL" | "ABNORMAL" | "MISSING">(
-    "ALL"
+    () => cached?.filterMode ?? "ALL"
   );
-  const [stats, setStats] = useState({ total: 0, abnormal: 0, missing: 0 });
+  const [stats, setStats] = useState(
+    () => cached?.stats ?? { total: 0, abnormal: 0, missing: 0 }
+  );
   const [detailMachine, setDetailMachine] = useState<any>(null);
   const [selectedDayInfo, setSelectedDayInfo] = useState<any>(null);
+  const [downloadedPdfMap, setDownloadedPdfMap] = useState<
+    Record<string, { downloadedBy: string }>
+  >({});
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "daily_pdf_downloads"),
+      where("year", "==", selectedYear),
+      where("month", "==", selectedMonth)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const map: Record<string, { downloadedBy: string }> = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.mid) {
+          map[data.mid] = { downloadedBy: data.downloadedBy || "User" };
+        }
+      });
+      setDownloadedPdfMap(map);
+    });
+    return () => unsub();
+  }, [selectedYear, selectedMonth]);
+
+  // ✅ บันทึกข้อมูลรายงานและตัวกรองค้างไว้ในหน่วยความจำจนกว่าจะปิดโปรแกรมหรือกดค้นหาใหม่
+  useEffect(() => {
+    dashboardReportCache[systemMode] = {
+      selectedMonth,
+      selectedYear,
+      selectedProcess,
+      selectedMachineId,
+      reportData,
+      allLogs,
+      filterMode,
+      stats,
+    };
+  }, [
+    systemMode,
+    selectedMonth,
+    selectedYear,
+    selectedProcess,
+    selectedMachineId,
+    reportData,
+    allLogs,
+    filterMode,
+    stats,
+  ]);
 
   const yearOptions = useMemo(() => {
     const cur = new Date().getFullYear();
@@ -6087,8 +6164,12 @@ function DashboardView({
     ];
   }, [selectedProcess, machines]);
 
+  const prevProcessRef = useRef(selectedProcess);
   useEffect(() => {
-    setSelectedMachineId("All");
+    if (prevProcessRef.current !== selectedProcess) {
+      prevProcessRef.current = selectedProcess;
+      setSelectedMachineId("All");
+    }
   }, [selectedProcess]);
 
   const fetchReport = async () => {
@@ -6929,10 +7010,21 @@ function DashboardView({
                         : "bg-slate-700"
                     }`}
                 />
-                <span className="text-[10px] font-black text-slate-500 bg-black/20 px-2 py-0.5 rounded-full">
-                  {row.checkCount} /{" "}
-                  {new Date(selectedYear, selectedMonth, 0).getDate()} D
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {downloadedPdfMap[row.id] && (
+                    <span
+                      className="text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1"
+                      title={`โหลด PDF แล้วโดย ${downloadedPdfMap[row.id].downloadedBy}`}
+                    >
+                      <Check size={10} strokeWidth={3} />
+                      PDF
+                    </span>
+                  )}
+                  <span className="text-[10px] font-black text-slate-500 bg-black/20 px-2 py-0.5 rounded-full">
+                    {row.checkCount} /{" "}
+                    {new Date(selectedYear, selectedMonth, 0).getDate()} D
+                  </span>
+                </div>
               </div>
               <span className="text-[10px] text-slate-500 uppercase font-black tracking-tighter truncate block">
                 {row.process}
@@ -6961,6 +7053,7 @@ function DashboardView({
           year={selectedYear}
           logs={allLogs}
           auditLogs={exportAuditLogs}
+          currentUser={user}
         />
       )}
     </div>
@@ -8027,7 +8120,12 @@ export function DailyCheckModule({ currentUser, activeTab, onExit, isHistoryMode
 
         {/* --- TAB 3: DASHBOARD --- */}
         {activeTab === "dashboard" && (
-          <DashboardView machines={filteredByMode} user={currentUser} />
+          <DashboardView
+            key={systemMode}
+            machines={filteredByMode}
+            user={currentUser}
+            systemMode={systemMode}
+          />
         )}
 
         {/* --- TAB 4: SETTINGS --- */}
