@@ -4206,11 +4206,12 @@ function MaintenanceDashboard({ user, perms, activeTab, onExit }: any) {
               {activeTab === 3 && "ตรวจสอบความเรียบร้อย"}
               {activeTab === 4 && "รายการรออนุมัติ"}
               {activeTab === 5 && "ประวัติการซ่อมบำรุง"}
+              {activeTab === 7 && "รายงานสรุปการซ่อมบำรุง"}
               {!activeTab && "ระบบซ่อมบำรุง"}
             </span>
           </div>
         </div>
-        {activeTab !== 5 && (
+        {activeTab !== 5 && activeTab !== 7 && (
           <div className="flex items-center">
             {renderDeptDropdown()}
           </div>
@@ -4234,7 +4235,7 @@ function MaintenanceDashboard({ user, perms, activeTab, onExit }: any) {
         </div>
 
         {/* Filter Switcher for Desktop */}
-        {activeTab !== 5 && (
+        {activeTab !== 5 && activeTab !== 7 && (
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest hidden lg:inline">
               เลือกแผนก:
@@ -4242,7 +4243,28 @@ function MaintenanceDashboard({ user, perms, activeTab, onExit }: any) {
             {renderDeptDropdown()}
           </div>
         )}
+        {activeTab === 7 && (
+          <a
+            href="https://report-main-chi.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg transition-all flex items-center gap-2"
+          >
+            <span>เปิดรายงานในแท็บใหม่ ↗</span>
+          </a>
+        )}
       </div>
+
+      {activeTab === 7 ? (
+        <div className="flex-1 w-full h-full overflow-hidden bg-[#0F172A]">
+          <iframe
+            src="https://report-main-chi.vercel.app/"
+            title="Maintenance Report"
+            className="w-full h-full border-0"
+          />
+        </div>
+      ) : (
+        <>
 
       {/* Filter Header */}
       {activeTab === 5 && (
@@ -4469,6 +4491,8 @@ function MaintenanceDashboard({ user, perms, activeTab, onExit }: any) {
         >
           <Plus size={28} strokeWidth={3} />
         </button>
+      )}
+        </>
       )}
 
       {selectedTicket && (

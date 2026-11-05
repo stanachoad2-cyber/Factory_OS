@@ -8,6 +8,10 @@ import {
   ChevronDown,
   SkipForward,
   RotateCcw,
+  Play,
+  Pause,
+  Square,
+  ArrowRight,
 } from "lucide-react";
 import { db } from "./firebase";
 import {
@@ -159,6 +163,23 @@ export function DailyCheckPDFExportModal({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const selectedItemRef = useRef<HTMLDivElement>(null);
 
+  // ✅ ระบบเลือกช่วงเครื่องจักร (ถึงใบไหน) และรันคิวโหลดต่อเนื่องอัตโนมัติ (แนวทางที่ 2)
+  const [targetEndMachineId, setTargetEndMachineId] = useState<string>(
+    machines[machines.length - 1]?.id || ""
+  );
+  const [isEndMachineMenuOpen, setIsEndMachineMenuOpen] = useState(false);
+  const endDropdownRef = useRef<HTMLDivElement>(null);
+  const selectedEndItemRef = useRef<HTMLDivElement>(null);
+
+  const [isQueueRunning, setIsQueueRunning] = useState(false);
+  const [autoTriggerPrint, setAutoTriggerPrint] = useState(true);
+  const [skipDownloadedInQueue, setSkipDownloadedInQueue] = useState(true);
+  const [queueCompletedMsg, setQueueCompletedMsg] = useState<string | null>(null);
+  const [imagesReadyForMid, setImagesReadyForMid] = useState<string>("");
+  const [autoPrintCountdown, setAutoPrintCountdown] = useState<number | null>(null);
+  const imageCacheRef = useRef<Record<string, string>>({});
+  const pendingAutoPrintMidRef = useRef<string | null>(null);
+
   useEffect(() => {
     const q = query(
       collection(db, "daily_pdf_downloads"),
@@ -186,6 +207,12 @@ export function DailyCheckPDFExportModal({
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsMachineMenuOpen(false);
       }
+      if (
+        endDropdownRef.current &&
+        !endDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsEndMachineMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -196,6 +223,45 @@ export function DailyCheckPDFExportModal({
       selectedItemRef.current.scrollIntoView({ block: "nearest" });
     }
   }, [isMachineMenuOpen]);
+
+  useEffect(() => {
+    if (isEndMachineMenuOpen && selectedEndItemRef.current) {
+      selectedEndItemRef.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [isEndMachineMenuOpen]);
+
+  // ตั้งค่าเครื่องปลายทางเริ่มต้นให้เป็นเครื่องสุดท้ายเสมอเมื่อเปิด Modal หรือรายการเครื่องเปลี่ยน
+  useEffect(() => {
+    if (machines.length > 0) {
+      const exists = machines.some((m) => m.id === targetEndMachineId);
+      if (!exists) {
+        setTargetEndMachineId(machines[machines.length - 1].id);
+      }
+    }
+  }, [machines, targetEndMachineId]);
+
+  // หากผู้ใช้เลือกเครื่องเริ่มต้นที่อยู่หลังเครื่องปลายทาง ให้ขยับเครื่องปลายทางไปเป็นเครื่องสุดท้ายอัตโนมัติ
+  useEffect(() => {
+    if (machines.length === 0) return;
+    const startIdx = machines.findIndex((m) => m.id === selectedMachineId);
+    const endIdx = machines.findIndex((m) => m.id === targetEndMachineId);
+    if (startIdx !== -1 && endIdx !== -1 && startIdx > endIdx) {
+      setTargetEndMachineId(machines[machines.length - 1].id);
+    }
+  }, [selectedMachineId, targetEndMachineId, machines]);
+
+  // กดปุ่ม Esc เพื่อหยุดคิวโหลดอัตโนมัติได้ทันที
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && (isQueueRunning || autoPrintCountdown !== null)) {
+        pendingAutoPrintMidRef.current = null;
+        setAutoPrintCountdown(null);
+        setIsQueueRunning(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isQueueRunning, autoPrintCountdown]);
 
   const markMachineDownloaded = async (mid: string) => {
     if (!mid) return;
@@ -263,20 +329,122 @@ export function DailyCheckPDFExportModal({
     }
   };
 
-  // 🖨️ สั่งพิมพ์ / บันทึก PDF ด้วยระบบของเบราว์เซอร์ (Vector แท้ ตรงตามพรีวิว 100%)
-  const handlePrintToPDF = () => {
-    setPrintMode("all");
-    if (currentMachine?.id) {
-      markMachineDownloaded(currentMachine.id);
+  const currentMachineIndex = useMemo(
+    () => Math.max(0, machines.findIndex((m) => m.id === selectedMachineId)),
+    [machines, selectedMachineId]
+  );
+
+  const targetEndMachineIndex = useMemo(() => {
+    const idx = machines.findIndex((m) => m.id === targetEndMachineId);
+    return idx >= currentMachineIndex ? idx : machines.length - 1;
+  }, [machines, targetEndMachineId, currentMachineIndex]);
+
+  const targetEndMachine =
+    machines[targetEndMachineIndex] || machines[machines.length - 1];
+
+  // ค้นหาเครื่องถัดไปในช่วง [ปัจจุบัน -> ถึงใบที่เลือก]
+  const getNextMachineInRange = (fromMid: string) => {
+    const startIdx = machines.findIndex((m) => m.id === fromMid);
+    if (startIdx === -1 || startIdx >= targetEndMachineIndex) return null;
+
+    for (let i = startIdx + 1; i <= targetEndMachineIndex; i++) {
+      const candidate = machines[i];
+      if (!skipDownloadedInQueue || !downloadedMap[candidate.id]) {
+        return candidate;
+      }
     }
+    return null;
+  };
+
+  // จำนวนใบที่เหลือในช่วงที่เลือก (รวมใบปัจจุบัน)
+  const remainingInRangeCount = useMemo(() => {
+    if (machines.length === 0) return 0;
+    let count = 0;
+    for (let i = currentMachineIndex; i <= targetEndMachineIndex; i++) {
+      const m = machines[i];
+      if (
+        i === currentMachineIndex ||
+        !skipDownloadedInQueue ||
+        !downloadedMap[m.id]
+      ) {
+        count++;
+      }
+    }
+    return count;
+  }, [
+    machines,
+    currentMachineIndex,
+    targetEndMachineIndex,
+    skipDownloadedInQueue,
+    downloadedMap,
+  ]);
+
+  const stopQueue = () => {
+    pendingAutoPrintMidRef.current = null;
+    setAutoPrintCountdown(null);
+    setIsQueueRunning(false);
+  };
+
+  // 🖨️ สั่งพิมพ์ / บันทึก PDF ด้วยระบบของเบราว์เซอร์ (Vector แท้ ตรงตามพรีวิว 100%)
+  // รองรับทั้งการกดโหลดปกติ และการรันคิวต่อเนื่องไปยังใบถัดไปอัตโนมัติ
+  const handlePrintToPDF = (startBatchQueue?: boolean) => {
+    setPrintMode("all");
+    setQueueCompletedMsg(null);
+    setAutoPrintCountdown(null);
+    pendingAutoPrintMidRef.current = null;
+
+    const activeQueue =
+      startBatchQueue !== undefined ? startBatchQueue : isQueueRunning;
+    if (startBatchQueue !== undefined) {
+      setIsQueueRunning(startBatchQueue);
+    }
+
+    const printedMid = currentMachine?.id;
+    if (printedMid) {
+      markMachineDownloaded(printedMid);
+    }
+
     const originalTitle = document.title;
-    const safeMachineName = (currentMachine?.name || "Machine").replace(/[/\\?%*:|"<>]/g, "_");
+    const safeMachineName = (currentMachine?.name || "Machine").replace(
+      /[/\\?%*:|"<>]/g,
+      "_"
+    );
     document.title = `${safeMachineName}_${monthNameEn}_${year}`;
+
     setTimeout(() => {
-      window.print();
-      setTimeout(() => {
+      let afterPrintHandled = false;
+
+      const onPrintFinished = () => {
+        if (afterPrintHandled) return;
+        afterPrintHandled = true;
+        window.removeEventListener("afterprint", onPrintFinished);
         document.title = originalTitle;
-      }, 1000);
+
+        if (!printedMid) return;
+        const nextMachine = getNextMachineInRange(printedMid);
+
+        if (nextMachine) {
+          // ขยับไปยังใบถัดไปในช่วงที่เลือกไว้ทันที
+          setSelectedMachineId(nextMachine.id);
+          if (activeQueue && autoTriggerPrint) {
+            pendingAutoPrintMidRef.current = nextMachine.id;
+          }
+        } else if (activeQueue || currentMachineIndex < targetEndMachineIndex) {
+          setIsQueueRunning(false);
+          pendingAutoPrintMidRef.current = null;
+          setQueueCompletedMsg(
+            `✅ โหลดครบถึงใบที่ ${targetEndMachineIndex + 1} (${
+              targetEndMachine?.name || ""
+            }) เรียบร้อยแล้ว!`
+          );
+          setTimeout(() => setQueueCompletedMsg(null), 5000);
+        }
+      };
+
+      window.addEventListener("afterprint", onPrintFinished);
+      window.print();
+      // ใน Chrome/Edge คำสั่ง window.print() จะรอจนปิดหน้าต่าง Print แล้วทำงานต่อบรรทัดถัดไปทันที
+      setTimeout(onPrintFinished, 300);
     }, 150);
   };
 
@@ -342,7 +510,7 @@ export function DailyCheckPDFExportModal({
         (_, i) => 17 + i
       );
 
-  // แปลงรูปภาพเป็น Base64 ล่วงหน้า เพื่อป้องกันปัญหา CORS ตอนทำ PDF
+  // แปลงรูปภาพเป็น Base64 ล่วงหน้า เพื่อป้องกันปัญหา CORS ตอนทำ PDF และแจ้งความพร้อมก่อนสั่ง Print อัตโนมัติ
   useEffect(() => {
     if (!currentMachine) return;
     let isCancelled = false;
@@ -353,6 +521,10 @@ export function DailyCheckPDFExportModal({
 
       for (const item of items) {
         if (item.image_url && !map[item.image_url]) {
+          if (imageCacheRef.current[item.image_url]) {
+            map[item.image_url] = imageCacheRef.current[item.image_url];
+            continue;
+          }
           try {
             const res = await fetch(item.image_url);
             const blob = await res.blob();
@@ -363,6 +535,7 @@ export function DailyCheckPDFExportModal({
               reader.onerror = () => resolve(item.image_url || "");
             });
             map[item.image_url] = base64;
+            imageCacheRef.current[item.image_url] = base64;
           } catch (e) {
             map[item.image_url] = item.image_url;
           }
@@ -371,6 +544,7 @@ export function DailyCheckPDFExportModal({
 
       if (!isCancelled) {
         setBase64Images(map);
+        setImagesReadyForMid(currentMachine.id);
       }
     };
 
@@ -379,6 +553,37 @@ export function DailyCheckPDFExportModal({
       isCancelled = true;
     };
   }, [currentMachine]);
+
+  // เมื่อเปลี่ยนเป็นเครื่องถัดไปในคิวอัตโนมัติ และรูปภาพโหลดเสร็จแล้ว ให้เด้งหน้าต่างบันทึกใบถัดไปอัตโนมัติ
+  useEffect(() => {
+    if (
+      !isQueueRunning ||
+      !autoTriggerPrint ||
+      !currentMachine ||
+      pendingAutoPrintMidRef.current !== currentMachine.id ||
+      imagesReadyForMid !== currentMachine.id
+    ) {
+      return;
+    }
+
+    setAutoPrintCountdown(1);
+    const timer = setTimeout(() => {
+      if (
+        pendingAutoPrintMidRef.current === currentMachine.id &&
+        isQueueRunning &&
+        autoTriggerPrint
+      ) {
+        handlePrintToPDF(true);
+      }
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [
+    isQueueRunning,
+    autoTriggerPrint,
+    currentMachine,
+    imagesReadyForMid,
+  ]);
 
   if (!isOpen || !currentMachine) return null;
 
@@ -2064,23 +2269,30 @@ export function DailyCheckPDFExportModal({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* เลือกดูเครื่อง (Custom Dropdown พร้อมแถบสีสถานะการโหลด Real-time) */}
-          <div className="flex items-center gap-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700">
+          {/* เลือกดูเครื่อง & เลือกช่วงถึงใบไหน (Custom Dropdown พร้อมแถบสีสถานะการโหลด Real-time) */}
+          <div className="flex items-center gap-1.5 bg-slate-800/90 px-2.5 py-1.5 rounded-lg border border-slate-700 flex-wrap">
             <span className="text-xs text-slate-300 font-bold whitespace-nowrap">
               เลือกเครื่อง:
             </span>
 
+            {/* เครื่องเริ่มต้น / ปัจจุบัน */}
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
-                onClick={() => setIsMachineMenuOpen((prev) => !prev)}
-                className={`flex items-center justify-between gap-2 text-xs rounded px-2.5 py-1 border font-semibold cursor-pointer min-w-[210px] max-w-[260px] transition-all ${
+                onClick={() => {
+                  setIsMachineMenuOpen((prev) => !prev);
+                  setIsEndMachineMenuOpen(false);
+                }}
+                className={`flex items-center justify-between gap-2 text-xs rounded px-2.5 py-1 border font-semibold cursor-pointer min-w-[195px] max-w-[240px] transition-all ${
                   downloadedMap[currentMachine.id]
                     ? "bg-emerald-700/60 text-white border-emerald-500/80 hover:border-emerald-400"
                     : "bg-slate-900 text-white border-slate-600 hover:border-blue-500"
                 }`}
+                title="เลือกเครื่องจักรเริ่มต้น"
               >
-                <span className="truncate">{currentMachine.name}</span>
+                <span className="truncate">
+                  {currentMachineIndex + 1}. {currentMachine.name}
+                </span>
                 <ChevronDown
                   size={14}
                   className={`shrink-0 transition-transform ${
@@ -2091,7 +2303,7 @@ export function DailyCheckPDFExportModal({
 
               {isMachineMenuOpen && (
                 <div className="absolute left-0 top-full mt-1.5 w-[260px] max-h-[65vh] overflow-y-auto bg-[#0F172A] border border-slate-600 rounded-lg shadow-2xl z-[300] py-1 custom-scrollbar">
-                  {machines.map((m) => {
+                  {machines.map((m, idx) => {
                     const isSelected = m.id === selectedMachineId;
                     const isDownloaded = !!downloadedMap[m.id];
 
@@ -2100,6 +2312,7 @@ export function DailyCheckPDFExportModal({
                         key={m.id}
                         ref={isSelected ? selectedItemRef : null}
                         onClick={() => {
+                          stopQueue();
                           setSelectedMachineId(m.id);
                           setIsMachineMenuOpen(false);
                         }}
@@ -2113,13 +2326,90 @@ export function DailyCheckPDFExportModal({
                             : "text-slate-200 hover:bg-slate-800"
                         }`}
                       >
-                        <span className="truncate">{m.name}</span>
+                        <span className="truncate">
+                          {idx + 1}. {m.name}
+                        </span>
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
+
+            {/* เลือกช่วงสิ้นสุด: ถึงใบไหน */}
+            <span className="text-xs text-slate-400 font-bold whitespace-nowrap flex items-center gap-0.5">
+              <ArrowRight size={12} className="text-slate-400" /> ถึง:
+            </span>
+
+            <div className="relative" ref={endDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEndMachineMenuOpen((prev) => !prev);
+                  setIsMachineMenuOpen(false);
+                }}
+                className="flex items-center justify-between gap-1.5 text-xs rounded px-2 py-1 border font-semibold cursor-pointer min-w-[140px] max-w-[190px] bg-slate-900 text-slate-200 border-slate-600 hover:border-blue-500 transition-all"
+                title="เลือกใบสุดท้ายที่ต้องการให้โหลดต่อเนื่องไปถึง"
+              >
+                <span className="truncate">
+                  {targetEndMachineIndex + 1}. {targetEndMachine?.name || ""}
+                </span>
+                <ChevronDown
+                  size={13}
+                  className={`shrink-0 transition-transform ${
+                    isEndMachineMenuOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {isEndMachineMenuOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-[260px] max-h-[65vh] overflow-y-auto bg-[#0F172A] border border-slate-600 rounded-lg shadow-2xl z-[300] py-1 custom-scrollbar">
+                  {machines.map((m, idx) => {
+                    if (idx < currentMachineIndex) return null;
+                    const isSelected = m.id === targetEndMachine?.id;
+                    const isDownloaded = !!downloadedMap[m.id];
+
+                    return (
+                      <div
+                        key={m.id}
+                        ref={isSelected ? selectedEndItemRef : null}
+                        onClick={() => {
+                          setTargetEndMachineId(m.id);
+                          setIsEndMachineMenuOpen(false);
+                        }}
+                        className={`flex items-center justify-between gap-2 px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+                          isSelected
+                            ? isDownloaded
+                              ? "bg-emerald-600 text-white font-bold"
+                              : "bg-blue-600 text-white font-bold"
+                            : isDownloaded
+                            ? "bg-emerald-600/35 hover:bg-emerald-600/50 text-emerald-100 font-semibold border-l-4 border-l-emerald-400"
+                            : "text-slate-200 hover:bg-slate-800"
+                        }`}
+                      >
+                        <span className="truncate">
+                          {idx + 1}. {m.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ตัวเลือกข้ามใบที่โหลดแล้ว */}
+            <label
+              className="flex items-center gap-1 text-[11px] text-slate-300 cursor-pointer select-none px-1.5 py-0.5 rounded hover:bg-slate-700/60"
+              title="เมื่อโหลดเสร็จจะข้ามใบที่เป็นสีเขียว (โหลดแล้ว) ไปยังใบที่ยังไม่ได้โหลดโดยอัตโนมัติ"
+            >
+              <input
+                type="checkbox"
+                checked={skipDownloadedInQueue}
+                onChange={(e) => setSkipDownloadedInQueue(e.target.checked)}
+                className="rounded border-slate-600 accent-emerald-500 cursor-pointer"
+              />
+              <span>ข้ามที่โหลดแล้ว</span>
+            </label>
 
             {/* ตัวนับจำนวนที่โหลดแล้วแบบ Real-time */}
             {(() => {
@@ -2185,25 +2475,144 @@ export function DailyCheckPDFExportModal({
             </button>
           </div>
 
-          {/* ปุ่มหลัก: บันทึกเป็น PDF ผ่านระบบ Print เบราว์เซอร์ (ตรงตามพรีวิว 100%) */}
+          {/* ปุ่มบันทึกทีละใบ (พอโหลดเสร็จจะเลื่อนมารอที่ใบถัดไปให้อัตโนมัติ) */}
           <button
-            onClick={() => handlePrintToPDF()}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-lg active:scale-95 transition-all"
-            title="เปิดหน้าต่างบันทึก PDF ของเบราว์เซอร์ ได้ไฟล์คมชัด 100% เวกเตอร์แท้ ตรงตามแบบฟอร์ม"
+            onClick={() => handlePrintToPDF(false)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition-all"
+            title="บันทึกใบปัจจุบัน แล้วระบบจะขยับมารอที่ใบถัดไปในช่วงที่เลือกให้ทันที (กดปุ่มนี้ต่อทีละใบได้เลย)"
           >
-            <Printer size={16} />
-            <span>พิมพ์ / บันทึก PDF (100% ตรงพรีวิว)</span>
+            <Printer size={15} />
+            <span>
+              พิมพ์ / บันทึกใบที่ {currentMachineIndex + 1}
+              {currentMachineIndex < targetEndMachineIndex
+                ? ` (ต่อไป ➔ ใบที่ ${
+                    (getNextMachineInRange(currentMachine.id)
+                      ? machines.findIndex(
+                          (m) =>
+                            m.id ===
+                            getNextMachineInRange(currentMachine.id)?.id
+                        ) + 1
+                      : targetEndMachineIndex + 1)
+                  })`
+                : ""}
+            </span>
           </button>
+
+          {/* ปุ่มรันคิวโหลดอัตโนมัติ (เด้งหน้าต่างบันทึกใบถัดไปต่อเนื่องเองจนครบช่วงที่เลือก) */}
+          {remainingInRangeCount > 1 && !isQueueRunning && (
+            <button
+              onClick={() => {
+                setAutoTriggerPrint(true);
+                handlePrintToPDF(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition-all border border-blue-400/30"
+              title="เริ่มโหลดใบแรก แล้วระบบจะเด้งหน้าต่างบันทึกใบถัดไปขึ้นมาให้อัตโนมัติจนถึงใบสุดท้ายที่เลือก"
+            >
+              <Play size={14} fill="currentColor" />
+              <span>โหลดออโต้ต่อเนื่อง ({remainingInRangeCount} ใบ)</span>
+            </button>
+          )}
+
+          {isQueueRunning && (
+            <button
+              onClick={stopQueue}
+              className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-lg animate-pulse"
+              title="หยุดการเด้งหน้าต่างบันทึกอัตโนมัติ (หรือกดปุ่ม Esc)"
+            >
+              <Square size={13} fill="currentColor" />
+              <span>หยุดคิวออโต้ (Esc)</span>
+            </button>
+          )}
 
           {/* ปุ่มปิด */}
           <button
-            onClick={onClose}
+            onClick={() => {
+              stopQueue();
+              onClose();
+            }}
             className="text-slate-400 hover:text-white hover:bg-slate-800 p-2 rounded-lg transition-colors ml-1"
           >
             <X size={20} />
           </button>
         </div>
       </div>
+
+      {/* แถบสถานะการรันคิวโหลดต่อเนื่อง / แจ้งเตือนเมื่อโหลดครบ */}
+      {(isQueueRunning || queueCompletedMsg) && (
+        <div
+          className={`no-print px-6 py-2 flex flex-wrap items-center justify-between gap-3 text-xs font-bold border-b shrink-0 ${
+            queueCompletedMsg
+              ? "bg-emerald-900/90 text-emerald-100 border-emerald-500/40"
+              : "bg-blue-950/90 text-blue-100 border-blue-500/40"
+          }`}
+        >
+          {queueCompletedMsg ? (
+            <div className="flex items-center gap-2">
+              <span>{queueCompletedMsg}</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-2.5 py-0.5 rounded-full text-[11px]">
+                  กำลังโหลดต่อเนื่อง: ใบที่ {currentMachineIndex + 1} /{" "}
+                  {targetEndMachineIndex + 1} (เหลืออีก {remainingInRangeCount} ใบ)
+                </span>
+                <span>
+                  เครื่องปัจจุบัน:{" "}
+                  <strong className="text-white">{currentMachine.name}</strong>
+                </span>
+                {autoTriggerPrint && autoPrintCountdown !== null && (
+                  <span className="text-amber-300 animate-pulse">
+                    • กำลังเด้งหน้าต่างบันทึกอัตโนมัติ... (กด Esc เพื่อหยุด)
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintToPDF(true)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold flex items-center gap-1 shadow"
+                >
+                  <Printer size={13} />
+                  <span>บันทึกใบนี้ทันที</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    pendingAutoPrintMidRef.current = null;
+                    setAutoPrintCountdown(null);
+                    setAutoTriggerPrint((prev) => !prev);
+                  }}
+                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded font-semibold flex items-center gap-1"
+                >
+                  {autoTriggerPrint ? (
+                    <>
+                      <Pause size={12} />
+                      <span>สลับเป็นกดทีละใบ</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play size={12} />
+                      <span>เปิดเด้งอัตโนมัติ</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={stopQueue}
+                  className="bg-rose-600/80 hover:bg-rose-600 text-white px-2.5 py-1 rounded font-semibold flex items-center gap-1"
+                >
+                  <Square size={12} fill="currentColor" />
+                  <span>หยุดคิว</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Main Preview Area */}
       <div className="no-print flex-1 overflow-auto p-4 flex justify-center items-start bg-slate-950/80">

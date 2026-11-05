@@ -246,6 +246,13 @@ function SubAppSidebar({
       count: 0,
       color: "bg-red-500",
     },
+    {
+      id: 7,
+      label: "รายงาน (Report)",
+      icon: BarChart2,
+      count: 0,
+      color: "bg-red-500",
+    },
   ];
   const stockMenus = [
     {
