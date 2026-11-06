@@ -1349,26 +1349,44 @@ export function DailyCheckPDFExportModal({
     const totalBottomRows = Math.max(7, checklist.length);
     const bottomRows = Array.from({ length: totalBottomRows }, (_, i) => checklist[i] || null);
 
+    // ปรับสเกลความสูงอัตโนมัติเมื่อเครื่องจักรมีหัวข้อตรวจเช็ค / รูปภาพตั้งแต่ 8 รายการขึ้นไป เพื่อไม่ให้ล้นหน้ากระดาษ A4
+    const isCompact = totalMasterRows >= 8;
+    const extraRows = Math.max(0, totalMasterRows - 7);
+    const photoStripHeightMm =
+      extraRows === 0 ? 31 : Math.max(20, 29.5 - extraRows * 2.5);
+    const masterHeaderHeightPx = isCompact ? 24 : 26;
+    const masterRowHeightPx =
+      extraRows === 0 ? 26 : Math.max(18, 24.5 - extraRows * 2);
+    const bottomHeaderHeightPx = isCompact ? 33 : 36;
+    const bottomHeaderTopPx = isCompact ? 17 : 19;
+    const bottomHeaderSubPx = isCompact ? 16 : 17;
+    const bottomRowHeightPx =
+      extraRows === 0 ? 24 : Math.max(17, 23 - extraRows * 1.5);
+    const signRowHeightPx =
+      extraRows === 0 ? 23 : Math.max(18, 22 - extraRows);
+    const cellVertPadPx = extraRows === 0 ? 4 : Math.max(1.5, 3.5 - extraRows);
+
     const maxCols = 16;
     const emptyDaysCount = Math.max(0, maxCols - daysList.length);
 
     return (
       <div
-        className="pdf-page bg-white text-black mx-auto flex flex-col justify-between"
+        className="pdf-page bg-white text-black mx-auto flex flex-col justify-start"
         style={{
           width: "287mm",
           height: "198mm",
           maxHeight: "198mm",
           boxSizing: "border-box",
-          padding: "5mm 6mm 4mm 6mm",
+          padding: isCompact ? "3.5mm 6mm 2.5mm 6mm" : "5mm 6mm 4mm 6mm",
           pageBreakAfter: pageNumber === 1 ? "always" : "auto",
           fontFamily: "'Tahoma', 'Leelawadee UI', 'Segoe UI', Arial, sans-serif",
-          fontSize: "8.5px",
+          fontSize: isCompact ? "8px" : "8.5px",
           color: "#000000",
           backgroundColor: "#ffffff",
+          overflow: "hidden",
         }}
       >
-        <div style={{ width: "100%", display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-between" }}>
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
           {/* ======================================================== */}
           {/* 1. ส่วนหัวฟอร์ม (HEADER) */}
           {/* ======================================================== */}
@@ -1377,7 +1395,7 @@ export function DailyCheckPDFExportModal({
               display: "flex",
               width: "100%",
               border: "1px solid #000000",
-              height: "44px",
+              height: isCompact ? "38px" : "44px",
               boxSizing: "border-box",
             }}
           >
@@ -1396,8 +1414,8 @@ export function DailyCheckPDFExportModal({
                 style={{
                   display: "flex",
                   borderBottom: "1px solid #000000",
-                  height: "22px",
-                  lineHeight: "22px",
+                  height: isCompact ? "19px" : "22px",
+                  lineHeight: isCompact ? "19px" : "22px",
                 }}
               >
                 <div
@@ -1437,8 +1455,8 @@ export function DailyCheckPDFExportModal({
               <div
                 style={{
                   display: "flex",
-                  height: "22px",
-                  lineHeight: "22px",
+                  height: isCompact ? "19px" : "22px",
+                  lineHeight: isCompact ? "19px" : "22px",
                 }}
               >
                 <div
@@ -1495,10 +1513,10 @@ export function DailyCheckPDFExportModal({
               <div>
                 <h1
                   style={{
-                    fontSize: "13.5px",
+                    fontSize: isCompact ? "12.5px" : "13.5px",
                     fontWeight: "bold",
                     margin: 0,
-                    lineHeight: "1.2",
+                    lineHeight: "1.15",
                     letterSpacing: "0.3px",
                     whiteSpace: "nowrap",
                   }}
@@ -1507,10 +1525,10 @@ export function DailyCheckPDFExportModal({
                 </h1>
                 <p
                   style={{
-                    fontSize: "9.5px",
+                    fontSize: isCompact ? "9px" : "9.5px",
                     fontWeight: "bold",
-                    margin: "2px 0 0 0",
-                    lineHeight: "1.2",
+                    margin: "1px 0 0 0",
+                    lineHeight: "1.15",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -1525,7 +1543,7 @@ export function DailyCheckPDFExportModal({
                 width: "27%",
                 flexShrink: 0,
                 display: "flex",
-                height: "44px",
+                height: isCompact ? "38px" : "44px",
                 boxSizing: "border-box",
               }}
             >
@@ -1568,21 +1586,21 @@ export function DailyCheckPDFExportModal({
           </div>
 
           {/* ======================================================== */}
-          {/* 2. แถบรูปภาพ (PHOTOS STRIP) — แสดงสูงสุด 6 รูป ขนาดคงที่เท่ากันทุกเครื่อง ไม่ขยายตามจำนวนรูป */}
+          {/* 2. แถบรูปภาพ (PHOTOS STRIP) — แสดงสูงสุด 8 รูป ขนาดคงที่เท่ากันทุกเครื่อง ไม่ขยายตามจำนวนรูป */}
           {/* ======================================================== */}
           <div
             style={{
               display: "flex",
               border: "1px solid #000000",
-              height: "31mm",
+              height: `${photoStripHeightMm}mm`,
               boxSizing: "border-box",
               marginTop: "-1px",
             }}
           >
             <div style={{ flex: 1, display: "flex", overflow: "hidden", height: "100%" }}>
               {(() => {
-                const imageItems = checklist.filter((item) => Boolean(item?.image_url)).slice(0, 6);
-                return Array.from({ length: 6 }).map((_, idx) => {
+                const imageItems = checklist.filter((item) => Boolean(item?.image_url)).slice(0, 8);
+                return Array.from({ length: 8 }).map((_, idx) => {
                   const item = imageItems[idx];
                   const imgUrl = item?.image_url
                     ? base64Images[item.image_url] || item.image_url
@@ -1591,10 +1609,10 @@ export function DailyCheckPDFExportModal({
                     <div
                       key={idx}
                       style={{
-                        width: "calc(100% / 6)",
-                        flex: "0 0 calc(100% / 6)",
-                        borderRight: idx < 5 ? "1px solid #000000" : "none",
-                        padding: "4px",
+                        width: "calc(100% / 8)",
+                        flex: "0 0 calc(100% / 8)",
+                        borderRight: idx < 7 ? "1px solid #000000" : "none",
+                        padding: isCompact ? "2px" : "4px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -1635,7 +1653,7 @@ export function DailyCheckPDFExportModal({
               borderCollapse: "collapse",
               border: "1px solid #000000",
               borderTop: "none",
-              fontSize: "8.5px",
+              fontSize: isCompact ? "8px" : "8.5px",
               tableLayout: "fixed",
             }}
           >
@@ -1659,37 +1677,37 @@ export function DailyCheckPDFExportModal({
                   textAlign: "center",
                   fontWeight: "bold",
                   fontSize: "8px",
-                  height: "26px",
+                  height: `${masterHeaderHeightPx}px`,
                 }}
               >
-                <th style={{ borderRight: "1px solid #000000", padding: "4px 2px", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "2px 2px", verticalAlign: "middle" }}>
                   หัวข้อ
                 </th>
-                <th style={{ borderRight: "1px solid #000000", padding: "4px 6px", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "2px 6px", verticalAlign: "middle" }}>
                   รายละเอียดการตรวจเช็ค
                 </th>
-                <th style={{ borderRight: "1px solid #000000", padding: "4px 6px", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "2px 6px", verticalAlign: "middle" }}>
                   วิธีการตรวจเช็ค
                 </th>
-                <th style={{ borderRight: "1px solid #000000", padding: "3px 1px", lineHeight: "1.2", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "1px 1px", lineHeight: "1.15", verticalAlign: "middle" }}>
                   ชนิด<br />ของน้ำมัน
                 </th>
-                <th style={{ borderRight: "1px solid #000000", padding: "3px 1px", lineHeight: "1.2", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "1px 1px", lineHeight: "1.15", verticalAlign: "middle" }}>
                   เครื่อง<br />มือ
                 </th>
-                <th style={{ borderRight: "1px solid #000000", padding: "3px 1px", lineHeight: "1.2", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "1px 1px", lineHeight: "1.15", verticalAlign: "middle" }}>
                   ความถี่<br />การเช็ค
                 </th>
-                <th style={{ borderRight: "1px solid #000000", padding: "3px 1px", lineHeight: "1.2", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "1px 1px", lineHeight: "1.15", verticalAlign: "middle" }}>
                   เงื่อนไข<br />การตรวจเช็ค
                 </th>
-                <th style={{ borderRight: "1px solid #000000", padding: "4px 1px", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "2px 1px", verticalAlign: "middle" }}>
                   เวลา
                 </th>
-                <th style={{ borderRight: "1px solid #000000", padding: "3px 1px", lineHeight: "1.2", verticalAlign: "middle" }}>
+                <th style={{ borderRight: "1px solid #000000", padding: "1px 1px", lineHeight: "1.15", verticalAlign: "middle" }}>
                   เช็ค<br />ทุกวัน
                 </th>
-                <th style={{ padding: "3px 1px", lineHeight: "1.2", verticalAlign: "middle" }}>
+                <th style={{ padding: "1px 1px", lineHeight: "1.15", verticalAlign: "middle" }}>
                   ผู้รับ<br />ผิดชอบ
                 </th>
               </tr>
@@ -1698,7 +1716,7 @@ export function DailyCheckPDFExportModal({
               {masterRows.map((item, idx) => (
                 <tr
                   key={idx}
-                  style={{ borderBottom: "1px solid #000000", height: "26px" }}
+                  style={{ borderBottom: "1px solid #000000", height: `${masterRowHeightPx}px` }}
                 >
                   {/* หัวข้อ: เมิร์จเซลกันทุกแถว (rowSpan) + ข้อความแนวตั้ง (vertical) */}
                   {idx === 0 && (
@@ -1707,7 +1725,7 @@ export function DailyCheckPDFExportModal({
                       style={{
                         borderRight: "1px solid #000000",
                         textAlign: "center",
-                        padding: "2px 1px",
+                        padding: "1px",
                         verticalAlign: "middle",
                         backgroundColor: "#ffffff",
                         width: "36px",
@@ -1724,7 +1742,7 @@ export function DailyCheckPDFExportModal({
                             display: "block",
                             margin: "0 auto",
                             width: "28px",
-                            height: "165px",
+                            height: isCompact ? "140px" : "165px",
                             maxHeight: "95%",
                             objectFit: "contain",
                             pointerEvents: "none",
@@ -1751,9 +1769,9 @@ export function DailyCheckPDFExportModal({
                   <td
                     style={{
                       borderRight: "1px solid #000000",
-                      padding: "5px 6px",
-                      fontSize: "8.5px",
-                      lineHeight: "1.3",
+                      padding: `${cellVertPadPx}px 6px`,
+                      fontSize: isCompact ? "8px" : "8.5px",
+                      lineHeight: isCompact ? "1.15" : "1.3",
                       verticalAlign: "middle",
                       fontWeight: 500,
                     }}
@@ -1765,34 +1783,34 @@ export function DailyCheckPDFExportModal({
                   <td
                     style={{
                       borderRight: "1px solid #000000",
-                      padding: "5px 6px",
-                      fontSize: "8.5px",
-                      lineHeight: "1.3",
+                      padding: `${cellVertPadPx}px 6px`,
+                      fontSize: isCompact ? "8px" : "8.5px",
+                      lineHeight: isCompact ? "1.15" : "1.3",
                       verticalAlign: "middle",
                     }}
                   >
                     {item?.method ?? ""}
                   </td>
 
-                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: "4px 1px", verticalAlign: "middle" }}>
+                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: `${cellVertPadPx}px 1px`, verticalAlign: "middle" }}>
                     {item?.oil ?? ""}
                   </td>
-                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: "4px 1px", verticalAlign: "middle" }}>
+                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: `${cellVertPadPx}px 1px`, verticalAlign: "middle" }}>
                     {item?.tool ?? ""}
                   </td>
-                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", fontWeight: "bold", padding: "4px 1px", verticalAlign: "middle" }}>
+                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", fontWeight: "bold", padding: `${cellVertPadPx}px 1px`, verticalAlign: "middle" }}>
                     {item?.frequency ?? ""}
                   </td>
-                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: "4px 1px", verticalAlign: "middle" }}>
+                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: `${cellVertPadPx}px 1px`, verticalAlign: "middle" }}>
                     {item?.condition ?? ""}
                   </td>
-                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: "4px 1px", verticalAlign: "middle" }}>
+                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: `${cellVertPadPx}px 1px`, verticalAlign: "middle" }}>
                     {item?.time ?? ""}
                   </td>
-                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: "4px 1px", verticalAlign: "middle" }}>
+                  <td style={{ borderRight: "1px solid #000000", textAlign: "center", padding: `${cellVertPadPx}px 1px`, verticalAlign: "middle" }}>
                     {item?.check_daily ?? ""}
                   </td>
-                  <td style={{ textAlign: "center", padding: "4px 1px", fontWeight: 500, verticalAlign: "middle" }}>
+                  <td style={{ textAlign: "center", padding: `${cellVertPadPx}px 1px`, fontWeight: 500, verticalAlign: "middle" }}>
                     {item?.responsible ?? ""}
                   </td>
                 </tr>
@@ -1808,10 +1826,10 @@ export function DailyCheckPDFExportModal({
               border: "1px solid #000000",
               borderTop: "none",
               backgroundColor: "#f3f4f6",
-              padding: "4px 8px",
+              padding: isCompact ? "2px 8px" : "4px 8px",
               textAlign: "left",
               fontWeight: "bold",
-              fontSize: "9px",
+              fontSize: isCompact ? "8.5px" : "9px",
               letterSpacing: "0.3px",
             }}
           >
@@ -1827,7 +1845,7 @@ export function DailyCheckPDFExportModal({
               borderCollapse: "collapse",
               border: "1px solid #000000",
               borderTop: "none",
-              fontSize: "8px",
+              fontSize: isCompact ? "7.5px" : "8px",
               tableLayout: "fixed",
             }}
           >
@@ -1840,17 +1858,17 @@ export function DailyCheckPDFExportModal({
                 style={{
                   backgroundColor: "#ffffff",
                   borderBottom: "1px solid #000000",
-                  height: "36px",
+                  height: `${bottomHeaderHeightPx}px`,
                 }}
               >
                 <th
                   style={{
                     borderRight: "1px solid #000000",
-                    height: "36px",
+                    height: `${bottomHeaderHeightPx}px`,
                     padding: "2px 1px",
                     verticalAlign: "middle",
                     textAlign: "center",
-                    fontSize: "8.5px",
+                    fontSize: isCompact ? "8px" : "8.5px",
                     fontWeight: "bold",
                     backgroundColor: "#ffffff",
                     boxSizing: "border-box",
@@ -1861,11 +1879,11 @@ export function DailyCheckPDFExportModal({
                 <th
                   style={{
                     borderRight: "1px solid #000000",
-                    height: "36px",
+                    height: `${bottomHeaderHeightPx}px`,
                     textAlign: "center",
                     padding: "2px 4px",
                     verticalAlign: "middle",
-                    fontSize: "8.5px",
+                    fontSize: isCompact ? "8px" : "8.5px",
                     fontWeight: "bold",
                     backgroundColor: "#ffffff",
                     boxSizing: "border-box",
@@ -1880,7 +1898,7 @@ export function DailyCheckPDFExportModal({
                     style={{
                       borderRight: "1px solid #000000",
                       padding: 0,
-                      height: "36px",
+                      height: `${bottomHeaderHeightPx}px`,
                       verticalAlign: "top",
                       backgroundColor: "#ffffff",
                       boxSizing: "border-box",
@@ -1888,11 +1906,11 @@ export function DailyCheckPDFExportModal({
                   >
                     <div
                       style={{
-                        height: "19px",
-                        lineHeight: "19px",
+                        height: `${bottomHeaderTopPx}px`,
+                        lineHeight: `${bottomHeaderTopPx}px`,
                         textAlign: "center",
                         fontWeight: "bold",
-                        fontSize: "8.5px",
+                        fontSize: isCompact ? "8px" : "8.5px",
                         borderBottom: "1px solid #000000",
                         boxSizing: "border-box",
                       }}
@@ -1902,7 +1920,7 @@ export function DailyCheckPDFExportModal({
                     <div
                       style={{
                         display: "flex",
-                        height: "17px",
+                        height: `${bottomHeaderSubPx}px`,
                         fontSize: "7.5px",
                         boxSizing: "border-box",
                       }}
@@ -1942,7 +1960,7 @@ export function DailyCheckPDFExportModal({
                     style={{
                       borderRight: "1px solid #000000",
                       padding: 0,
-                      height: "36px",
+                      height: `${bottomHeaderHeightPx}px`,
                       verticalAlign: "top",
                       backgroundColor: "#f9fafb",
                       boxSizing: "border-box",
@@ -1950,12 +1968,12 @@ export function DailyCheckPDFExportModal({
                   >
                     <div
                       style={{
-                        height: "19px",
-                        lineHeight: "19px",
+                        height: `${bottomHeaderTopPx}px`,
+                        lineHeight: `${bottomHeaderTopPx}px`,
                         textAlign: "center",
                         color: "#9ca3af",
                         fontWeight: "normal",
-                        fontSize: "8.5px",
+                        fontSize: isCompact ? "8px" : "8.5px",
                         borderBottom: "1px solid #000000",
                         boxSizing: "border-box",
                       }}
@@ -1965,7 +1983,7 @@ export function DailyCheckPDFExportModal({
                     <div
                       style={{
                         display: "flex",
-                        height: "17px",
+                        height: `${bottomHeaderSubPx}px`,
                         fontSize: "7.5px",
                         color: "#9ca3af",
                         boxSizing: "border-box",
@@ -2007,7 +2025,7 @@ export function DailyCheckPDFExportModal({
               {bottomRows.map((item, idx) => (
                 <tr
                   key={idx}
-                  style={{ borderBottom: "1px solid #000000", height: "24px" }}
+                  style={{ borderBottom: "1px solid #000000", height: `${bottomRowHeightPx}px` }}
                 >
                   {/* หัวข้อ: เมิร์จเซลกันทุกแถว (rowSpan) + ข้อความแนวตั้ง (vertical) */}
                   {idx === 0 && (
@@ -2016,7 +2034,7 @@ export function DailyCheckPDFExportModal({
                       style={{
                         borderRight: "1px solid #000000",
                         textAlign: "center",
-                        padding: "2px 1px",
+                        padding: "1px",
                         verticalAlign: "middle",
                         backgroundColor: "#ffffff",
                         width: "36px",
@@ -2033,7 +2051,7 @@ export function DailyCheckPDFExportModal({
                             display: "block",
                             margin: "0 auto",
                             width: "28px",
-                            height: "155px",
+                            height: isCompact ? "135px" : "155px",
                             maxHeight: "95%",
                             objectFit: "contain",
                             pointerEvents: "none",
@@ -2059,10 +2077,10 @@ export function DailyCheckPDFExportModal({
                   <td
                     style={{
                       borderRight: "1px solid #000000",
-                      padding: "4px 6px",
+                      padding: `${cellVertPadPx}px 6px`,
                       fontWeight: 500,
-                      fontSize: "8px",
-                      lineHeight: "1.25",
+                      fontSize: isCompact ? "7.8px" : "8px",
+                      lineHeight: isCompact ? "1.15" : "1.25",
                       verticalAlign: "middle",
                     }}
                   >
@@ -2082,10 +2100,10 @@ export function DailyCheckPDFExportModal({
                           style={{
                             borderRight: "1px solid #000000",
                             textAlign: "center",
-                            padding: "2px 0",
+                            padding: "1px 0",
                             verticalAlign: "middle",
                             fontWeight: "bold",
-                            fontSize: "8.5px",
+                            fontSize: isCompact ? "8px" : "8.5px",
                             color: logD?.result === "ABNORMAL" ? "#dc2626" : "#000000",
                           }}
                         >
@@ -2095,10 +2113,10 @@ export function DailyCheckPDFExportModal({
                           style={{
                             borderRight: "1px solid #000000",
                             textAlign: "center",
-                            padding: "2px 0",
+                            padding: "1px 0",
                             verticalAlign: "middle",
                             fontWeight: "bold",
-                            fontSize: "8.5px",
+                            fontSize: isCompact ? "8px" : "8.5px",
                             color: logN?.result === "ABNORMAL" ? "#dc2626" : "#000000",
                           }}
                         >
@@ -2118,12 +2136,12 @@ export function DailyCheckPDFExportModal({
               ))}
 
               {/* แถว: ผู้ลงบันทึก */}
-              <tr style={{ borderBottom: "1px solid #000000", height: "23px" }}>
-                <td style={{ borderRight: "1px solid #000000", padding: "2px" }} />
+              <tr style={{ borderBottom: "1px solid #000000", height: `${signRowHeightPx}px` }}>
+                <td style={{ borderRight: "1px solid #000000", padding: "1px" }} />
                 <td
                   style={{
                     borderRight: "1px solid #000000",
-                    padding: "3px 6px",
+                    padding: "2px 6px",
                     fontWeight: "bold",
                     textAlign: "center",
                     fontSize: "8px",
@@ -2141,7 +2159,7 @@ export function DailyCheckPDFExportModal({
                         style={{
                           borderRight: "1px solid #000000",
                           textAlign: "center",
-                          padding: "2px 0",
+                          padding: "1px 0",
                           verticalAlign: "middle",
                           fontSize: "7px",
                           fontWeight: 500,
@@ -2153,7 +2171,7 @@ export function DailyCheckPDFExportModal({
                         style={{
                           borderRight: "1px solid #000000",
                           textAlign: "center",
-                          padding: "2px 0",
+                          padding: "1px 0",
                           verticalAlign: "middle",
                           fontSize: "7px",
                           fontWeight: 500,
@@ -2173,12 +2191,12 @@ export function DailyCheckPDFExportModal({
               </tr>
 
               {/* แถว: ผู้ตรวจสอบความถูกต้อง */}
-              <tr style={{ borderBottom: "1px solid #000000", height: "23px" }}>
-                <td style={{ borderRight: "1px solid #000000", padding: "2px" }} />
+              <tr style={{ borderBottom: "1px solid #000000", height: `${signRowHeightPx}px` }}>
+                <td style={{ borderRight: "1px solid #000000", padding: "1px" }} />
                 <td
                   style={{
                     borderRight: "1px solid #000000",
-                    padding: "3px 6px",
+                    padding: "2px 6px",
                     fontWeight: "bold",
                     textAlign: "center",
                     fontSize: "8px",
@@ -2196,7 +2214,7 @@ export function DailyCheckPDFExportModal({
                         style={{
                           borderRight: "1px solid #000000",
                           textAlign: "center",
-                          padding: "2px 0",
+                          padding: "1px 0",
                           verticalAlign: "middle",
                           fontSize: "7px",
                           fontWeight: 500,
@@ -2208,7 +2226,7 @@ export function DailyCheckPDFExportModal({
                         style={{
                           borderRight: "1px solid #000000",
                           textAlign: "center",
-                          padding: "2px 0",
+                          padding: "1px 0",
                           verticalAlign: "middle",
                           fontSize: "7px",
                           fontWeight: 500,
@@ -2238,9 +2256,9 @@ export function DailyCheckPDFExportModal({
               width: "100%",
               border: "1px solid #000000",
               borderTop: "none",
-              fontSize: "8px",
+              fontSize: isCompact ? "7.5px" : "8px",
               backgroundColor: "#ffffff",
-              minHeight: "18mm",
+              minHeight: isCompact ? "14mm" : "18mm",
               boxSizing: "border-box",
             }}
           >
@@ -2249,18 +2267,18 @@ export function DailyCheckPDFExportModal({
               style={{
                 width: "42%",
                 borderRight: "1px solid #000000",
-                padding: "6px 8px",
+                padding: isCompact ? "3px 8px" : "6px 8px",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
-                lineHeight: "1.4",
+                lineHeight: isCompact ? "1.25" : "1.4",
                 boxSizing: "border-box",
               }}
             >
               <p style={{ fontWeight: "bold", margin: 0 }}>
                 ผู้ลงบันทึก : ลงบันทึกการตรวจสอบเครื่องจักรทุกกะ กะละ 1 ครั้ง พร้อมลงชื่อ
               </p>
-              <p style={{ fontWeight: "bold", margin: 0, marginTop: "3px" }}>
+              <p style={{ fontWeight: "bold", margin: 0, marginTop: isCompact ? "1.5px" : "3px" }}>
                 ผู้ตรวจสอบความถูกต้อง : ตรวจสอบการลงบันทึกของกะเช้าและกะดึก พร้อมลงชื่อ
               </p>
             </div>
@@ -2270,12 +2288,12 @@ export function DailyCheckPDFExportModal({
               style={{
                 width: "29%",
                 borderRight: "1px solid #000000",
-                padding: "6px 8px",
+                padding: isCompact ? "3px 8px" : "6px 8px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontWeight: "bold",
-                fontSize: "8.5px",
+                fontSize: isCompact ? "8px" : "8.5px",
                 boxSizing: "border-box",
               }}
             >
@@ -2290,11 +2308,11 @@ export function DailyCheckPDFExportModal({
             <div
               style={{
                 width: "29%",
-                padding: "6px 8px",
+                padding: isCompact ? "3px 8px" : "6px 8px",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
-                lineHeight: "1.35",
+                lineHeight: isCompact ? "1.2" : "1.35",
                 boxSizing: "border-box",
               }}
             >
@@ -2303,14 +2321,16 @@ export function DailyCheckPDFExportModal({
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  marginTop: "3px",
-                  fontSize: "7.5px",
+                  marginTop: isCompact ? "1.5px" : "3px",
+                  fontSize: isCompact ? "7px" : "7.5px",
                 }}
               >
                 <span style={{ width: "115px" }}>✓ = สภาพใช้งานได้ดี</span>
                 <span style={{ fontWeight: "bold" }}>x = ผิดปกติ</span>
               </div>
-              <p style={{ margin: 0, marginTop: "2px", fontSize: "7.5px" }}>- = ไม่มีการใช้งาน</p>
+              <p style={{ margin: 0, marginTop: isCompact ? "1px" : "2px", fontSize: isCompact ? "7px" : "7.5px" }}>
+                - = ไม่มีการใช้งาน
+              </p>
             </div>
           </div>
         </div>
@@ -2322,9 +2342,9 @@ export function DailyCheckPDFExportModal({
             display: "flex",
             justifyContent: "flex-start",
             alignItems: "center",
-            paddingTop: "5px",
-            paddingBottom: "2px",
-            fontSize: "8.5px",
+            paddingTop: isCompact ? "2px" : "5px",
+            paddingBottom: isCompact ? "1px" : "2px",
+            fontSize: isCompact ? "8px" : "8.5px",
             fontWeight: "bold",
             color: "#111827",
             boxSizing: "border-box",
