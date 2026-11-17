@@ -474,7 +474,7 @@ const SearchableSelect = ({
 // 1. TYPES & HELPERS
 // ==========================================
 
-type ResultType = "NORMAL" | "ABNORMAL" | "FILTER" | "NA";
+type ResultType = "NORMAL" | "ABNORMAL" | "FILTER" | "NA" | "HOLIDAY";
 type UserRole = "super_admin" | "admin" | "staff";
 
 interface ChecklistItem {
@@ -575,6 +575,8 @@ const getResultDisplay = (result: ResultType) => {
       return { symbol: "△", color: "text-blue-400", text: "เป่ากรอง" };
     case "NA":
       return { symbol: "-", color: "text-slate-400", text: "ไม่ใช้งาน" };
+    case "HOLIDAY":
+      return { symbol: "H", color: "text-amber-500", text: "วันหยุด" };
     default:
       return { symbol: "", color: "text-slate-600", text: "ไม่มีข้อมูล" };
   }
@@ -715,7 +717,7 @@ function ConfirmActionModal({
             <Key size={24} />
           </div>
           <h3 className="text-lg font-bold text-white mb-1">{title}</h3>
-          <p className="text-xs text-slate-400 leading-relaxed">{message}</p>
+          <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-line">{message}</p>
         </div>
 
         <div className="mb-4">
@@ -4473,6 +4475,12 @@ const MachineHistory = React.memo(function MachineHistory({
     minutes: number;
   } | null>(null);
 
+  // ✅ State สำหรับดับเบิ้ลคลิกยืนยันวันหยุด (H) ในแถวผู้ตรวจสอบ
+  const [pendingHolidayConfirm, setPendingHolidayConfirm] = useState<{
+    day: number;
+    shift: "D" | "N";
+  } | null>(null);
+
   const handleStartEditTime = (d: number, shift: "D" | "N", log?: LogEntry) => {
     if (!log || !hasDpData(log) || log.result === "NA") return;
     const cur = formatTime(log.timestamp) || "";
@@ -4606,7 +4614,90 @@ const MachineHistory = React.memo(function MachineHistory({
     );
     if (!foundLog) return "";
     if (isDewPointMode && !hasDpData(foundLog)) return "";
+    if (foundLog.result === "HOLIDAY") return "";
     return foundLog.inspector;
+  };
+
+  // เช็คว่าวันและกะนั้นถึงเวลาปัจจุบันหรือยัง (กะ D เริ่ม 08:00, กะ N เริ่ม 20:00) ห้ามทำรายการล่วงหน้าเกินเวลาปัจจุบัน
+  const isShiftReached = (d: number, shift: "D" | "N") => {
+    const now = new Date();
+    const shiftStart = new Date(
+      year,
+      month - 1,
+      d,
+      shift === "D" ? 8 : 20,
+      0,
+      0
+    );
+    return now >= shiftStart;
+  };
+
+  const handleOpenHolidayConfirm = (d: number, shift: "D" | "N") => {
+    if (!isShiftReached(d, shift)) return;
+    if (!canVerify) {
+      alert(
+        "⛔️ คุณไม่มีสิทธิ์ตรวจสอบความถูกต้อง (Need 'daily_verify' permission)"
+      );
+      return;
+    }
+    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(
+      d
+    ).padStart(2, "0")}`;
+    const hasAnyLog = (logs || []).some(
+      (l) => l.mid === machine.id && l.date === dateStr && l.shift === shift
+    );
+    if (hasAnyLog) return;
+    setPendingHolidayConfirm({ day: d, shift });
+  };
+
+  const handleExecuteHolidayConfirm = async () => {
+    if (!pendingHolidayConfirm) return;
+    const { day: d, shift } = pendingHolidayConfirm;
+    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(
+      d
+    ).padStart(2, "0")}`;
+
+    const hasAnyLog = (logs || []).some(
+      (l) => l.mid === machine.id && l.date === dateStr && l.shift === shift
+    );
+    if (hasAnyLog) {
+      alert("ไม่สามารถบันทึกวันหยุดได้ เนื่องจากมีข้อมูลการตรวจสอบในกะนี้แล้ว");
+      setPendingHolidayConfirm(null);
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      (machine.checklist || []).forEach((item) => {
+        const logRef = doc(collection(db, "logs"));
+        batch.set(logRef, {
+          mid: machine.id,
+          checklist_item: item.detail,
+          result: "HOLIDAY",
+          inspector: "",
+          date: dateStr,
+          shift: shift,
+          timestamp: serverTimestamp(),
+        });
+      });
+
+      const auditId = `${machine.id}_${year}_${month}_${d}_${shift}`;
+      batch.set(doc(db, "audit_logs", auditId), {
+        mid: machine.id,
+        year: year,
+        month: month,
+        day: d,
+        shift: shift,
+        auditor: user.username,
+      });
+
+      await batch.commit();
+    } catch (err) {
+      console.error("Confirm holiday error:", err);
+      alert("เกิดข้อผิดพลาดในการบันทึกวันหยุด");
+    } finally {
+      setPendingHolidayConfirm(null);
+    }
   };
 
   const handleOpenDelete = (d: number, shift: string) => {
@@ -5120,6 +5211,21 @@ const MachineHistory = React.memo(function MachineHistory({
                           >
                             ✓
                           </button>
+                        ) : countD === 0 && isShiftReached(d, "D") ? (
+                          <span
+                            onDoubleClick={() => handleOpenHolidayConfirm(d, "D")}
+                            title={
+                              canVerify
+                                ? "ดับเบิ้ลคลิกเพื่อยืนยันวันหยุด (H)"
+                                : "คุณไม่มีสิทธิ์ตรวจสอบ"
+                            }
+                            className={`text-[8px] text-slate-400/50 font-medium flex items-center justify-center w-full h-full leading-none select-none transition-colors ${canVerify
+                              ? "cursor-pointer hover:text-slate-600"
+                              : "cursor-not-allowed"
+                              }`}
+                          >
+                            วันหยุด
+                          </span>
                         ) : null}
                       </td>
                       <td className="text-center border-r border-slate-300 p-0 align-middle h-7 bg-slate-50/50">
@@ -5142,6 +5248,21 @@ const MachineHistory = React.memo(function MachineHistory({
                           >
                             ✓
                           </button>
+                        ) : countN === 0 && isShiftReached(d, "N") ? (
+                          <span
+                            onDoubleClick={() => handleOpenHolidayConfirm(d, "N")}
+                            title={
+                              canVerify
+                                ? "ดับเบิ้ลคลิกเพื่อยืนยันวันหยุด (H)"
+                                : "คุณไม่มีสิทธิ์ตรวจสอบ"
+                            }
+                            className={`text-[8px] text-slate-400/50 font-medium flex items-center justify-center w-full h-full leading-none select-none transition-colors ${canVerify
+                              ? "cursor-pointer hover:text-slate-600"
+                              : "cursor-not-allowed"
+                              }`}
+                          >
+                            วันหยุด
+                          </span>
                         ) : null}
                       </td>
                     </React.Fragment>
@@ -5244,6 +5365,19 @@ const MachineHistory = React.memo(function MachineHistory({
         message={
           pendingTimeUpdate
             ? `แก้ไขเวลาตรวจวันที่ ${pendingTimeUpdate.day}/${month}/${year} (กะ ${pendingTimeUpdate.shift})\nจาก ${pendingTimeUpdate.oldTime} น. เป็น ${pendingTimeUpdate.newTime} น.`
+            : ""
+        }
+        currentUser={user}
+      />
+
+      <ConfirmActionModal
+        isOpen={!!pendingHolidayConfirm}
+        onClose={() => setPendingHolidayConfirm(null)}
+        onConfirm={handleExecuteHolidayConfirm}
+        title="ยืนยันวันหยุด"
+        message={
+          pendingHolidayConfirm
+            ? `ยืนยันว่าเป็นวันหยุด (H)\nวันที่ ${pendingHolidayConfirm.day}/${month}/${year} (กะ ${pendingHolidayConfirm.shift})?`
             : ""
         }
         currentUser={user}
@@ -5619,46 +5753,51 @@ const MachineHistoryRow = ({
       }
     });
 
-    for (const [key, shiftLogs] of Array.from(dateShiftMap.entries())) {
-      const [dStr, shift] = key.split("___");
-      const dayNum = parseInt(dStr.split("-")[2], 10);
+    for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+      const dStr = `${year}-${String(month).padStart(2, "0")}-${String(
+        dayNum
+      ).padStart(2, "0")}`;
 
-      // 2. ผู้ตรวจสอบยืนยันหรือยัง (audit_logs)
-      const isAudited = (auditLogs || []).some(
-        (a: any) =>
-          a.mid === machine.id &&
-          a.year === year &&
-          a.month === month &&
-          a.day === dayNum &&
-          a.shift === shift &&
-          !!a.auditor
-      );
-      if (!isAudited) {
-        return {
-          can: false,
-          reason: `ผู้ตรวจสอบยังไม่ยืนยันความถูกต้องของ วันที่ ${dayNum} กะ ${shift}`,
-        };
-      }
+      for (const shift of ["D", "N"]) {
+        const key = `${dStr}___${shift}`;
+        const shiftLogs = dateShiftMap.get(key) || [];
 
-      // 3. ตรวจเช็คครบทุกหัวข้อหรือไม่
-      if (!isDewPoint && checklist.length > 0) {
-        for (const item of checklist) {
-          const hasLog = shiftLogs.some(
-            (l: any) => l.checklist_item === item.detail && !!l.result
-          );
-          if (!hasLog) {
-            return {
-              can: false,
-              reason: `รายการตรวจเช็คยังไม่ครบทุกหัวข้อ (วันที่ ${dayNum} กะ ${shift} ขาดหัวข้อ "${item.detail}")`,
-            };
-          }
-        }
-      } else if (isDewPoint) {
-        const hasValidDpLog = shiftLogs.some((l: any) => hasDpData(l));
-        if (!hasValidDpLog) {
+        if (shiftLogs.length === 0) {
           return {
             can: false,
-            reason: `ยังไม่มีข้อมูลการตรวจวัด Dew Point (วันที่ ${dayNum} กะ ${shift})`,
+            reason: `ยังไม่มีข้อมูลการตรวจเช็คหรือยืนยันวันหยุดของ วันที่ ${dayNum} กะ ${shift}`,
+          };
+        }
+
+        // 2. ตรวจเช็คครบทุกหัวข้อหรือไม่
+        if (checklist.length > 0) {
+          for (const item of checklist) {
+            const hasLog = shiftLogs.some(
+              (l: any) => l.checklist_item === item.detail && !!l.result
+            );
+            if (!hasLog) {
+              return {
+                can: false,
+                reason: `รายการตรวจเช็คยังไม่ครบทุกหัวข้อ (วันที่ ${dayNum} กะ ${shift} ขาดหัวข้อ "${item.detail}")`,
+              };
+            }
+          }
+        }
+
+        // 3. ผู้ตรวจสอบยืนยันหรือยัง (audit_logs)
+        const isAudited = (auditLogs || []).some(
+          (a: any) =>
+            a.mid === machine.id &&
+            a.year === year &&
+            a.month === month &&
+            a.day === dayNum &&
+            a.shift === shift &&
+            !!a.auditor
+        );
+        if (!isAudited) {
+          return {
+            can: false,
+            reason: `ผู้ตรวจสอบยังไม่ยืนยันความถูกต้องของ วันที่ ${dayNum} กะ ${shift}`,
           };
         }
       }

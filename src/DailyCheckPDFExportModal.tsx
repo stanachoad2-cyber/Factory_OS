@@ -744,6 +744,7 @@ export function DailyCheckPDFExportModal({
     if (log.result === "ABNORMAL") return "x";
     if (log.result === "NA") return "-";
     if (log.result === "FILTER") return "△";
+    if (log.result === "HOLIDAY" || log.result === "H") return "H";
   };
 
   const selectedCurrentMachine = currentMachine;
