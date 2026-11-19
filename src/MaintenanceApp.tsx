@@ -936,14 +936,57 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
         text(area.split("(")[1]?.replace(")", "") || "", 175, 92.5, 14);
     }
 
-    // --- 4. อาการเสีย ---
-    text(ticket.issue_item, 15, 73.5, 14);
-    if (ticket.issue_detail && ticket.issue_detail !== ticket.issue_item) {
-      text(ticket.issue_detail, 15, 80, 14);
-    }
+    // ฟังก์ชันตัดข้อความให้เต็มบรรทัด (83mm) ก่อนแล้วจึงขึ้นบรรทัดใหม่ โดยไม่แยกสระบน-ล่าง/วรรณยุกต์ออกจากพยัญชนะ
+    const splitTextFillLine = (rawText: string, maxWidthMm: number = 83, fontSizePt: number = 14) => {
+      if (!rawText) return [];
+      doc.setFontSize(fontSizePt);
+      const paragraphs = rawText.toString().split(/\r?\n/);
+      const resultLines: string[] = [];
+      const clusterRegex = /[^\u0E31\u0E34-\u0E3A\u0E47-\u0E4E][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]*/g;
 
-    // --- 5. สาเหตุและประเภทสาเหตุ ---
-    text(cd.cause || ticket.cause_detail || "", 15, 115, 14);
+      paragraphs.forEach((para) => {
+        const clusters = para.match(clusterRegex) || [];
+        if (clusters.length === 0) {
+          resultLines.push("");
+          return;
+        }
+        let currentLine = "";
+        for (const cluster of clusters) {
+          const candidate = currentLine + cluster;
+          if (doc.getTextWidth(candidate) <= maxWidthMm || currentLine === "") {
+            currentLine = candidate;
+          } else {
+            resultLines.push(currentLine);
+            currentLine = cluster === " " ? "" : cluster;
+          }
+        }
+        if (currentLine) {
+          resultLines.push(currentLine);
+        }
+      });
+      return resultLines;
+    };
+
+    // --- 4. อาการเสีย (Problem: สูงสุด 5 บรรทัด, กว้าง 83mm) ---
+    const problemFullText =
+      ticket.issue_detail && ticket.issue_detail !== ticket.issue_item
+        ? `${ticket.issue_item || ""}\n${ticket.issue_detail}`
+        : (ticket.issue_item || "").toString();
+    const problemLines = splitTextFillLine(problemFullText, 83, 14);
+    problemLines.forEach((line: string, i: number) => {
+      if (i < 5) {
+        text(line, 15, 73.5 + i * 5.2, 14);
+      }
+    });
+
+    // --- 5. สาเหตุและประเภทสาเหตุ (Cause: สูงสุด 6 บรรทัด, กว้าง 83mm) ---
+    const causeFullText = (cd.cause || ticket.cause_detail || "").toString();
+    const causeLines = splitTextFillLine(causeFullText, 83, 14);
+    causeLines.forEach((line: string, i: number) => {
+      if (i < 6) {
+        text(line, 15, 115 + i * 5.2, 14);
+      }
+    });
     const cc = cd.cause_category || ticket.cause_category || "";
     check(117, 114.5, cc.includes("Dirty") || cc.includes("สกปรก"));
     check(117, 119.5, cc.includes("Loosen") || cc.includes("หลวม"));
@@ -956,17 +999,12 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
       text(cd.cause_note || ticket.cause_category_other || "", 143, 144, 14);
     }
 
-    // --- 6. การแก้ไขและอะไหล่ (แก้ไขให้ตัดบรรทัดจบที่ X98) ---
-
-    // 1. จัดการข้อมูล "การแก้ไข" (Correction)
+    // --- 6. การแก้ไขและอะไหล่ (Corrective Action: สูงสุด 7 บรรทัด, กว้าง 83mm) ---
     const correctionText = (cd.correction || ticket.solution || "").toString();
-    // หั่นข้อความที่ความกว้าง 83mm (เริ่ม X15 + 83 = จบที่ X98 พอดี)
-    const correctionLines = doc.splitTextToSize(correctionText, 83);
-
-    // 2. วนลูปพิมพ์ข้อความการแก้ไข (บรรทัดแรกเริ่มที่ Y158)
+    const correctionLines = splitTextFillLine(correctionText, 83, 14);
     correctionLines.forEach((line: string, i: number) => {
-      if (i < 3) { // จำกัดไม่เกิน 3 บรรทัดตามแบบฟอร์ม
-        text(line, 15, 158 + (i * 5), 14);
+      if (i < 7) {
+        text(line, 15, 158 + i * 5.3, 14);
       }
     });
 
@@ -983,8 +1021,14 @@ const generateMaintenancePDF = (tickets: MaintenanceTicket[]) => {
       });
     }
 
-    // --- 7. การป้องกันและผลการซ่อม ---
-    text(cd.prevention || ticket.prevention || "", 15, 202, 14);
+    // --- 7. การป้องกันและผลการซ่อม (Preventive Action: สูงสุด 5 บรรทัด, กว้าง 83mm) ---
+    const preventionFullText = (cd.prevention || ticket.prevention || "").toString();
+    const preventionLines = splitTextFillLine(preventionFullText, 83, 14);
+    preventionLines.forEach((line: string, i: number) => {
+      if (i < 5) {
+        text(line, 15, 202 + i * 5.2, 14);
+      }
+    });
     const res = cd.repair_result || ticket.maintenance_result || "";
     const resNote = cd.repair_note || ticket.result_remark || "";
 
@@ -1710,13 +1754,51 @@ function TicketFormView({ ticket }: { ticket: any }) {
                 : ""}
           </TextOverlay>
 
-          {/* --- PROBLEM & CAUSE --- */}
-          <TextOverlay x={15} y={73.5}>
+          {/* --- PROBLEM (สูงสุด 5 บรรทัด, กว้าง 83mm) --- */}
+          <div
+            style={{
+              position: "absolute",
+              left: "15mm",
+              top: "70mm",
+              width: "83mm",
+              maxHeight: `${5 * 5.2}mm`,
+              overflow: "hidden",
+              fontSize: "14pt",
+              fontFamily: myFont,
+              color: "blue",
+              fontWeight: "normal",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              lineHeight: "5.2mm",
+              zIndex: 10,
+              pointerEvents: "none",
+            }}
+          >
             {ticket.issue_item}
-          </TextOverlay>
-          <TextOverlay x={15} y={115}>
+          </div>
+
+          {/* --- CAUSE (สูงสุด 6 บรรทัด, กว้าง 83mm) --- */}
+          <div
+            style={{
+              position: "absolute",
+              left: "15mm",
+              top: "111.5mm",
+              width: "83mm",
+              maxHeight: `${6 * 5.2}mm`,
+              overflow: "hidden",
+              fontSize: "14pt",
+              fontFamily: myFont,
+              color: "blue",
+              fontWeight: "normal",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              lineHeight: "5.2mm",
+              zIndex: 10,
+              pointerEvents: "none",
+            }}
+          >
             {isT ? "ความร้อน" : ticket.close_data?.cause || ""}
-          </TextOverlay>
+          </div>
           {[114.5, 119.5, 124.5, 129, 134, 139, 144].map((y, i) => (
             <CheckOverlay
               key={y}
@@ -1746,30 +1828,26 @@ function TicketFormView({ ticket }: { ticket: any }) {
               ""}
           </TextOverlay>
 
-          {/* --- 6. แยกเฉพาะหัวข้อ "การแก้ไข" ให้อิสระจากแม่พิมพ์หลัก --- */}
+          {/* --- 6. CORRECTIVE ACTION (การแก้ไข: สูงสุด 7 บรรทัด, กว้าง 83mm) --- */}
           <div
             style={{
               position: "absolute",
-              // ✅ กำหนดพิกัด X เริ่มต้นที่ 15mm
               left: "15mm",
-              // ✅ กำหนดพิกัด Y ตายตัวที่บรรทัดแรกเริ่ม (ต้องปรับตัวเลขนี้ให้ตรงเส้นบรรทัด)
               top: "154.5mm",
-              // ✅ กำหนดความกว้างสิ้นสุดที่ X98 (98-15 = 83mm)
               width: "83mm",
-              // ✅ สไตล์ตัวอักษรBlue, Size 14pt (เท่าเดิม)
+              maxHeight: `${7 * 5.3}mm`,
+              overflow: "hidden",
               fontSize: "14pt",
-              fontFamily: myFont, // ใช้ตัวแปร Font เดิม
+              fontFamily: myFont,
               color: "blue",
               fontWeight: "normal",
-              // ✅ หัวใจสำคัญ: จัดการงานหลายบรรทัด
-              whiteSpace: "pre-wrap",  // แสดงผลขึ้นบรรทัดใหม่จากข้อมูลดิบ
-              wordBreak: "break-word", // บังคับตัดคำภาษาไทยตรงขอบ width เป๊ะๆ
-              lineHeight: "5.3mm",     // ✅ กำหนดระยะห่างบรรทัดให้ตรงกับเส้นประในฟอร์ม
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              lineHeight: "5.3mm",
               zIndex: 10,
               pointerEvents: "none",
             }}
           >
-            {/* ตัวข้อมูลการแก้ไข */}
             {isT ? "การแก้ไขเทส" : ticket.close_data?.correction || ""}
           </div>
           {Array.from({ length: 8 }).map((_, i) => {
@@ -1786,10 +1864,28 @@ function TicketFormView({ ticket }: { ticket: any }) {
             );
           })}
 
-          {/* --- REPAIR RESULT --- */}
-          <TextOverlay x={15} y={202}>
+          {/* --- PREVENTIVE ACTION (การป้องกัน: สูงสุด 5 บรรทัด, กว้าง 83mm) & REPAIR RESULT --- */}
+          <div
+            style={{
+              position: "absolute",
+              left: "15mm",
+              top: "198.5mm",
+              width: "83mm",
+              maxHeight: `${5 * 5.2}mm`,
+              overflow: "hidden",
+              fontSize: "14pt",
+              fontFamily: myFont,
+              color: "blue",
+              fontWeight: "normal",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              lineHeight: "5.2mm",
+              zIndex: 10,
+              pointerEvents: "none",
+            }}
+          >
             {isT ? "การป้องกันเทส" : ticket.close_data?.prevention || ""}
-          </TextOverlay>
+          </div>
           {[201.5, 206.5, 216.3, 226].map((y, i) => (
             <CheckOverlay
               key={y}
@@ -1884,13 +1980,51 @@ function CloseJobModal({
   ticket: any;
   user: User;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newId?: string) => void;
   onOpenPRForm: (data: any) => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [customId, setCustomId] = useState(ticket.id);
+  const [isEditingId, setIsEditingId] = useState(false);
+  const [duplicateError, setDuplicateError] = useState("");
+  const [checkingId, setCheckingId] = useState(false);
+
+  // เช็คเลขใบแจ้งซ่อมซ้ำอัตโนมัติเมื่อมีการแก้ไข Ticket ID
+  useEffect(() => {
+    const cleanId = customId.trim();
+    if (!cleanId || cleanId === ticket.id) {
+      setDuplicateError("");
+      setCheckingId(false);
+      return;
+    }
+    let cancelled = false;
+    setCheckingId(true);
+    const timer = setTimeout(async () => {
+      try {
+        const snap = await getDoc(doc(db, "maintenance_tickets", cleanId));
+        if (!cancelled) {
+          if (snap.exists()) {
+            setDuplicateError(`เลขที่ "${cleanId}" มีในระบบแล้ว (ซ้ำ)`);
+          } else {
+            setDuplicateError("");
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setDuplicateError("");
+      } finally {
+        if (!cancelled) setCheckingId(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [customId, ticket.id]);
 
   // Form States
+  const [issueItem, setIssueItem] = useState(
+    ticket.issue_item || ticket.issue_detail || ""
+  );
   const [cause, setCause] = useState("");
   const [correction, setCorrection] = useState("");
   const [prevention, setPrevention] = useState("");
@@ -1901,7 +2035,7 @@ function CloseJobModal({
   const [delayReason, setDelayReason] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [mcStatus, setMcStatus] = useState("");
+  const [mcStatus, setMcStatus] = useState("Non Stop.");
 
   const [parts, setParts] = useState<any[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<any[]>([]);
@@ -1944,6 +2078,7 @@ function CloseJobModal({
     };
     fetchMasters();
 
+    setIssueItem(ticket.issue_item || ticket.issue_detail || "");
     if (ticket.close_data) {
       const cd = ticket.close_data;
       setCause(cd.cause || "");
@@ -1954,7 +2089,7 @@ function CloseJobModal({
       setRepairResult(cd.repair_result || "");
       setRepairNote(cd.repair_note || "");
       setParts(cd.spare_parts || []);
-      setMcStatus(cd.mc_status || "");
+      setMcStatus(cd.mc_status === "Stop Mc." ? "Stop Mc." : "Non Stop.");
       if (cd.start_time) setStartTime(toLocalISOString(cd.start_time.toDate()));
       if (cd.end_time) setEndTime(toLocalISOString(cd.end_time.toDate()));
       if (cd.delay_reason) setDelayReason(cd.delay_reason);
@@ -2026,17 +2161,23 @@ function CloseJobModal({
       : "ไม่มีรายการเบิกอะไหล่";
 
   const handleSubmit = async () => {
+    const cleanId = customId.trim();
+    const cleanIssue = issueItem.trim();
     if (
+      !cleanIssue ||
       !cause ||
       !correction ||
       !causeCategory ||
       !repairResult ||
       !startTime ||
       !endTime ||
-      !customId ||
+      !cleanId ||
       !mcStatus
     )
       return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+    if (duplicateError) {
+      return alert(`⛔️ ไม่สามารถบันทึกได้: ${duplicateError}`);
+    }
     const executeSave = async () => {
       setSubmitting(true);
       try {
@@ -2058,22 +2199,58 @@ function CloseJobModal({
           ),
           delay_reason: isDelayed ? delayReason : null,
           is_delayed: isDelayed,
-          mc_status: mcStatus,
+          mc_status: mcStatus === "Stop Mc." ? "Stop Mc." : "Non Stop.",
         };
         await runTransaction(db, async (transaction) => {
-          transaction.update(doc(db, "maintenance_tickets", ticket.id), {
-            status: ticket.status === "Closed" ? "Closed" : "Wait_Verify",
-            close_data: closeData,
-            updated_at: serverTimestamp(),
-          });
+          const oldDocRef = doc(db, "maintenance_tickets", ticket.id);
+          if (cleanId !== ticket.id) {
+            const newDocRef = doc(db, "maintenance_tickets", cleanId);
+            const newDocCheck = await transaction.get(newDocRef);
+            if (newDocCheck.exists()) {
+              throw new Error(`⛔️ เลขที่ใบแจ้งซ่อม "${cleanId}" มีอยู่ในระบบแล้ว ไม่สามารถใช้ซ้ำได้!`);
+            }
+            const oldDoc = await transaction.get(oldDocRef);
+            if (!oldDoc.exists()) {
+              throw new Error("ไม่พบข้อมูลใบแจ้งซ่อมเดิม");
+            }
+            transaction.set(newDocRef, {
+              ...oldDoc.data(),
+              id: cleanId,
+              issue_item: cleanIssue,
+              issue_detail: cleanIssue,
+              status: ticket.status === "Closed" ? "Closed" : "Wait_Verify",
+              close_data: closeData,
+              updated_at: serverTimestamp(),
+            });
+            transaction.delete(oldDocRef);
+          } else {
+            transaction.update(oldDocRef, {
+              issue_item: cleanIssue,
+              issue_detail: cleanIssue,
+              status: ticket.status === "Closed" ? "Closed" : "Wait_Verify",
+              close_data: closeData,
+              updated_at: serverTimestamp(),
+            });
+          }
         });
-        onSuccess();
+        if (cleanId !== ticket.id) {
+          try {
+            const logsQ = query(collection(db, "logs"), where("linked_ticket_id", "==", ticket.id));
+            const logsSnap = await getDocs(logsQ);
+            if (!logsSnap.empty) {
+              const b = writeBatch(db);
+              logsSnap.docs.forEach((d) => b.update(d.ref, { linked_ticket_id: cleanId }));
+              await b.commit();
+            }
+          } catch (err) { }
+        }
+        onSuccess(cleanId);
       } catch (e: any) {
         alert(e.message);
         setSubmitting(false);
       }
     };
-    if (ticket.close_data) {
+    if (ticket.close_data || cleanId !== ticket.id) {
       setPendingAction(() => executeSave);
       setShowGuard(true);
     } else {
@@ -2102,34 +2279,107 @@ function CloseJobModal({
         <div className="p-5 overflow-y-auto custom-scrollbar space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>Ticket ID</label>
-              <input
-                className={`${inputBase} text-yellow-400 font-mono`}
-                value={customId}
-                readOnly
-              />
-            </div>
-            <div>
-              <label className={labelClass}>MC STATUS *</label>
-              <select
-                className={inputBase}
-                value={mcStatus}
-                onChange={(e) => setMcStatus(e.target.value)}
-              >
-                <option value="">- เลือก -</option>
-                <option value="Stop Mc.">Stop Mc.</option>
-                <option value="Non Stop.">Non Stop.</option>
-              </select>
-            </div>
-          </div>
+              <div className="flex gap-2 items-start">
+                {/* ช่อง Ticket ID */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 truncate">
+                      Ticket ID
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isEditingId) {
+                          setCustomId(ticket.id);
+                          setIsEditingId(false);
+                        } else {
+                          setIsEditingId(true);
+                        }
+                      }}
+                      title={isEditingId ? "คืนค่าเดิม" : "แก้ไขเลขใบแจ้งซ่อม"}
+                      className="text-[9px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-0.5 shrink-0"
+                    >
+                      <Pencil size={9} />
+                      {isEditingId ? "คืนค่า" : "แก้ไขเลข"}
+                    </button>
+                  </div>
+                  <input
+                    className={`${inputBase} px-2.5 font-mono text-xs ${
+                      duplicateError
+                        ? "border-red-500 text-red-400"
+                        : isEditingId
+                          ? "border-yellow-500/60 text-yellow-300"
+                          : "text-yellow-400 opacity-80 cursor-not-allowed"
+                    }`}
+                    value={customId}
+                    readOnly={!isEditingId}
+                    onChange={(e) => setCustomId(e.target.value.toUpperCase())}
+                  />
+                </div>
 
-          <div className="grid grid-cols-2 gap-3">
+                {/* ช่อง MC STATUS แบบ Checkbox เดี่ยว (Stop Mc.) ขนาดพอดีกับข้อความ */}
+                <div className="w-auto shrink-0">
+                  <label className={labelClass}>MC STATUS</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMcStatus(
+                        mcStatus === "Stop Mc." ? "Non Stop." : "Stop Mc."
+                      )
+                    }
+                    className={`h-[38px] bg-[#0F172A] border rounded-lg px-2.5 flex items-center justify-center gap-1.5 text-xs font-bold whitespace-nowrap transition-all ${
+                      mcStatus === "Stop Mc."
+                        ? "border-red-500/60 text-red-400 bg-red-500/10"
+                        : "border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600"
+                    }`}
+                    title={
+                      mcStatus === "Stop Mc."
+                        ? "จอดเครื่อง (Stop Mc.)"
+                        : "ไม่จอดเครื่อง (Non Stop.)"
+                    }
+                  >
+                    {mcStatus === "Stop Mc." ? (
+                      <CheckSquare size={14} className="text-red-400 shrink-0" />
+                    ) : (
+                      <Square size={14} className="text-slate-500 shrink-0" />
+                    )}
+                    <span>Stop Mc.</span>
+                  </button>
+                </div>
+              </div>
+              {checkingId && (
+                <p className="text-[10px] text-slate-400 mt-1">กำลังตรวจสอบเลขซ้ำ...</p>
+              )}
+              {!checkingId && duplicateError && (
+                <p className="text-[10px] text-red-400 font-bold mt-1">
+                  ⛔️ {duplicateError}
+                </p>
+              )}
+              {!checkingId && !duplicateError && isEditingId && customId.trim() !== ticket.id && customId.trim() !== "" && (
+                <p className="text-[10px] text-emerald-400 font-bold mt-1">
+                  ✅ สามารถใช้เลขนี้ได้
+                </p>
+              )}
+            </div>
+
             <div>
               <label className={labelClass}>1. สาเหตุ *</label>
               <input
                 className={inputBase}
                 value={cause}
                 onChange={(e) => setCause(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>ปัญหา *</label>
+              <input
+                className={inputBase}
+                placeholder="ระบุปัญหาที่พบ..."
+                value={issueItem}
+                onChange={(e) => setIssueItem(e.target.value)}
               />
             </div>
             <div>
@@ -2338,6 +2588,13 @@ function TicketDetailModal({
   const [displayData, setDisplayData] = useState(ticket);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
+  // --- States สำหรับแก้ไขเลขที่ใบแจ้งซ่อมที่หัวใบงาน ---
+  const [isEditingHeaderId, setIsEditingHeaderId] = useState(false);
+  const [headerCustomId, setHeaderCustomId] = useState(ticket.id);
+  const [headerDuplicateError, setHeaderDuplicateError] = useState("");
+  const [headerCheckingId, setHeaderCheckingId] = useState(false);
+  const [showHeaderIdGuard, setShowHeaderIdGuard] = useState(false);
+
   // --- Permissions ---
   const isSuper = user.username === "Bank" || user.role === "super_admin";
   const actions = user.allowedActions || [];
@@ -2359,6 +2616,9 @@ function TicketDetailModal({
 
   useEffect(() => {
     setDisplayData(ticket);
+    setHeaderCustomId(ticket.id);
+    setIsEditingHeaderId(false);
+    setHeaderDuplicateError("");
     const isForm =
       mode === "approve" ||
       mode === "history" ||
@@ -2368,6 +2628,98 @@ function TicketDetailModal({
       if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
     };
   }, [ticket, mode]);
+
+  // เช็คเลขซ้ำแบบเรียลไทม์เมื่อแก้เลขบนหัวใบงาน
+  useEffect(() => {
+    if (!isEditingHeaderId) return;
+    const cleanId = headerCustomId.trim();
+    if (!cleanId || cleanId === displayData.id) {
+      setHeaderDuplicateError("");
+      setHeaderCheckingId(false);
+      return;
+    }
+    let cancelled = false;
+    setHeaderCheckingId(true);
+    const timer = setTimeout(async () => {
+      try {
+        const snap = await getDoc(doc(db, "maintenance_tickets", cleanId));
+        if (!cancelled) {
+          if (snap.exists()) {
+            setHeaderDuplicateError(`เลขที่ "${cleanId}" มีในระบบแล้ว (ซ้ำ)`);
+          } else {
+            setHeaderDuplicateError("");
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setHeaderDuplicateError("");
+      } finally {
+        if (!cancelled) setHeaderCheckingId(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [headerCustomId, isEditingHeaderId, displayData.id]);
+
+  const handleSaveHeaderIdClick = () => {
+    const cleanId = headerCustomId.trim();
+    if (!cleanId) return alert("กรุณาระบุเลขที่ใบแจ้งซ่อม");
+    if (cleanId === displayData.id) {
+      setIsEditingHeaderId(false);
+      return;
+    }
+    if (headerDuplicateError) {
+      return alert(`⛔️ ไม่สามารถใช้เลขนี้ได้: ${headerDuplicateError}`);
+    }
+    setShowHeaderIdGuard(true);
+  };
+
+  const executeRenameHeaderId = async () => {
+    const cleanId = headerCustomId.trim();
+    if (!cleanId || cleanId === displayData.id) return;
+    setUpdating(true);
+    try {
+      const oldId = displayData.id;
+      await runTransaction(db, async (transaction) => {
+        const newDocRef = doc(db, "maintenance_tickets", cleanId);
+        const oldDocRef = doc(db, "maintenance_tickets", oldId);
+        const newDocCheck = await transaction.get(newDocRef);
+        if (newDocCheck.exists()) {
+          throw new Error(`⛔️ เลขที่ใบแจ้งซ่อม "${cleanId}" มีอยู่ในระบบแล้ว ไม่สามารถใช้ซ้ำได้!`);
+        }
+        const oldDoc = await transaction.get(oldDocRef);
+        if (!oldDoc.exists()) {
+          throw new Error("ไม่พบข้อมูลใบแจ้งซ่อมเดิมในระบบ");
+        }
+        transaction.set(newDocRef, {
+          ...oldDoc.data(),
+          id: cleanId,
+          updated_at: serverTimestamp(),
+        });
+        transaction.delete(oldDocRef);
+      });
+
+      // อัปเดตลิงก์ใน logs ของ Daily Check ถ้ามีผูกไว้
+      try {
+        const logsQ = query(collection(db, "logs"), where("linked_ticket_id", "==", oldId));
+        const logsSnap = await getDocs(logsQ);
+        if (!logsSnap.empty) {
+          const b = writeBatch(db);
+          logsSnap.docs.forEach((d) => b.update(d.ref, { linked_ticket_id: cleanId }));
+          await b.commit();
+        }
+      } catch (err) { }
+
+      setIsEditingHeaderId(false);
+      setShowHeaderIdGuard(false);
+      await refreshDisplayData(cleanId);
+    } catch (e: any) {
+      alert(e.message || e);
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const isT = displayData.id?.includes("TEST");
   const isFormView =
@@ -2462,18 +2814,19 @@ function TicketDetailModal({
     }
   };
 
-  const handleCloseJobSuccess = async () => {
+  const handleCloseJobSuccess = async (newId?: string) => {
     setShowCloseJob(false);
     if (mode === "repair") {
       onClose();
       return;
     }
-    await refreshDisplayData();
+    await refreshDisplayData(newId);
   };
 
-  const refreshDisplayData = async () => {
+  const refreshDisplayData = async (targetId?: string) => {
+    const lookupId = targetId || displayData.id;
     const docSnap = await getDoc(
-      doc(db, "maintenance_tickets", displayData.id)
+      doc(db, "maintenance_tickets", lookupId)
     );
     if (docSnap.exists()) {
       const updatedTicket = {
@@ -2481,6 +2834,7 @@ function TicketDetailModal({
         ...docSnap.data(),
       } as MaintenanceTicket;
       setDisplayData(updatedTicket);
+      setHeaderCustomId(updatedTicket.id);
       refreshPreview(updatedTicket);
     }
   };
@@ -2554,11 +2908,81 @@ function TicketDetailModal({
         className={`bg-[#1E293B] w-full ${isFormView ? "max-w-4xl h-[90vh]" : "max-w-[420px]"
           } rounded-[2rem] shadow-2xl border border-slate-700 flex flex-col overflow-hidden`}
       >
-        <div className="px-4 py-3 flex justify-between items-center bg-[#151C2C] border-b border-slate-700/50 shrink-0 h-12">
-          <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-white tracking-tight">
-              #{displayData.id}
-            </span>
+        <div className="px-4 py-3 flex justify-between items-center bg-[#151C2C] border-b border-slate-700/50 shrink-0 min-h-[48px]">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isEditingHeaderId ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  autoFocus
+                  value={headerCustomId}
+                  onChange={(e) => setHeaderCustomId(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveHeaderIdClick();
+                    if (e.key === "Escape") {
+                      setHeaderCustomId(displayData.id);
+                      setIsEditingHeaderId(false);
+                    }
+                  }}
+                  className={`bg-[#0F172A] text-xs font-mono font-bold px-2.5 py-1 rounded-lg border outline-none w-36 ${
+                    headerDuplicateError
+                      ? "border-red-500 text-red-400"
+                      : "border-yellow-500/60 text-yellow-300 focus:border-blue-500"
+                  }`}
+                />
+                <button
+                  onClick={handleSaveHeaderIdClick}
+                  disabled={updating || headerCheckingId || !!headerDuplicateError}
+                  title="บันทึกเลขใบแจ้งซ่อมใหม่"
+                  className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 transition-colors"
+                >
+                  <Check size={13} />
+                </button>
+                <button
+                  onClick={() => {
+                    setHeaderCustomId(displayData.id);
+                    setIsEditingHeaderId(false);
+                    setHeaderDuplicateError("");
+                  }}
+                  title="ยกเลิก"
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={13} />
+                </button>
+                {headerCheckingId && (
+                  <span className="text-[10px] text-slate-400">กำลังเช็ค...</span>
+                )}
+                {!headerCheckingId && headerDuplicateError && (
+                  <span className="text-[10px] text-red-400 font-bold">
+                    ⛔️ {headerDuplicateError}
+                  </span>
+                )}
+                {!headerCheckingId && !headerDuplicateError && headerCustomId.trim() !== displayData.id && headerCustomId.trim() !== "" && (
+                  <span className="text-[10px] text-emerald-400 font-bold">
+                    ✅ ใช้เลขนี้ได้
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className="text-base font-bold text-white tracking-tight font-mono">
+                  #{displayData.id}
+                </span>
+                {(canEdit || canClose) && (
+                  <button
+                    onClick={() => {
+                      setHeaderCustomId(displayData.id);
+                      setHeaderDuplicateError("");
+                      setIsEditingHeaderId(true);
+                    }}
+                    title="แก้ไขเลขที่ใบแจ้งซ่อม"
+                    className="p-1 rounded-md text-slate-400 hover:text-yellow-400 hover:bg-slate-800 transition-colors"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
+            )}
             <div className="h-4 w-[1px] bg-slate-600 mx-1"></div>
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide opacity-80">
               {displayData.department}
@@ -2780,9 +3204,20 @@ function TicketDetailModal({
           user={user}
           onClose={() => setShowEditModal(false)}
           editData={displayData}
-          onSuccess={async () => {
-            await refreshDisplayData();
+          onSuccess={async (newId?: string) => {
+            await refreshDisplayData(newId);
           }}
+        />
+      )}
+
+      {showHeaderIdGuard && (
+        <ConfirmActionModal
+          isOpen={showHeaderIdGuard}
+          onClose={() => setShowHeaderIdGuard(false)}
+          onConfirm={executeRenameHeaderId}
+          currentUser={user}
+          title="ยืนยันการเปลี่ยนเลขใบแจ้งซ่อม"
+          message={`เปลี่ยนเลขที่ใบแจ้งซ่อมจาก "${displayData.id}" เป็น "${headerCustomId.trim()}"?`}
         />
       )}
 
@@ -2809,10 +3244,14 @@ function CreateTicketModal({
   user: User;
   onClose: () => void;
   editData?: any;
-  onSuccess?: () => void;
+  onSuccess?: (newId?: string) => void;
 }) {
   const [department, setDepartment] = useState("");
   const [customId, setCustomId] = useState("");
+  const [autoGeneratedId, setAutoGeneratedId] = useState("");
+  const [isCustomIdUnlocked, setIsCustomIdUnlocked] = useState(!!editData);
+  const [duplicateError, setDuplicateError] = useState("");
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
 
   const [jobType, setJobType] = useState("");
   const [jobNote, setJobNote] = useState("");
@@ -2871,14 +3310,16 @@ function CreateTicketModal({
     };
     fetchMasterData();
 
-    // ✅ Realtime Listener: Machines (จาก Daily Check)
+    // ✅ Realtime Listener: Machines (ดึงเฉพาะจากโหมด Daily Check ไม่รวม Dew Point)
     const unsubMachines = onSnapshot(
       collection(db, "machines"),
       async (snap) => {
-        const machinesList = snap.docs.map((d) => ({
-          name: d.data().name,
-          type: "Machine", // แยกประเภทไว้
-        }));
+        const machinesList = snap.docs
+          .filter((d) => (d.data().systemMode || "DAILY") === "DAILY")
+          .map((d) => ({
+            name: d.data().name,
+            type: "Machine", // แยกประเภทไว้
+          }));
 
         // ✅ Fetch Assets (จาก Maintenance Settings)
         const assetsSnap = await getDoc(
@@ -3059,6 +3500,72 @@ function CreateTicketModal({
     return `${prefix}${nextSeq}`;
   };
 
+  // รันเลขที่ใบแจ้งซ่อมอัตโนมัติเมื่อเลือกแผนก (กรณีสร้างใบงานใหม่)
+  useEffect(() => {
+    if (editData) return;
+    if (!department) {
+      setAutoGeneratedId("");
+      if (!isCustomIdUnlocked) setCustomId("");
+      return;
+    }
+    let cancelled = false;
+    generateTicketId(department).then((genId) => {
+      if (!cancelled) {
+        setAutoGeneratedId(genId);
+        if (!isCustomIdUnlocked) {
+          setCustomId(genId);
+        }
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [department, deptOptions, editData, isCustomIdUnlocked]);
+
+  // เช็คเลขซ้ำในระบบแบบเรียลไทม์เมื่อผู้ใช้แก้ไขเลขที่ใบแจ้งซ่อม
+  useEffect(() => {
+    const cleanId = customId.trim();
+    if (!cleanId) {
+      setDuplicateError("");
+      setCheckingDuplicate(false);
+      return;
+    }
+    if (editData && cleanId === editData.id) {
+      setDuplicateError("");
+      setCheckingDuplicate(false);
+      return;
+    }
+    if (!editData && !isCustomIdUnlocked) {
+      setDuplicateError("");
+      setCheckingDuplicate(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingDuplicate(true);
+    const timer = setTimeout(async () => {
+      try {
+        const snap = await getDoc(doc(db, "maintenance_tickets", cleanId));
+        if (!cancelled) {
+          if (snap.exists()) {
+            setDuplicateError(`เลขที่ "${cleanId}" มีในระบบแล้ว (ซ้ำ)`);
+          } else {
+            setDuplicateError("");
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setDuplicateError("");
+      } finally {
+        if (!cancelled) setCheckingDuplicate(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [customId, editData, isCustomIdUnlocked]);
+
   const currentJobObj = jobOptions.find((o) => o.name === jobType);
   const showJobInput = currentJobObj?.require_note || false;
   const currentAreaList = factory === "SAL01" ? sal01Options : sal02Options;
@@ -3069,11 +3576,15 @@ function CreateTicketModal({
   // MaintenanceApp.tsx -> CreateTicketModal -> handleSubmit
   // ==========================================
   const handleSubmit = async () => {
+    const cleanCustomId = customId.trim();
     if (!department || !jobType || !machineName || !issueItem || !area)
       return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
     if (showJobInput && !jobNote) return alert("กรุณาระบุรายละเอียดประเภทงาน");
     if (showAreaInput && !areaNote) return alert("กรุณาระบุรายละเอียดพื้นที่");
-    if (editData && !customId) return alert("กรุณาระบุเลขที่ใบงาน");
+    if ((editData || isCustomIdUnlocked) && !cleanCustomId)
+      return alert("กรุณาระบุเลขที่ใบแจ้งซ่อม");
+    if (duplicateError)
+      return alert(`⛔️ ไม่สามารถบันทึกได้: ${duplicateError}`);
 
     // ค้นหา Asset ID จากเครื่องที่เลือก
     const selectedMachineObj = machineOptions.find(
@@ -3099,32 +3610,45 @@ function CreateTicketModal({
             area: finalArea,
             updated_at: serverTimestamp(),
           };
-          if (customId !== editData.id) {
+          if (cleanCustomId !== editData.id) {
             await runTransaction(db, async (transaction) => {
-              const newDocRef = doc(db, "maintenance_tickets", customId);
+              const newDocRef = doc(db, "maintenance_tickets", cleanCustomId);
               const oldDocRef = doc(db, "maintenance_tickets", editData.id);
               const newDocCheck = await transaction.get(newDocRef);
               if (newDocCheck.exists())
-                throw new Error(`เลขที่ใบงาน ${customId} มีอยู่แล้ว!`);
+                throw new Error(`⛔️ เลขที่ใบแจ้งซ่อม "${cleanCustomId}" มีอยู่ในระบบแล้ว ไม่สามารถใช้ซ้ำได้!`);
               const oldDoc = await transaction.get(oldDocRef);
               transaction.set(newDocRef, {
                 ...oldDoc.data(),
                 ...updates,
-                id: customId,
+                id: cleanCustomId,
               });
               transaction.delete(oldDocRef);
             });
+            try {
+              const logsQ = query(collection(db, "logs"), where("linked_ticket_id", "==", editData.id));
+              const logsSnap = await getDocs(logsQ);
+              if (!logsSnap.empty) {
+                const b = writeBatch(db);
+                logsSnap.docs.forEach((d) => b.update(d.ref, { linked_ticket_id: cleanCustomId }));
+                await b.commit();
+              }
+            } catch (err) { }
           } else {
             await updateDoc(
               doc(db, "maintenance_tickets", editData.id),
               updates
             );
           }
-          if (onSuccess) onSuccess();
+          if (onSuccess) onSuccess(cleanCustomId);
         } else {
-          const newId = await generateTicketId(department);
+          const targetId =
+            isCustomIdUnlocked && cleanCustomId
+              ? cleanCustomId
+              : await generateTicketId(department);
+
           const newTicketData = {
-            id: newId,
+            id: targetId,
             asset_id: finalAssetID, // บันทึก ID ลงไปด้วย (แอบเก็บไว้)
             machine_name: machineName,
             job_type: finalJobType,
@@ -3141,7 +3665,17 @@ function CreateTicketModal({
             created_at: serverTimestamp(),
             updated_at: serverTimestamp(),
           };
-          await setDoc(doc(db, "maintenance_tickets", newId), newTicketData);
+
+          await runTransaction(db, async (transaction) => {
+            const targetRef = doc(db, "maintenance_tickets", targetId);
+            const existingDoc = await transaction.get(targetRef);
+            if (existingDoc.exists()) {
+              throw new Error(
+                `⛔️ เลขที่ใบแจ้งซ่อม "${targetId}" มีอยู่ในระบบแล้ว ไม่สามารถใช้ซ้ำได้!`
+              );
+            }
+            transaction.set(targetRef, newTicketData);
+          });
 
           // Telegram Notification (เหมือนเดิม)
           try {
@@ -3162,8 +3696,8 @@ function CreateTicketModal({
           } catch (err) { }
         }
         onClose();
-      } catch (e) {
-        alert("Error: " + e);
+      } catch (e: any) {
+        alert(e.message || "Error: " + e);
       } finally {
         setCreating(false);
       }
@@ -3198,18 +3732,66 @@ function CreateTicketModal({
           </button>
         </div>
         <div className="p-5 space-y-4 overflow-visible">
-          {editData && (
-            <div>
-              <label className={`${labelClass} text-yellow-500`}>
-                Ticket ID
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] uppercase font-bold text-yellow-500 tracking-wide">
+                Ticket ID {!editData && !isCustomIdUnlocked && "(รันเลขอัตโนมัติ)"}
               </label>
-              <input
-                className={`${inputClass} border-yellow-500/30 text-yellow-400 font-mono`}
-                value={customId}
-                onChange={(e) => setCustomId(e.target.value.trim())}
-              />
+              {!editData && department && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isCustomIdUnlocked) {
+                      setIsCustomIdUnlocked(false);
+                      setCustomId(autoGeneratedId);
+                      setDuplicateError("");
+                    } else {
+                      setIsCustomIdUnlocked(true);
+                    }
+                  }}
+                  className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                >
+                  <Pencil size={11} />
+                  {isCustomIdUnlocked ? "ใช้เลขรันอัตโนมัติ" : "แก้ไขเลขใบแจ้งซ่อม"}
+                </button>
+              )}
             </div>
-          )}
+            <input
+              className={`${inputClass} font-mono ${
+                duplicateError
+                  ? "border-red-500 text-red-400"
+                  : editData || isCustomIdUnlocked
+                    ? "border-yellow-500/50 text-yellow-300"
+                    : "border-slate-700/50 text-yellow-400/80 opacity-80 cursor-not-allowed"
+              }`}
+              value={customId}
+              readOnly={!editData && !isCustomIdUnlocked}
+              placeholder={
+                department
+                  ? "กำลังรันเลข..."
+                  : "เลือกแผนกเพื่อรันเลขที่ใบแจ้งซ่อมอัตโนมัติ..."
+              }
+              onChange={(e) => setCustomId(e.target.value.toUpperCase())}
+            />
+            {checkingDuplicate && (
+              <p className="text-[10px] text-slate-400 mt-1">
+                กำลังตรวจสอบเลขที่ใบแจ้งซ่อมในระบบ...
+              </p>
+            )}
+            {!checkingDuplicate && duplicateError && (
+              <p className="text-[10px] text-red-400 font-bold mt-1">
+                ⛔️ {duplicateError}
+              </p>
+            )}
+            {!checkingDuplicate &&
+              !duplicateError &&
+              ((editData && customId.trim() !== editData.id && customId.trim() !== "") ||
+                (!editData && isCustomIdUnlocked && customId.trim() !== "")) && (
+                <p className="text-[10px] text-emerald-400 font-bold mt-1">
+                  ✅ สามารถใช้เลขที่ใบแจ้งซ่อมนี้ได้ (ไม่มีซ้ำในระบบ)
+                </p>
+              )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Department</label>

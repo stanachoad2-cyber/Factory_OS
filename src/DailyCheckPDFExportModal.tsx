@@ -801,7 +801,9 @@ export function DailyCheckPDFExportModal({
 
     const renderShiftCells = (shiftCode: "D" | "N", log?: LogEntry) => {
       const shiftLabel = shiftCode === "D" ? "DS" : "NS";
-      const timeStr = log && log.result !== "NA" ? formatTime(log.timestamp) : "";
+      const isHoliday = log?.result === "HOLIDAY" || log?.result === "H";
+      const timeStr =
+        log && log.result !== "NA" && !isHoliday ? formatTime(log.timestamp) : "";
       const [hh, mm] =
         timeStr && timeStr.includes(":") ? timeStr.split(":") : ["", ""];
 
@@ -828,11 +830,11 @@ export function DailyCheckPDFExportModal({
                 minWidth: "20px",
                 borderBottom: "1px solid #000000",
                 textAlign: "center",
-                fontWeight: hh ? "bold" : "normal",
+                fontWeight: hh || isHoliday ? "bold" : "normal",
                 lineHeight: "1.05",
               }}
             >
-              {hh || "\u00A0"}
+              {isHoliday ? "H" : hh || "\u00A0"}
             </span>
             <span>:</span>
             <span
@@ -841,11 +843,11 @@ export function DailyCheckPDFExportModal({
                 minWidth: "20px",
                 borderBottom: "1px solid #000000",
                 textAlign: "center",
-                fontWeight: mm ? "bold" : "normal",
+                fontWeight: mm || isHoliday ? "bold" : "normal",
                 lineHeight: "1.05",
               }}
             >
-              {mm || "\u00A0"}
+              {isHoliday ? "H" : mm || "\u00A0"}
             </span>
           </td>
 
@@ -860,7 +862,7 @@ export function DailyCheckPDFExportModal({
               fontWeight: "bold",
             }}
           >
-            {log ? (isNotRun ? "-" : log.set_point || "") : ""}
+            {log ? (isHoliday ? "H" : isNotRun ? "-" : log.set_point || "") : ""}
           </td>
 
           {/* คอลัมน์ 4: Actual */}
@@ -874,7 +876,7 @@ export function DailyCheckPDFExportModal({
               fontWeight: "bold",
             }}
           >
-            {log ? (isNotRun ? "-" : log.actual || "") : ""}
+            {log ? (isHoliday ? "H" : isNotRun ? "-" : log.actual || "") : ""}
           </td>
 
           {/* คอลัมน์ 5: Dew Point (°F) */}
@@ -888,7 +890,7 @@ export function DailyCheckPDFExportModal({
               fontWeight: "bold",
             }}
           >
-            {log ? (isNotRun ? "-" : log.dew_point_val || "") : ""}
+            {log ? (isHoliday ? "H" : isNotRun ? "-" : log.dew_point_val || "") : ""}
           </td>
 
           {/* คอลัมน์ 6: Machine status */}
@@ -937,6 +939,8 @@ export function DailyCheckPDFExportModal({
               padding: "1px 4px",
               verticalAlign: "middle",
               fontSize: "8px",
+              textAlign: isHoliday || isNotRun ? "center" : "left",
+              fontWeight: isHoliday ? "bold" : "normal",
               color: isAbnormal ? "#dc2626" : "#000000",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -944,7 +948,7 @@ export function DailyCheckPDFExportModal({
             }}
             title={log?.problem_detail || ""}
           >
-            {log ? (isNotRun ? "-" : log.problem_detail || "") : ""}
+            {log ? (isHoliday ? "H" : isNotRun ? "-" : log.problem_detail || "") : ""}
           </td>
         </>
       );
